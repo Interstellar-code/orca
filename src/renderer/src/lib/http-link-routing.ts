@@ -17,6 +17,10 @@ import { toast } from 'sonner'
 import type { ExecutionHostId } from '../../../shared/execution-host'
 import { reselectWorkspaceKeepingHost } from './active-workspace-host'
 import {
+  captureBrowserLinkReveal,
+  type BrowserLinkSelectionSubscriber
+} from './browser-link-reveal'
+import {
   focusHttpLinkPage,
   isHttpLinkBackgroundOpen,
   openLocalHttpLinkTab,
@@ -106,10 +110,15 @@ type WorkspaceHttpLinkBrowserOpener = (
 // the break, several renderer test files that load this module first see
 // `createEditorSlice` as undefined at store/index.ts initialization.
 let storeAccessor: StoreAccessor | null = null
+let storeSubscriber: BrowserLinkSelectionSubscriber | undefined
 let workspaceHttpLinkBrowserOpener: WorkspaceHttpLinkBrowserOpener | null = null
 
-export function registerHttpLinkStoreAccessor(fn: StoreAccessor): void {
+export function registerHttpLinkStoreAccessor(
+  fn: StoreAccessor,
+  subscribe?: BrowserLinkSelectionSubscriber
+): void {
   storeAccessor = fn
+  storeSubscriber = subscribe
 }
 
 export function registerWorkspaceHttpLinkBrowserOpener(
@@ -186,6 +195,14 @@ function resolveModifierRouting(
   return { wantsOrca: !openLinksInApp, wantsSystemBrowser: openLinksInApp }
 }
 
+function reportHttpLinkBrowserOpenFailure(error: unknown): void {
+  toast.error(
+    error instanceof Error
+      ? error.message
+      : translate('auto.lib.workspace.browser.tab.open.urlFailed', 'Unable to open URL.')
+  )
+}
+
 export function openHttpLink(url: string, opts: OpenHttpLinkOptions = {}): void {
   if (opts.linkContext?.isCurrentRequest?.() === false) {
     return
@@ -240,28 +257,22 @@ export function openHttpLink(url: string, opts: OpenHttpLinkOptions = {}): void 
           : effectiveSourceOwner?.kind === 'ssh'
             ? { expectedSshConnectionId: effectiveSourceOwner.connectionId }
             : {})
-      }).then(
-        (pageId) => {
-          if (!opts.linkContext && fields.focusOnCreate !== false) {
-            focusHttpLinkPage(pageId ?? null)
-          }
-        },
-        (error) => {
-          toast.error(
-            error instanceof Error
-              ? error.message
-              : translate('auto.lib.workspace.browser.tab.open.urlFailed', 'Unable to open URL.')
-          )
+      }).then((pageId) => {
+        if (!opts.linkContext && fields.focusOnCreate !== false) {
+          focusHttpLinkPage(pageId ?? null)
         }
-      )
+      }, reportHttpLinkBrowserOpenFailure)
     }
     return
   }
 
   if (wantsOrca && sourceIsLocal && worktreeId && state) {
     const placement = resolveHttpLinkBrowserPlacement(state, worktreeId)
+    const getState = () => storeAccessor?.() ?? state
+    const reveal = captureBrowserLinkReveal(getState, storeSubscriber, opts.linkContext?.canReveal)
     const openLocal = (chosenUrl: string): void => {
       if (opts.linkContext?.isCurrentRequest?.() === false) {
+        reveal.dispose()
         return
       }
       if (opts.linkContext && workspaceHttpLinkBrowserOpener) {
@@ -269,32 +280,28 @@ export function openHttpLink(url: string, opts: OpenHttpLinkOptions = {}): void 
           workspaceId: worktreeId,
           url: chosenUrl,
           intent: { kind: 'url' },
-          linkContext: opts.linkContext,
+          linkContext: { ...opts.linkContext, canReveal: reveal.canReveal },
           ...(isHttpLinkBackgroundOpen(state)
             ? { focusOnCreate: false, selectWorktree: false }
             : {})
-        }).catch((error) => {
-          toast.error(
-            error instanceof Error
-              ? error.message
-              : translate('auto.lib.workspace.browser.tab.open.urlFailed', 'Unable to open URL.')
-          )
         })
+          .catch(reportHttpLinkBrowserOpenFailure)
+          .finally(reveal.dispose)
         return
       }
-      if (!isHttpLinkBackgroundOpen(state) && !isFloatingWorkspaceId(worktreeId)) {
+      const activate = !isHttpLinkBackgroundOpen(state) && reveal.canReveal()
+      reveal.dispose()
+      if (activate && !isFloatingWorkspaceId(worktreeId)) {
         reselectWorkspaceKeepingHost(state, worktreeId)
       }
-      openLocalHttpLinkTab(storeAccessor?.() ?? state, worktreeId, chosenUrl, placement)
+      openLocalHttpLinkTab(getState(), worktreeId, chosenUrl, placement, activate)
     }
     const localhostRoute = localhostLabelRouteForHttpLink(url, state, sourceOwner)
     if (!localhostRoute) {
       openLocal(url)
       return
     }
-    void openLabeledLocalhostLink(url, localhostRoute, (labeledUrl) => {
-      openLocal(labeledUrl)
-    })
+    void openLabeledLocalhostLink(url, localhostRoute, openLocal)
     return
   }
 

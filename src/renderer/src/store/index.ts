@@ -151,7 +151,7 @@ export const useAppStore = create<AppState>()(
   )
 )
 
-registerHttpLinkStoreAccessor(() => useAppStore.getState())
+registerHttpLinkStoreAccessor(() => useAppStore.getState(), useAppStore.subscribe)
 registerHttpLinkGroupActionAvailability((request) =>
   canOfferHttpLinkGroupAction(useAppStore.getState(), request)
 )
