@@ -5,117 +5,27 @@ on:
 permissions:
   contents: read
 jobs:
-  boundary:
+  heap:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+        shard: [1, 2]
     runs-on: windows-2022
-    timeout-minutes: 60
+    timeout-minutes: 30
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
         with:
           persist-credentials: false
-
-      - name: Cache electron-builder downloads
-        uses: actions/cache/restore@v5
-        with:
-          path: |
-            ~\AppData\Local\electron\Cache
-            ~\AppData\Local\electron-builder\Cache
-          # Release builds seed this exact path set; PR-local copies cannot serve other PRs.
-          key: electron-builder-win-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            electron-builder-win-
-
-      # Why persist-native-cache false: this job later rebuilds the same path for
-      # Electron. A post-job save would store the Electron ABI under the Node key.
       - uses: ./.github/actions/install-node-dependencies
-        id: deps
         with:
           native-runtime: node
           persist-native-cache: 'false'
-          cache-dependency-path: |
-            pnpm-lock.yaml
-            mobile/pnpm-lock.yaml
-
-      # Why here: electron-builder's beforePack requires out/mobile-web, and the bundle
-      # build resolves React Native and Expo from mobile/node_modules.
-      - uses: ./.github/actions/install-mobile-dependencies
-
-      - name: Save compiled Node native modules
-        if: steps.deps.outputs.native-cache-hit != 'true'
-        uses: actions/cache/save@v5
-        with:
-          path: ${{ steps.deps.outputs.native-cache-path }}
-          key: ${{ steps.deps.outputs.native-cache-key }}
-
-      - name: Cache Windows CLI launcher
-        uses: actions/cache@v5
-        with:
-          # Why the cargo directories ride along: a hit on .build skips the build
-          # entirely, but a miss otherwise recompiles the resource crate from a
-          # cold registry.
-          path: |
-            native/windows-cli-launcher/.build
-            native/windows-cli-launcher/target
-            native/windows-agent-hook/.build
-            native/windows-agent-hook/target
-            ~/.cargo/registry
-          key: windows-cli-launcher-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('native/windows-cli-launcher/**', 'native/windows-agent-hook/**', 'config/scripts/build-windows-cli-launcher.mjs', 'config/scripts/build-windows-agent-hook.mjs', 'config/scripts/windows-rust-executable-build.mjs', 'resources/build/icon.ico', 'package.json') }}
-
-      # Why an explicit step rather than trusting the runner image: the packaged
-      # CLI launcher is a native Rust binary, and a host without cargo fails deep
-      # inside electron-builder's native hook instead of here.
-      - name: Ensure the Rust toolchain for the Windows CLI launcher
+      - name: Session facts
         shell: pwsh
         run: |
-          if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
-            rustup toolchain install stable --profile minimal
-            rustup default stable
-          }
-          cargo --version
-
-      # Why before the tests: the orca-agent-hook.exe suites then share one prebuilt binary rather
-      # than each starting its own build mid-run.
-      - name: Build the Windows agent hook
-        run: node config/scripts/build-windows-agent-hook.mjs
-
-      - name: Build the Windows CLI launcher
-        run: node config/scripts/build-windows-cli-launcher.mjs
-
-
-      - name: Test Windows-specific boundaries repeatedly
+          Write-Output "SESSION $([System.Diagnostics.Process]::GetCurrentProcess().SessionId) INTERACTIVE $([Environment]::UserInteractive)"
+          Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\SubSystems' -Name Windows | Select-Object -ExpandProperty Windows
+      - name: Probe ConPTY under desktop heap exhaustion
         env:
           ORCA_BACKGROUND_LAUNCH: '1'
-          ORCA_REAL_WINDOWS_SKILL_TEST: '1'
-        run: |
-          $files = node config/scripts/pr-package-test-paths.mjs
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $etl = Join-Path $env:RUNNER_TEMP 'conpty.etl'
-          logman start conpty -p '{fe1ff234-1f09-50a8-d38d-c44fab43e818}' 0xffffffffffffffff 0xff -o $etl -ets -mode Circular -max 1024 -bs 1024 -nb 64 256
-          Write-Output "LOGMAN_START $LASTEXITCODE"
-          $fails = 0
-          foreach ($i in 1..4) {
-            Write-Output "BOUNDARY_ITERATION $i"
-            node node_modules/vitest/vitest.mjs run --config config/vitest.config.ts @files
-            if ($LASTEXITCODE -ne 0) { $fails++ ; Write-Output "BOUNDARY_ITERATION_FAILED $i"; break }
-          }
-          Write-Output "BOUNDARY_SUMMARY fails=$fails"
-          logman stop conpty -ets
-          if ($fails -gt 0) {
-            tracerpt $etl -o (Join-Path $env:RUNNER_TEMP 'conpty.xml') -of XML -y | Out-Null
-            Write-Output "TRACERPT $LASTEXITCODE"
-            New-Item -ItemType Directory -Force (Join-Path $env:RUNNER_TEMP 'probe-artifact') | Out-Null
-            Copy-Item $etl,(Join-Path $env:RUNNER_TEMP 'conpty.xml') (Join-Path $env:RUNNER_TEMP 'probe-artifact') -ErrorAction SilentlyContinue
-          }
-          exit 0
-      - name: Upload ETW trace on failure
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: conpty-etw-${{ matrix.shard }}
-          path: ${{ runner.temp }}/probe-artifact
-          if-no-files-found: ignore
-          retention-days: 3
+        run: node config/scripts/conpty-heap-probe.cjs
