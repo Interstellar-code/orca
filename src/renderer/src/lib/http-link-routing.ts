@@ -5,6 +5,8 @@ import {
   type LocalhostLinkProject,
   type LocalhostLinkWorktree
 } from './http-link-localhost-route'
+import type { WorkspacePortScanResult } from '../../../shared/workspace-ports'
+
 import type { BrowserLinkOpenContext } from './browser-link-destination'
 import type { LinkOpenIntent, LinkSourceState } from './link-open-intent'
 import { captureLinkOpenIntent, canOpenLinkInSourceGroup } from './link-open-intent'
@@ -12,7 +14,6 @@ import type { AppState } from '@/store/types'
 import { translate } from '@/i18n/i18n'
 import { isFloatingWorkspaceId } from '../../../shared/floating-workspace-worktree'
 import type { GlobalSettings } from '../../../shared/global-settings-types'
-import type { WorkspacePortScanResult } from '../../../shared/workspace-ports'
 import { toast } from 'sonner'
 import type { ExecutionHostId } from '../../../shared/execution-host'
 import { reselectWorkspaceKeepingHost } from './active-workspace-host'
@@ -132,12 +133,7 @@ export function captureHttpLinkIntent(
 ): LinkOpenIntent | null {
   const state = storeAccessor?.()
   return state
-    ? captureLinkOpenIntent(
-        { unifiedTabsByWorktree: state.unifiedTabsByWorktree ?? {} },
-        workspaceId,
-        sourceTabId,
-        { explicitSourceGroup }
-      )
+    ? captureLinkOpenIntent(state, workspaceId, sourceTabId, { explicitSourceGroup })
     : null
 }
 
@@ -154,17 +150,7 @@ export function canHttpLinkOpenInSourceGroup(
   ) {
     return false
   }
-  return state
-    ? canOpenLinkInSourceGroup(
-        {
-          unifiedTabsByWorktree: state.unifiedTabsByWorktree ?? {},
-          groupsByWorktree: state.groupsByWorktree ?? {},
-          layoutByWorktree: state.layoutByWorktree ?? {}
-        },
-        workspaceId,
-        sourceTabId
-      )
-    : false
+  return state ? canOpenLinkInSourceGroup(state, workspaceId, sourceTabId) : false
 }
 
 // Scope: http(s) URLs only. file: URIs and in-worktree markdown targets are
