@@ -77,6 +77,9 @@ function getSourceIdentityLabel(sourceContext: TaskSourceContext): string | null
         return identity.workspaceName ?? identity.workspaceId ?? null
       case 'jira':
         return identity.siteUrl ?? identity.siteId ?? null
+      case 'dart':
+        // Dart's userId is opaque; the account label is the readable identity.
+        break
     }
   }
   return sourceContext.accountLabel ?? sourceContext.repoId ?? null
