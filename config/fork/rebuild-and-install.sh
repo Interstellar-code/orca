@@ -124,9 +124,13 @@ else
 fi
 
 log 'installing dependencies (frozen lockfile)'
-# electron-builder packages x64 and arm64 slices, so the frozen install must carry both native variants (as `install:release` does).
-pnpm install --frozen-lockfile --cpu=current,x64,arm64 ||
-  fail 'pnpm install --frozen-lockfile --cpu=current,x64,arm64 failed'
+# macOS packaging needs both slices' native variants (as `install:release` does); the server builds one Linux arch.
+if [[ $MODE == mac ]]; then
+  pnpm install --frozen-lockfile --cpu=current,x64,arm64 ||
+    fail 'pnpm install --frozen-lockfile --cpu=current,x64,arm64 failed'
+else
+  pnpm install --frozen-lockfile --cpu=current || fail 'pnpm install --frozen-lockfile failed'
+fi
 # The desktop build bundles the mobile web app from mobile/, which has its own lockfile.
 pnpm -C mobile install --frozen-lockfile || fail 'pnpm -C mobile install --frozen-lockfile failed'
 
