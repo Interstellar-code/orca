@@ -78,6 +78,9 @@ exec > >(tee -a "$LOG_FILE") 2>&1
 
 log "orca fork rebuild: mode=$MODE dry_run=$DRY_RUN push=$PUSH clone=$CLONE log=$LOG_FILE"
 
+# electron-builder treats CI as publish-on-build and demands every slice boot here; this job is a local build.
+unset CI GITHUB_ACTIONS GITHUB_SHA
+
 [[ -d "$CLONE/.git" || -f "$CLONE/.git" ]] ||
   fail "no git clone at $CLONE (create one with: git clone git@github.com:Interstellar-code/orca.git $CLONE)"
 cd "$CLONE"
