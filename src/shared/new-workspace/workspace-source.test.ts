@@ -162,4 +162,13 @@ describe('Dart workspace source', () => {
     })
     expect(shouldPreserveWorkspaceSourceOnRepoChange(withoutProvider)).toBe(true)
   })
+
+  it('rebuilds an off-host htmlUrl from the task id instead of storing it', () => {
+    const source = buildDartWorkspaceSource({
+      id: 'aBcD3fGh1jKl',
+      title: 'Ship Dart',
+      htmlUrl: 'https://evil.example/t/aBcD3fGh1jKl'
+    })
+    expect(source.url).toBe('https://app.dartai.com/t/aBcD3fGh1jKl')
+  })
 })

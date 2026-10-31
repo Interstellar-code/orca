@@ -9227,7 +9227,9 @@
           "integrationsHint": "Credentials for all providers also live under",
           "integrationsLink": "Integrations",
           "skillHint": ". After Linear is connected, usage examples stay under Settings → Linear.",
-          "incompleteBannerBodyWithLinear": "Hide providers you do not use, or expand a card and finish its steps. For Linear: API access, the agent skill, and Show in Tasks."
+          "incompleteBannerBodyWithLinear": "Hide providers you do not use, or expand a card and finish its steps. For Linear: API access, the agent skill, and Show in Tasks.",
+          "dartLabel": "Dart",
+          "dartDescription": "Connect Dart and show its tasks in Tasks."
         },
         "TerminalAppearanceSection": {
           "a14a427ae4": "Thickness of the pane divider line.",
@@ -22827,6 +22829,19 @@
         "incompleteProjectPage": "Jira returned an incomplete project page.",
         "projectListLimit": "Jira project list exceeded the page limit. Select a project with JQL instead.",
         "invalidCloudId": "The site did not report a valid Atlassian cloud ID."
+      },
+      "dart": {
+        "notConnected": "Not connected to Dart.",
+        "connectFailed": "Could not connect to Dart.",
+        "unauthorized": "Dart rejected the API token.",
+        "loadFailed": "Failed to load Dart tasks.",
+        "taskNotFound": "Dart task not found.",
+        "createFailed": "Failed to create Dart task.",
+        "updateFailed": "Failed to update Dart task.",
+        "commentFailed": "Failed to add Dart comment.",
+        "badRequest": "Dart rejected the request.",
+        "rateLimited": "Dart is rate limiting requests. Try again shortly.",
+        "invalidTaskUrl": "Enter a valid Dart task URL."
       }
     }
   },

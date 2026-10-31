@@ -1,6 +1,6 @@
 import { getLinearOrganizationUrlKeyFromIssueUrl } from '../linear/links'
 import type { FolderWorkspaceLinkedTask } from '../folder-workspace-types'
-import { parseDartTaskUrl } from '../dart/dart-issue-url'
+import { buildDartTaskUrl, isTrustedDartHtmlUrl, parseDartTaskUrl } from '../dart/dart-issue-url'
 import type { DartTask } from '../dart/dart-types'
 import type { JiraIssue } from '../jira/jira-types'
 import type { LinearIssue } from '../linear/issue-types'
@@ -176,7 +176,8 @@ export function buildDartWorkspaceSource(
     type: 'issue',
     number: 0,
     title: task.title,
-    url: task.htmlUrl,
+    // API replies are untrusted: an off-host link is rebuilt from the task id.
+    url: isTrustedDartHtmlUrl(task.htmlUrl) ? task.htmlUrl : buildDartTaskUrl(task.id),
     dartIdentifier: task.id
   }
 }

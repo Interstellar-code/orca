@@ -55,14 +55,15 @@ export function isAttachmentInputKind(value: string): value is AttachmentInputKi
 }
 
 export function workspaceAttachmentProviderLabel(item: WorkspaceAttachment): string {
-  const labels = {
+  const labels: Record<WorkspaceAttachment['provider'], string> = {
     github: 'GitHub',
     gitlab: 'GitLab',
     linear: 'Linear',
     jira: 'Jira',
     bitbucket: 'Bitbucket',
     'azure-devops': 'Azure DevOps',
-    gitea: 'Gitea'
+    gitea: 'Gitea',
+    dart: 'Dart'
   }
   return labels[item.provider]
 }
