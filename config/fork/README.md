@@ -110,6 +110,21 @@ Pushing the merged `main` happens only after the build succeeds. That is the one
 approval this job needs; if you would rather push by hand, run with `--no-push` and push
 yourself.
 
+### What has been run for real
+
+Drilled in a scratch clone whose `origin`/`upstream` were local repos, so nothing could reach
+GitHub, with `/Applications/Orca.app` left untouched (mtime unchanged):
+
+| Drill                          | Result                                                                                                     |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| No new upstream commits        | merge "Already up to date", gates, `pnpm build:mac`, notified `1.4.214-local.<ts>.<commit>`, exit 0        |
+| New upstream commit            | merged `4ff97d18bfb3 -> 18509357c84f`, gates, build stamped with the merge commit, notified, exit 0        |
+| Merge conflict                 | `git merge --abort`, `FAIL: merge conflict`, notified, exit 1, no `MERGE_HEAD` left, nothing built         |
+| Failing Dart test              | stopped at `gate: pnpm test src/main/dart` with `FAIL: Dart tests failed`, notified, exit 1, nothing built |
+| `ORCA_FORK_FORCE_FAILURE=gate` | `FAIL: forced gate failure`, notified, exit 1                                                              |
+
+Server mode is the exception: it has never been run (see below).
+
 ## Logs
 
 `~/Library/Logs/orca-fork-rebuild.log`. The launchd job writes the same path through
@@ -126,6 +141,9 @@ rm -rf /Applications/Orca.app
 mv /Applications/Orca.previous.app /Applications/Orca.app
 open /Applications/Orca.app
 ```
+
+`Orca.previous.app` always sits beside whatever `ORCA_FORK_APP_PATH` points at, so if you
+installed somewhere other than `/Applications`, adjust both paths the same way.
 
 If nothing was installed yet, there is nothing to roll back.
 

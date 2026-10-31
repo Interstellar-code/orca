@@ -5,6 +5,7 @@ set -euo pipefail
 
 CLONE=${ORCA_FORK_CLONE:-$HOME/.orca-fork-build/orca}
 TARGET=${ORCA_FORK_APP_PATH:-/Applications/Orca.app}
+PREVIOUS="$(dirname "$TARGET")/Orca.previous.app"
 
 app=$(find "$CLONE/dist" -maxdepth 2 -name 'Orca.app' -print -quit)
 [[ -n $app && -d $app ]] || {
@@ -23,9 +24,9 @@ fi
 
 version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")
 echo "Installing $version from $app"
-rm -rf /Applications/Orca.previous.app
-mv "$TARGET" /Applications/Orca.previous.app
+rm -rf "$PREVIOUS"
+mv "$TARGET" "$PREVIOUS"
 cp -R "$app" "$TARGET"
 echo "Installed. Roll back by quitting Orca and running:"
-echo "  rm -rf /Applications/Orca.app && mv /Applications/Orca.previous.app /Applications/Orca.app"
+echo "  rm -rf \"$TARGET\" && mv \"$PREVIOUS\" \"$TARGET\""
 open "$TARGET"
