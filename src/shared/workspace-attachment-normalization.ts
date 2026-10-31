@@ -23,6 +23,7 @@ export function normalizeWorkspaceAttachment(value: unknown): WorkspaceAttachmen
     provider !== 'gitlab' &&
     provider !== 'linear' &&
     provider !== 'jira' &&
+    provider !== 'dart' &&
     provider !== 'bitbucket' &&
     provider !== 'azure-devops' &&
     provider !== 'gitea'
@@ -33,7 +34,7 @@ export function normalizeWorkspaceAttachment(value: unknown): WorkspaceAttachmen
   if (type !== 'issue' && type !== 'pr' && type !== 'mr') {
     return null
   }
-  if ((provider === 'linear' || provider === 'jira') && type !== 'issue') {
+  if ((provider === 'linear' || provider === 'jira' || provider === 'dart') && type !== 'issue') {
     return null
   }
   if (type === 'mr' && provider !== 'gitlab') {
@@ -43,8 +44,14 @@ export function normalizeWorkspaceAttachment(value: unknown): WorkspaceAttachmen
     return null
   }
   const identifier =
-    nonEmpty(raw.identifier) ?? nonEmpty(raw.linearIdentifier) ?? nonEmpty(raw.jiraIdentifier)
-  if (raw.number === 0 && (!identifier || (provider !== 'linear' && provider !== 'jira'))) {
+    nonEmpty(raw.identifier) ??
+    nonEmpty(raw.linearIdentifier) ??
+    nonEmpty(raw.jiraIdentifier) ??
+    nonEmpty(raw.dartIdentifier)
+  if (
+    raw.number === 0 &&
+    (!identifier || (provider !== 'linear' && provider !== 'jira' && provider !== 'dart'))
+  ) {
     return null
   }
   if (raw.url !== undefined) {
@@ -70,6 +77,7 @@ export function normalizeWorkspaceAttachment(value: unknown): WorkspaceAttachmen
     ...(nonEmpty(raw.repoId) ? { repoId: nonEmpty(raw.repoId) } : {}),
     ...(nonEmpty(raw.linearIdentifier) ? { linearIdentifier: nonEmpty(raw.linearIdentifier) } : {}),
     ...(nonEmpty(raw.jiraIdentifier) ? { jiraIdentifier: nonEmpty(raw.jiraIdentifier) } : {}),
+    ...(nonEmpty(raw.dartIdentifier) ? { dartIdentifier: nonEmpty(raw.dartIdentifier) } : {}),
     ...(nonEmpty(raw.linearWorkspaceId)
       ? { linearWorkspaceId: nonEmpty(raw.linearWorkspaceId) }
       : {}),
@@ -81,7 +89,8 @@ export function normalizeWorkspaceAttachment(value: unknown): WorkspaceAttachmen
   const linkedItem = normalizeWorkspaceLinkedItem({
     ...item,
     title: item.title ?? identifier ?? String(item.number),
-    jiraIdentifier: item.jiraIdentifier ?? (provider === 'jira' ? identifier : undefined)
+    jiraIdentifier: item.jiraIdentifier ?? (provider === 'jira' ? identifier : undefined),
+    dartIdentifier: item.dartIdentifier ?? (provider === 'dart' ? identifier : undefined)
   })
   if (
     context &&
@@ -98,8 +107,12 @@ function attachmentIdentity(item: WorkspaceAttachment): string {
   return JSON.stringify([
     item.provider,
     item.type,
-    item.provider === 'linear' || item.provider === 'jira'
-      ? (item.identifier ?? item.linearIdentifier ?? item.jiraIdentifier ?? item.number)
+    item.provider === 'linear' || item.provider === 'jira' || item.provider === 'dart'
+      ? (item.identifier ??
+        item.linearIdentifier ??
+        item.jiraIdentifier ??
+        item.dartIdentifier ??
+        item.number)
       : item.number
   ])
 }
@@ -121,6 +134,10 @@ export function getWorkspaceAttachmentUrlScope(item: WorkspaceAttachment): strin
   }
   try {
     const url = new URL(item.url)
+    // Dart task paths carry a title slug that changes on rename; the origin is the whole scope.
+    if (item.provider === 'dart') {
+      return url.origin
+    }
     return (
       url.origin +
       url.pathname
@@ -291,6 +308,7 @@ export function toWorkspaceLinkedItem(
     ...item,
     linearIdentifier:
       item.linearIdentifier ?? (item.provider === 'linear' ? item.identifier : undefined),
-    jiraIdentifier: item.jiraIdentifier ?? (item.provider === 'jira' ? item.identifier : undefined)
+    jiraIdentifier: item.jiraIdentifier ?? (item.provider === 'jira' ? item.identifier : undefined),
+    dartIdentifier: item.dartIdentifier ?? (item.provider === 'dart' ? item.identifier : undefined)
   })
 }

@@ -41,6 +41,17 @@ export type TaskProviderErrorCode =
   | 'jira.incompleteProjectPage'
   | 'jira.projectListLimit'
   | 'jira.invalidCloudId'
+  | 'dart.notConnected'
+  | 'dart.connectFailed'
+  | 'dart.unauthorized'
+  | 'dart.loadFailed'
+  | 'dart.taskNotFound'
+  | 'dart.createFailed'
+  | 'dart.updateFailed'
+  | 'dart.commentFailed'
+  | 'dart.badRequest'
+  | 'dart.rateLimited'
+  | 'dart.invalidTaskUrl'
 
 export function taskProviderFailure(
   errorCode: TaskProviderErrorCode,

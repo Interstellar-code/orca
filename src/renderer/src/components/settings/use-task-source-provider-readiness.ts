@@ -90,6 +90,12 @@ export function useTaskSourceProviderReadiness(
         connected: jiraConnected,
         checking: jiraChecking,
         visible: visible.has('jira')
+      },
+      // Lane B wires the Dart connection status; until then Dart reads as not connected.
+      dart: {
+        connected: false,
+        checking: false,
+        visible: visible.has('dart')
       }
     }
   }, [

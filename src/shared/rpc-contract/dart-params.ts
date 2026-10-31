@@ -1,0 +1,223 @@
+/**
+ * Dart (dartai.com) RPC contract, shared by the host (Lane A), renderer (Lane B), CLI (Lane C) and
+ * mobile (Lane D).
+ *
+ * Transport: the host calls `https://app.dartai.com/api/v0/public` with `Authorization: Bearer
+ * <token>`. The token never leaves the host after `dart.connect`, and no layer may log, trace or
+ * echo `dart.connect` params, including in error paths.
+ *
+ * Failures: every method resolves to `DartResult<T>`; a failure is `taskProviderFailure('dart.*')`
+ * from shared/task-provider-failure.ts, never a free-text-only error.
+ *
+ * "Mine" has one source: `dart.status` and `dart.connect` return the signed-in user from `GET /me`
+ * (`{isLoggedIn, user: {id, name, email}}`); callers pass that `viewer.id` as `listTasks.assigneeId`.
+ *
+ * Rules from the live API (Phase 0 2026-10-26 and Lane P 2026-10-31, read-only):
+ * 1. Never send `no_defaults` (`no_defaults=false` applies hidden workspace default filters: 883
+ *    tasks became 0). Always send explicit filters instead.
+ * 2. Dart silently ignores unknown query parameters (a typo, `q` or `search` returns every task), so
+ *    the host sends only the names in `DART_TASK_LIST_QUERY_PARAMS` and `ListTasks` rejects unknown
+ *    keys.
+ * 3. Paging is `limit`/`offset`: default 100, maximum 250 (larger values are silently capped);
+ *    totals come from `count`; an offset past the end returns an empty page. Server order is opaque
+ *    (not by created or updated time).
+ * 4. `dartboard` takes the full-path title exactly as `dart.config` returns it (case-insensitive;
+ *    short last-segment names are ambiguous). `title` and `description` are case-insensitive
+ *    substring searches; there is no generic text query.
+ * 5. Error bodies are not always JSON. 401: JSON `{detail}` -> `dart.unauthorized`. Unknown
+ *    well-formed task id: 404 JSON `{errors: [string]}`; malformed id: 404 text/html with an empty
+ *    body; both -> `dart.taskNotFound`. Comments for an unknown task: 400 JSON bare `[string]`.
+ *    Other 400s are JSON field errors -> `dart.badRequest`. 429 -> `dart.rateLimited` (no limit or
+ *    rate-limit header seen yet). 5xx and network errors -> the operation's failure code
+ *    (`dart.loadFailed`, `dart.createFailed`, `dart.updateFailed`, `dart.commentFailed`).
+ * 6. List items carry no description; `GET /tasks/{id}` wraps the task as `{item}` and adds the
+ *    markdown description, attachments and relationships.
+ * 7. Every `htmlUrl` from Dart (tasks `/t/<id>-<slug>`, comments `/c/<id>`) passes
+ *    `isTrustedDartHtmlUrl` (https, host exactly `app.dartai.com`) before it is stored in a link or
+ *    opened; a failing item drops the URL rather than the task.
+ *
+ * Writes (`createTask`, `updateTask`, `addComment`) are UNVERIFIED against the live API (shapes are
+ * from the spec only). `POST /tasks {item: {title, ...}}`; `PUT /tasks/{id} {item: {id, ...}}` is a
+ * partial update (omitted fields keep their values, `id` equals the path id); `POST /comments
+ * {item: {taskId, text, parentId?}}`. Writes take names, not ids: dartboard (full-path title),
+ * status, type, assignee (name or email; null clears), priority. `tags` replaces the whole set
+ * (`[]` clears) and UNKNOWN TAG TITLES CREATE NEW TAGS, so callers validate tag names against
+ * `dart.config` tags before sending.
+ */
+import { z } from 'zod'
+import { DART_TASK_ID_PATTERN } from '../dart/dart-issue-url'
+import type {
+  DartComment,
+  DartCommentPage,
+  DartConnectionStatus,
+  DartTask,
+  DartTaskPage,
+  DartUser,
+  DartWorkspaceConfig
+} from '../dart/dart-types'
+import type { TaskProviderErrorCode } from '../task-provider-failure'
+import { OptionalPlainString, OptionalString, requiredString } from './rpc-param-primitives'
+
+export const DART_LIST_PAGE_DEFAULT = 100
+export const DART_LIST_PAGE_MAX = 250
+
+export const DART_METHOD_NAMES = [
+  'dart.status',
+  'dart.connect',
+  'dart.disconnect',
+  'dart.testConnection',
+  'dart.config',
+  'dart.listTasks',
+  'dart.getTask',
+  'dart.listComments',
+  'dart.createTask',
+  'dart.updateTask',
+  'dart.addComment'
+] as const
+
+export type DartMethodName = (typeof DART_METHOD_NAMES)[number]
+
+// Credential changes need accounts-admin so a paired phone with workspace access cannot swap the token.
+export const DART_METHOD_PERMISSIONS = {
+  'dart.status': 'workspace',
+  'dart.connect': 'accounts-admin',
+  'dart.disconnect': 'accounts-admin',
+  'dart.testConnection': 'accounts-admin',
+  'dart.config': 'workspace',
+  'dart.listTasks': 'workspace',
+  'dart.getTask': 'workspace',
+  'dart.listComments': 'workspace',
+  'dart.createTask': 'workspace',
+  'dart.updateTask': 'workspace',
+  'dart.addComment': 'workspace'
+} as const satisfies Record<DartMethodName, 'workspace' | 'accounts-admin'>
+
+export const DART_UNVERIFIED_WRITE_METHODS: readonly DartMethodName[] = [
+  'dart.createTask',
+  'dart.updateTask',
+  'dart.addComment'
+]
+
+/** Contract filter name -> Dart query parameter. The host sends nothing outside this map. */
+export const DART_TASK_LIST_QUERY_PARAMS = {
+  assigneeId: 'assignee_id',
+  assignee: 'assignee',
+  dartboard: 'dartboard',
+  status: 'status',
+  tag: 'tag',
+  priority: 'priority',
+  isCompleted: 'is_completed',
+  title: 'title',
+  description: 'description'
+} as const
+
+const DartTaskId = z
+  .string()
+  .trim()
+  .regex(DART_TASK_ID_PATTERN, 'Expected a 12-character Dart task id')
+
+const PageLimit = z.number().int().min(1).max(DART_LIST_PAGE_MAX).optional()
+const PageOffset = z.number().int().min(0).optional()
+
+/**
+ * `dart.connect`: never log these params. Token help (Lane B localizes it): "In Dart, open Settings >
+ * Account (your profile icon at the top left, then Account), scroll down and copy your Authorization
+ * token. It starts with dsa_." API access needs a Dart Premium plan or above; expiry is undocumented.
+ */
+export const Connect = z.object({
+  apiToken: requiredString('API token is required')
+})
+
+export const ListTasks = z
+  .object({
+    assigneeId: OptionalString,
+    /** Name or email. */
+    assignee: OptionalString,
+    /** Full-path title from `dart.config`. */
+    dartboard: OptionalString,
+    status: OptionalString,
+    tag: OptionalString,
+    priority: OptionalString,
+    isCompleted: z.boolean().optional(),
+    title: OptionalString,
+    description: OptionalString,
+    limit: PageLimit,
+    offset: PageOffset
+  })
+  .strict()
+  .optional()
+
+export const TaskId = z.object({
+  taskId: DartTaskId
+})
+
+export const ListComments = z.object({
+  taskId: DartTaskId,
+  limit: PageLimit,
+  offset: PageOffset
+})
+
+const DartIsoDate = z.union([z.string().datetime({ offset: true }), z.null()]).optional()
+
+export const CreateTask = z.object({
+  title: requiredString('Title is required'),
+  description: OptionalPlainString,
+  dartboard: OptionalString,
+  type: OptionalString,
+  status: OptionalString,
+  priority: OptionalString,
+  assignee: OptionalString,
+  tags: z.array(requiredString('Tag cannot be empty')).optional(),
+  startAt: DartIsoDate,
+  dueAt: DartIsoDate
+})
+
+export const UpdateTask = z.object({
+  taskId: DartTaskId,
+  updates: z
+    .object({
+      title: OptionalString,
+      description: OptionalPlainString,
+      dartboard: OptionalString,
+      type: OptionalString,
+      status: OptionalString,
+      priority: z.union([z.string(), z.null()]).optional(),
+      assignee: z.union([z.string(), z.null()]).optional(),
+      tags: z.array(requiredString('Tag cannot be empty')).optional(),
+      startAt: DartIsoDate,
+      dueAt: DartIsoDate
+    })
+    .refine((updates) => Object.values(updates).some((value) => value !== undefined), {
+      message: 'At least one update is required'
+    })
+})
+
+export const AddComment = z.object({
+  taskId: DartTaskId,
+  text: requiredString('Comment text is required'),
+  parentId: OptionalString
+})
+
+export type DartFailure = { ok: false; error: string; errorCode: TaskProviderErrorCode }
+export type DartResult<T extends object> = ({ ok: true } & T) | DartFailure
+
+export type DartListTasksArgs = z.input<typeof ListTasks>
+export type DartListCommentsArgs = z.input<typeof ListComments>
+export type DartCreateTaskArgs = z.input<typeof CreateTask>
+export type DartUpdateTaskArgs = z.input<typeof UpdateTask>
+export type DartAddCommentArgs = z.input<typeof AddComment>
+
+/** Params and reply per method; Lane A registers each with `DART_METHOD_PERMISSIONS[name]`. */
+export type DartMethodContract = {
+  'dart.status': { params: null; reply: DartResult<DartConnectionStatus> }
+  'dart.connect': { params: z.input<typeof Connect>; reply: DartResult<{ viewer: DartUser }> }
+  'dart.disconnect': { params: null; reply: DartResult<object> }
+  'dart.testConnection': { params: null; reply: DartResult<{ viewer: DartUser }> }
+  'dart.config': { params: null; reply: DartResult<{ config: DartWorkspaceConfig }> }
+  'dart.listTasks': { params: DartListTasksArgs; reply: DartResult<DartTaskPage> }
+  'dart.getTask': { params: z.input<typeof TaskId>; reply: DartResult<{ task: DartTask }> }
+  'dart.listComments': { params: DartListCommentsArgs; reply: DartResult<DartCommentPage> }
+  'dart.createTask': { params: DartCreateTaskArgs; reply: DartResult<{ task: DartTask }> }
+  'dart.updateTask': { params: DartUpdateTaskArgs; reply: DartResult<{ task: DartTask }> }
+  'dart.addComment': { params: DartAddCommentArgs; reply: DartResult<{ comment: DartComment }> }
+}

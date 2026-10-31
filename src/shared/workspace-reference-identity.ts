@@ -1,3 +1,5 @@
+import { buildDartTaskUrl, parseDartTaskUrl } from './dart/dart-issue-url'
+import { DART_APP_HOST } from './dart/dart-types'
 import { parseJiraIssueUrl, JIRA_ISSUE_KEY_PATTERN } from './jira/jira-issue-url'
 import { parseLinearIssueInput, parseLinearIssueUrlIntent } from './linear/links'
 import { getTaskSourceCacheScope } from './task-source-context'
@@ -15,7 +17,8 @@ const HOST_PROVIDERS: Readonly<Record<string, WorkspaceAttachment['provider']>> 
   'linear.app': 'linear',
   'codeberg.org': 'gitea',
   'bitbucket.org': 'bitbucket',
-  'dev.azure.com': 'azure-devops'
+  'dev.azure.com': 'azure-devops',
+  [DART_APP_HOST]: 'dart'
 }
 
 const CASE_INSENSITIVE_PATH_PROVIDERS: ReadonlySet<WorkspaceAttachment['provider']> = new Set([
@@ -78,6 +81,20 @@ function parseReferenceRoute(
   url: URL,
   providerHint?: WorkspaceAttachment['provider']
 ): WorkspaceAttachment {
+  if (url.hostname === DART_APP_HOST || providerHint === 'dart') {
+    const dart = parseDartTaskUrl(url.href)
+    if (!dart) {
+      throw new Error('Unsupported Dart URL. Use a task URL like https://app.dartai.com/t/<id>.')
+    }
+    return {
+      provider: 'dart',
+      type: 'issue',
+      number: 0,
+      identifier: dart.taskId,
+      dartIdentifier: dart.taskId,
+      url: dart.canonicalUrl
+    }
+  }
   const linear = parseLinearIssueUrlIntent(url.href)
   if (linear) {
     url.pathname = `/${linear.organizationUrlKey.toLowerCase()}/issue/${linear.identifier}`
@@ -162,7 +179,7 @@ function parseReferenceRoute(
 }
 
 export function getWorkspaceReferenceIdentifier(item: WorkspaceAttachment): string | undefined {
-  return item.identifier ?? item.linearIdentifier ?? item.jiraIdentifier
+  return item.identifier ?? item.linearIdentifier ?? item.jiraIdentifier ?? item.dartIdentifier
 }
 
 function externalUrl(item: WorkspaceAttachment): string | undefined {
@@ -188,6 +205,8 @@ function externalUrl(item: WorkspaceAttachment): string | undefined {
       return identity.siteUrl && identifier
         ? `${identity.siteUrl.replace(/\/+$/, '')}/browse/${identifier}`
         : undefined
+    case 'dart':
+      return identifier ? buildDartTaskUrl(identifier) : undefined
     case 'linear':
       return undefined
   }
@@ -204,7 +223,9 @@ export function getProvenWorkspaceReferenceIdentity(item: WorkspaceAttachment): 
         parsed.provider === item.provider &&
         parsed.type === item.type &&
         (parsed.identifier
-          ? parsed.identifier === identifier?.toUpperCase()
+          ? // Dart ids are case-sensitive; Linear and Jira keys are not.
+            parsed.identifier ===
+            (parsed.provider === 'dart' ? identifier : identifier?.toUpperCase())
           : parsed.number === item.number)
       ) {
         const url = new URL(parsed.url!)

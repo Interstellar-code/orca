@@ -57,7 +57,12 @@ export function renderMobileTasksCreateDrawer(model: ConnectionPresentationModel
     >
       <View style={styles.sheetHeader}>
         <View style={styles.sheetTitleRow}>
-          <TaskProviderLogo provider={provider} size={16} color={colors.textPrimary} />
+          {/* Neutral non-Linear kind until Lane D widens TaskProviderLogoKind with a Dart logo. */}
+          <TaskProviderLogo
+            provider={provider === 'dart' ? 'github' : provider}
+            size={16}
+            color={colors.textPrimary}
+          />
           <Text style={styles.sheetTitle}>
             {translate('tasks.tasksCreateDrawers.newIssueTitle', 'New {{providerLabel}} Issue', {
               providerLabel

@@ -17,6 +17,7 @@ function resolveLinkedItemProvider(
     title: item.title ?? '',
     ...(item.linearIdentifier ? { linearIdentifier: item.linearIdentifier } : {}),
     ...(item.jiraIdentifier ? { jiraIdentifier: item.jiraIdentifier } : {}),
+    ...(item.dartIdentifier ? { dartIdentifier: item.dartIdentifier } : {}),
     ...(item.repoId ? { repoId: item.repoId } : {})
   })
 }

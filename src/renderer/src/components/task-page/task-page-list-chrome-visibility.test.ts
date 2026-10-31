@@ -10,6 +10,7 @@ const baseState: TaskPageListChromeVisibilityState = {
   hasGitHubDetail: false,
   hasGitLabDetail: false,
   hasJiraDetail: false,
+  hasDartDetail: false,
   hasLinearIssueDetail: false,
   hasLinearProjectContext: false,
   hasLinearViewContext: false
@@ -22,6 +23,7 @@ describe('shouldHideTaskPageListChrome', () => {
         ...baseState,
         taskSource: 'github',
         hasJiraDetail: true,
+        hasDartDetail: true,
         hasLinearProjectContext: true,
         hasLinearViewContext: true
       })
@@ -35,5 +37,15 @@ describe('shouldHideTaskPageListChrome', () => {
         hasLinearIssueDetail: true
       })
     ).toBe(false)
+  })
+
+  it.each([
+    ['github', 'hasGitHubDetail'],
+    ['gitlab', 'hasGitLabDetail'],
+    ['jira', 'hasJiraDetail'],
+    ['dart', 'hasDartDetail'],
+    ['linear', 'hasLinearIssueDetail']
+  ] as const)('hides chrome over an open %s detail', (taskSource, detailKey) => {
+    expect(shouldHideTaskPageListChrome({ ...baseState, taskSource, [detailKey]: true })).toBe(true)
   })
 })

@@ -240,6 +240,8 @@ export function useTaskPageComposerActions(model: TaskPageJiraListEffectsModel) 
     hasGitHubDetail: Boolean(dialogWorkItem),
     hasGitLabDetail: Boolean(gitlabDialogItem),
     hasJiraDetail: Boolean(selectedJiraIssue),
+    // Lane B replaces this with the open Dart task detail state.
+    hasDartDetail: false,
     hasLinearIssueDetail: Boolean(selectedLinearIssue),
     hasLinearProjectContext: Boolean(selectedLinearProject),
     hasLinearViewContext: Boolean(selectedLinearCustomView)

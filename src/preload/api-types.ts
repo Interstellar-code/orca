@@ -36,6 +36,7 @@ import type { GithubWorkItemApi } from './api/github-work-item-api'
 import type { GitLabApi } from './api/gitlab-api'
 import type { BitbucketApi, HostedReviewApi } from './api/hosted-review-api'
 import type { JiraApi } from './api/jira-api'
+import type { DartMethodContract } from '../shared/rpc-contract/dart-params'
 import type { LinearApi } from './api/linear-api'
 import type { MobileApi } from './api/mobile-api'
 import type { NativeChatApi } from './api/native-chat-api'
@@ -75,6 +76,31 @@ import type { FolderWorkspacesApi, SparsePresetsApi, WorktreeApi } from './api/w
 // Flattens contracts that share one PreloadApi key: an intersection is not type-identical to the flat shape.
 type Merged<T> = { [K in keyof T]: T[K] }
 
+type DartReply<M extends keyof DartMethodContract> = Promise<DartMethodContract[M]['reply']>
+
+// Mirrors the dart.* RPC contract one-to-one; failures resolve as taskProviderFailure('dart.*').
+export type DartApi = {
+  status: () => DartReply<'dart.status'>
+  connect: (args: DartMethodContract['dart.connect']['params']) => DartReply<'dart.connect'>
+  disconnect: () => DartReply<'dart.disconnect'>
+  testConnection: () => DartReply<'dart.testConnection'>
+  config: () => DartReply<'dart.config'>
+  listTasks: (args?: DartMethodContract['dart.listTasks']['params']) => DartReply<'dart.listTasks'>
+  getTask: (args: DartMethodContract['dart.getTask']['params']) => DartReply<'dart.getTask'>
+  listComments: (
+    args: DartMethodContract['dart.listComments']['params']
+  ) => DartReply<'dart.listComments'>
+  createTask: (
+    args: DartMethodContract['dart.createTask']['params']
+  ) => DartReply<'dart.createTask'>
+  updateTask: (
+    args: DartMethodContract['dart.updateTask']['params']
+  ) => DartReply<'dart.updateTask'>
+  addComment: (
+    args: DartMethodContract['dart.addComment']['params']
+  ) => DartReply<'dart.addComment'>
+}
+
 export type PreloadApi = {
   app: AppApi
   orcaProfiles: OrcaProfileApi
@@ -100,6 +126,7 @@ export type PreloadApi = {
   bitbucket: BitbucketApi
   linear: LinearApi
   jira: JiraApi
+  dart: DartApi
   starNag: StarNagApi
   telemetryTrack: TelemetryApi['telemetryTrack']
   telemetrySetOptIn: TelemetryApi['telemetrySetOptIn']

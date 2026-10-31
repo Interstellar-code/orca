@@ -1,4 +1,8 @@
 import { githubRepoIdentityKey } from './github/repository-identity-key'
+import {
+  DART_TASK_PROVIDER_IDENTITY_FIELDS,
+  type DartTaskProviderIdentity
+} from './dart/dart-types'
 import type { TaskProvider } from './task-providers'
 import type { ProjectProviderIdentity } from './project-types'
 
@@ -29,11 +33,14 @@ export type JiraTaskProviderIdentity = {
   projectKey?: string | null
 }
 
+export type { DartTaskProviderIdentity } from './dart/dart-types'
+
 export type TaskProviderIdentity =
   | GitHubTaskProviderIdentity
   | GitLabTaskProviderIdentity
   | LinearTaskProviderIdentity
   | JiraTaskProviderIdentity
+  | DartTaskProviderIdentity
 
 export function normalizeTaskProviderIdentity(
   provider: TaskProvider,
@@ -79,6 +86,8 @@ export function normalizeTaskProviderIdentity(
         siteUrl: normalizeNonEmptyString(raw.siteUrl),
         projectKey: normalizeNonEmptyString(raw.projectKey)
       }
+    case 'dart':
+      return { provider, userId: normalizeNonEmptyString(raw.userId) }
   }
 }
 
@@ -112,6 +121,8 @@ export function isStoredTaskProviderIdentity(provider: TaskProvider, identity: u
       )
     case 'jira':
       return ['siteId', 'siteUrl', 'projectKey'].every((key) => isNullableOptionalString(raw[key]))
+    case 'dart':
+      return DART_TASK_PROVIDER_IDENTITY_FIELDS.every((key) => isNullableOptionalString(raw[key]))
   }
 }
 
@@ -119,7 +130,8 @@ const TASK_PROVIDER_IDENTITY_FIELDS: Record<TaskProvider, readonly string[]> = {
   github: ['owner', 'repo', 'host'],
   gitlab: ['projectId', 'namespace', 'project', 'webUrl'],
   linear: ['workspaceId', 'workspaceName', 'teamId', 'teamKey'],
-  jira: ['siteId', 'siteUrl', 'projectKey']
+  jira: ['siteId', 'siteUrl', 'projectKey'],
+  dart: DART_TASK_PROVIDER_IDENTITY_FIELDS
 }
 
 export function areTaskProviderIdentitiesEqual(
@@ -157,6 +169,8 @@ export function taskProviderIdentityCachePart(
       return [identity.workspaceId, identity.teamId ?? identity.teamKey].filter(Boolean).join('/')
     case 'jira':
       return [identity.siteId ?? identity.siteUrl, identity.projectKey].filter(Boolean).join('/')
+    case 'dart':
+      return identity.userId ?? ''
   }
 }
 

@@ -130,7 +130,32 @@ const COPY: Record<TaskProviderErrorCode, () => string> = {
     translate(
       'taskProviders.errors.jira.invalidCloudId',
       'The site did not report a valid Atlassian cloud ID.'
-    )
+    ),
+  'dart.notConnected': () =>
+    translate('taskProviders.errors.dart.notConnected', 'Not connected to Dart.'),
+  'dart.connectFailed': () =>
+    translate('taskProviders.errors.dart.connectFailed', 'Could not connect to Dart.'),
+  'dart.unauthorized': () =>
+    translate('taskProviders.errors.dart.unauthorized', 'Dart rejected the API token.'),
+  'dart.loadFailed': () =>
+    translate('taskProviders.errors.dart.loadFailed', 'Failed to load Dart tasks.'),
+  'dart.taskNotFound': () =>
+    translate('taskProviders.errors.dart.taskNotFound', 'Dart task not found.'),
+  'dart.createFailed': () =>
+    translate('taskProviders.errors.dart.createFailed', 'Failed to create Dart task.'),
+  'dart.updateFailed': () =>
+    translate('taskProviders.errors.dart.updateFailed', 'Failed to update Dart task.'),
+  'dart.commentFailed': () =>
+    translate('taskProviders.errors.dart.commentFailed', 'Failed to add Dart comment.'),
+  'dart.badRequest': () =>
+    translate('taskProviders.errors.dart.badRequest', 'Dart rejected the request.'),
+  'dart.rateLimited': () =>
+    translate(
+      'taskProviders.errors.dart.rateLimited',
+      'Dart is rate limiting requests. Try again shortly.'
+    ),
+  'dart.invalidTaskUrl': () =>
+    translate('taskProviders.errors.dart.invalidTaskUrl', 'Enter a valid Dart task URL.')
 }
 
 const LEGACY_CODES: Record<string, TaskProviderErrorCode> = {

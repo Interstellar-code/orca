@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { normalizeWorkspaceAttachments } from './workspace-attachment-normalization'
+import {
+  normalizeWorkspaceAttachments,
+  toWorkspaceLinkedItem
+} from './workspace-attachment-normalization'
 import type { WorkspaceAttachment } from './worktree/types'
 
 function pr(number: number, repository?: string): WorkspaceAttachment {
@@ -60,5 +63,41 @@ describe('workspace attachment normalization', () => {
       linearB
     ])
     expect(normalizeWorkspaceAttachments(normalized)).toEqual(normalized)
+  })
+})
+
+describe('Dart attachments', () => {
+  const dart = (dartIdentifier: string, slug: string): WorkspaceAttachment => ({
+    provider: 'dart',
+    type: 'issue',
+    number: 0,
+    dartIdentifier,
+    title: 'Ship Dart',
+    url: `https://app.dartai.com/t/${dartIdentifier}-${slug}`
+  })
+
+  it('keeps a number-0 Dart task and dedupes it by identifier, not number or slug', () => {
+    const normalized = normalizeWorkspaceAttachments([
+      dart('aBcD3fGh1jKl', 'ship-dart'),
+      dart('aBcD3fGh1jKl', 'renamed-task'),
+      dart('zYxW9vUt8sRq', 'ship-dart')
+    ])
+    expect(normalized.map((item) => item.identifier)).toEqual(['aBcD3fGh1jKl', 'zYxW9vUt8sRq'])
+    expect(normalized[0]).toMatchObject({ provider: 'dart', number: 0 })
+  })
+
+  it('rejects non-issue Dart attachments', () => {
+    expect(normalizeWorkspaceAttachments([{ ...dart('aBcD3fGh1jKl', 'x'), type: 'pr' }])).toEqual(
+      []
+    )
+  })
+
+  it('carries the Dart identifier into the linked item', () => {
+    const [item] = normalizeWorkspaceAttachments([dart('aBcD3fGh1jKl', 'ship-dart')])
+    expect(toWorkspaceLinkedItem({ ...item, dartIdentifier: undefined })).toMatchObject({
+      provider: 'dart',
+      number: 0,
+      dartIdentifier: 'aBcD3fGh1jKl'
+    })
   })
 })

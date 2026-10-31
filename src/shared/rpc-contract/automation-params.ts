@@ -98,6 +98,13 @@ export const TaskProviderIdentity = z
         siteUrl: z.string().nullable().optional(),
         projectKey: z.string().nullable().optional()
       })
+      .passthrough(),
+    // Fields follow DART_TASK_PROVIDER_IDENTITY_FIELDS in shared/dart/dart-types.ts.
+    z
+      .object({
+        provider: z.literal('dart'),
+        userId: z.string().nullable().optional()
+      })
       .passthrough()
   ])
   .optional()
@@ -106,7 +113,7 @@ export const TaskProviderIdentity = z
 export const TaskSourceContext = z
   .object({
     kind: z.literal('task-source'),
-    provider: z.enum(['github', 'gitlab', 'linear', 'jira']),
+    provider: z.enum(['github', 'gitlab', 'linear', 'jira', 'dart']),
     projectId: requiredString('Missing source project id'),
     hostId: ExecutionHostId,
     projectHostSetupId: OptionalNullablePlainString,

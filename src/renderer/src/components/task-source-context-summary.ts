@@ -75,6 +75,14 @@ export function getTaskSourceContextSummary(args: {
         hostLabelById: args.hostLabelById,
         hostAvailability: args.hostAvailability
       })
+    // Lane B passes the signed-in Dart user's name as the account label.
+    case 'dart':
+      return getAccountBackedTaskSourceSummary(args.providerLabel, {
+        accountLabel: null,
+        accountHostId: args.accountHostId,
+        hostLabelById: args.hostLabelById,
+        hostAvailability: args.hostAvailability
+      })
   }
 }
 
@@ -219,6 +227,9 @@ function getProviderIdentityLabel(
       return identity.workspaceName ?? identity.workspaceId ?? null
     case 'jira':
       return identity.siteUrl ?? identity.siteId ?? null
+    // A Dart identity is an opaque user id, not a display label.
+    case 'dart':
+      return null
   }
 }
 

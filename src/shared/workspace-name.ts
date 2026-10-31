@@ -47,9 +47,11 @@ export type WorkspaceIntentWorkItem = {
   type: 'issue' | 'pr' | 'mr'
   number: number
   title: string
-  provider?: 'github' | 'gitlab' | 'linear' | 'jira'
+  provider?: 'github' | 'gitlab' | 'linear' | 'jira' | 'dart'
   linearIdentifier?: string
   jiraIdentifier?: string
+  // Opaque 12-character id: kept out of display names, used only when the title is empty.
+  dartIdentifier?: string
 }
 
 export type WorkspaceIntentName = {
@@ -180,6 +182,9 @@ function workItemIdentity(item: WorkspaceIntentWorkItem): string {
   }
   if (item.jiraIdentifier) {
     return item.jiraIdentifier.toUpperCase()
+  }
+  if (item.dartIdentifier) {
+    return item.dartIdentifier
   }
   if (item.type === 'pr') {
     return `PR ${item.number}`

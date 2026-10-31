@@ -4,7 +4,7 @@ import { getAppEnvironment } from '../../shared/app-environment'
 import { isArtifactSharingEnabled } from '../../shared/artifact-sharing-gate'
 import { isAgentSkillSharingEnabled } from '../../shared/agent-skill-sharing-gate'
 import { applyPRBotAuthorOverride } from '../../shared/pr-bot-author-overrides'
-import { TASK_PROVIDERS } from '../../shared/task-providers'
+import { DEFAULT_VISIBLE_TASK_PROVIDERS } from '../../shared/task-providers'
 import {
   applyTerminalQuickCommandMutation,
   type TerminalQuickCommandMutation
@@ -80,7 +80,7 @@ export class RuntimeClientSettingsController {
       terminalCopyTrimsGutter: settings.terminalCopyTrimsGutter !== false,
       defaultTaskSource: settings.defaultTaskSource ?? 'github',
       defaultTaskViewPreset: settings.defaultTaskViewPreset ?? 'issues',
-      visibleTaskProviders: settings.visibleTaskProviders ?? [...TASK_PROVIDERS],
+      visibleTaskProviders: settings.visibleTaskProviders ?? [...DEFAULT_VISIBLE_TASK_PROVIDERS],
       defaultRepoSelection: settings.defaultRepoSelection ?? null,
       // Persisted settings can violate the paired client's string-array contract.
       defaultLinearTeamSelection: Array.isArray(settings.defaultLinearTeamSelection)

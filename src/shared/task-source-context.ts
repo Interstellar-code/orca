@@ -20,6 +20,7 @@ import type { Repo } from './repo-types'
 export type {
   GitHubTaskProviderIdentity,
   GitLabTaskProviderIdentity,
+  DartTaskProviderIdentity,
   JiraTaskProviderIdentity,
   LinearTaskProviderIdentity,
   TaskProviderIdentity
@@ -142,7 +143,7 @@ export function areTaskSourceContextsEqual(
   )
 }
 
-/** Jira identity is siteId (site + login); its label is display-only. Callers match providers first. */
+/** Jira identity is siteId (site + login), Dart's is userId; labels are display-only. Callers match providers first. */
 export function haveConflictingTaskSourceAccounts(
   a: Pick<TaskSourceContext, 'provider' | 'providerIdentity' | 'accountLabel'>,
   b: Pick<TaskSourceContext, 'provider' | 'providerIdentity' | 'accountLabel'>
@@ -150,6 +151,11 @@ export function haveConflictingTaskSourceAccounts(
   if (a.provider === 'jira') {
     const left = a.providerIdentity?.provider === 'jira' ? a.providerIdentity.siteId : null
     const right = b.providerIdentity?.provider === 'jira' ? b.providerIdentity.siteId : null
+    return Boolean(left && right && left !== right)
+  }
+  if (a.provider === 'dart') {
+    const left = a.providerIdentity?.provider === 'dart' ? a.providerIdentity.userId : null
+    const right = b.providerIdentity?.provider === 'dart' ? b.providerIdentity.userId : null
     return Boolean(left && right && left !== right)
   }
   const left = a.accountLabel?.trim()
@@ -237,6 +243,7 @@ function normalizeTaskProvider(value: unknown): TaskProvider | null {
     case 'gitlab':
     case 'linear':
     case 'jira':
+    case 'dart':
       return value
     default:
       return null

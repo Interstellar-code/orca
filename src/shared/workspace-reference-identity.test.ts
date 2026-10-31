@@ -259,3 +259,32 @@ describe('reference queries', () => {
     expect(() => parseWorkspaceReferenceQuery(query)).toThrow()
   })
 })
+
+describe('Dart reference URLs', () => {
+  it('parses a pasted Dart task URL to its 12-character id, independent of the slug', () => {
+    expect(
+      parseWorkspaceReferenceUrl('https://app.dartai.com/t/aBcD3fGh1jKl-ship-dart?x=1#c')
+    ).toEqual({
+      provider: 'dart',
+      type: 'issue',
+      number: 0,
+      identifier: 'aBcD3fGh1jKl',
+      dartIdentifier: 'aBcD3fGh1jKl',
+      url: 'https://app.dartai.com/t/aBcD3fGh1jKl'
+    })
+    expect(identity('https://app.dartai.com/t/aBcD3fGh1jKl-ship-dart')).toBe(
+      identity('https://app.dartai.com/t/aBcD3fGh1jKl-renamed')
+    )
+    expect(identity('https://app.dartai.com/t/aBcD3fGh1jKl')).not.toBe(
+      identity('https://app.dartai.com/t/abcd3fgh1jkl')
+    )
+  })
+
+  it.each([
+    'https://app.dartai.com/d/aBcD3fGh1jKl-board',
+    'https://app.dartai.com/t/short-id',
+    'https://app.dartai.com/browse/ORCA-1'
+  ])('rejects the unknown Dart route %s', (url) => {
+    expect(() => parseWorkspaceReferenceUrl(url)).toThrow('Unsupported Dart URL')
+  })
+})
