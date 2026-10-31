@@ -196,7 +196,7 @@ fi
 
 if [[ $MODE == mac ]]; then
   notify 'Fork build ready' \
-    "Orca $version from $commit is built. Install: quit Orca, then run config/fork/install-built-app.sh"
+    "Orca $version from $commit is built. Quit Orca, then run: $CLONE/config/fork/install-built-app.sh"
 else
   INSTALL_DIR=${ORCA_FORK_LINUX_INSTALL_DIR:-/opt/Orca}
   SYSTEMD_UNIT=${ORCA_FORK_SYSTEMD_UNIT:-orca-serve.service}
