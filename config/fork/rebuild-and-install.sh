@@ -52,6 +52,9 @@ Usage: config/fork/rebuild-and-install.sh [options]
                       ~/.orca-fork-build/orca). Never the checkout you edit in.
   --dry-run           Do everything except push and install; prefix notifications.
   --no-push           Skip pushing the merged main to the fork.
+
+Drill switch, to prove a stop path on purpose:
+  ORCA_FORK_FORCE_FAILURE=gate|build
 EOF
 }
 
@@ -149,6 +152,14 @@ else
 fi
 
 log "building ($MODE)"
+if [[ ${ORCA_FORK_FORCE_FAILURE:-} == gate ]]; then
+  log 'drill: forcing a gate failure'
+  fail 'forced gate failure (ORCA_FORK_FORCE_FAILURE=gate)'
+fi
+if [[ ${ORCA_FORK_FORCE_FAILURE:-} == build ]]; then
+  log 'drill: forcing a build failure'
+  fail 'forced build failure (ORCA_FORK_FORCE_FAILURE=build)'
+fi
 if [[ $MODE == mac ]]; then
   pnpm build:mac || fail 'pnpm build:mac failed'
   app=$(find dist -maxdepth 2 -name 'Orca.app' -print -quit)

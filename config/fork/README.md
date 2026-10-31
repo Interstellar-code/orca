@@ -94,6 +94,17 @@ Stop paths: a merge conflict, a failing gate, or a failing build stops the run, 
 `FAIL: <reason>`, sends an "Orca fork rebuild failed" notification, leaves `main` unmerged
 (or merged but unpushed) and installs nothing.
 
+The script unsets `CI`/`GITHUB_ACTIONS`/`GITHUB_SHA` before building. `electron-builder`
+treats a CI environment as "publish this build" and demands every architecture slice boot
+locally, so an inherited CI marker makes a local build try to upload to GitHub and fail.
+
+To prove a stop path on purpose, set `ORCA_FORK_FORCE_FAILURE`:
+
+```sh
+ORCA_FORK_FORCE_FAILURE=gate ~/.orca-fork-build/orca/config/fork/rebuild-and-install.sh --dry-run
+ORCA_FORK_FORCE_FAILURE=build ~/.orca-fork-build/orca/config/fork/rebuild-and-install.sh --dry-run
+```
+
 Pushing the merged `main` happens only after the build succeeds. That is the one standing
 approval this job needs; if you would rather push by hand, run with `--no-push` and push
 yourself.
