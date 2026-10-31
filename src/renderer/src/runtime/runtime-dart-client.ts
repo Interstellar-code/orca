@@ -153,11 +153,15 @@ export async function dartStatusForTarget(
   ) {
     throw new DartUpdateRequiredError()
   }
-  return parseDartConnectionStatus(
+  const reply =
     target.kind === 'environment'
       ? await callRuntimeRpc<unknown>(target, 'dart.status', undefined, { timeoutMs: 15_000 })
       : await window.api.dart.status()
-  )
+  // A failed status read is not proof of a disconnect; callers keep their last known status.
+  if (isFailureShape(reply)) {
+    throw new Error(reply.error)
+  }
+  return parseDartConnectionStatus(reply)
 }
 
 export async function dartStatus(settings: RuntimeDartSettings): Promise<DartConnectionStatus> {

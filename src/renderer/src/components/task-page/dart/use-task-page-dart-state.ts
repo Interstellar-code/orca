@@ -26,18 +26,29 @@ import { filterLinkedDartTasks, readLinkedDartTasks } from './task-page-dart-lin
 
 export type TaskPageDartError = { message: string; code?: string }
 
+type DartListOutcome = {
+  tasks: DartTask[]
+  totalCount: number
+  error: TaskPageDartError | null
+}
+
 export type TaskPageDartStateInput = {
   taskSource: TaskProvider
   dartConnected: boolean
   dartStatus: DartConnectionStatus
   dartTaskSourceContext: TaskSourceContext | null
   linearAttachmentWorkspaces: readonly Worktree[]
-  listDartTasks: (args?: DartListTasksArgs) => Promise<DartClientResult<DartTaskPage>>
+  listDartTasks: (
+    args?: DartListTasksArgs,
+    options?: { force?: boolean }
+  ) => Promise<DartClientResult<DartTaskPage>>
   fetchDartTask: (
     taskId: string,
     options?: { sourceContext?: TaskSourceContext | null; force?: boolean }
   ) => Promise<DartClientResult<{ task: DartTask }>>
-  fetchDartConfig: () => Promise<DartClientResult<{ config: DartWorkspaceConfig }>>
+  fetchDartConfig: (options?: {
+    force?: boolean
+  }) => Promise<DartClientResult<{ config: DartWorkspaceConfig }>>
 }
 
 export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(model: TModel) {
@@ -89,7 +100,7 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
     }
     let cancelled = false
     void actionsRef.current
-      .fetchDartConfig()
+      .fetchDartConfig({ force: dartRefreshNonce > 0 })
       .then((result) => {
         if (!cancelled && result.ok) {
           setDartConfig(result.config)
@@ -117,7 +128,7 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
     const force = dartRefreshNonce > 0
     setDartLoading(true)
     setDartError(null)
-    const request = dartHasWorkspace
+    const request: Promise<DartListOutcome> = dartHasWorkspace
       ? readLinkedDartTasks(
           linkedRefs,
           (taskId, options) => actionsRef.current.fetchDartTask(taskId, options),
@@ -128,28 +139,26 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
           totalCount: linked.tasks.length,
           error: linked.error
         }))
-      : actionsRef.current.listDartTasks(buildDartListArgs(dartFilters, viewerId)).then((result) =>
-          result.ok
-            ? {
-                tasks: result.tasks,
-                totalCount: result.totalCount,
-                error: null
-              }
-            : {
-                tasks: [] as DartTask[],
-                totalCount: 0,
-                error: {
-                  message: taskProviderErrorMessage(result),
-                  code: result.errorCode
+      : actionsRef.current
+          .listDartTasks(buildDartListArgs(dartFilters, viewerId), { force })
+          .then((result) =>
+            result.ok
+              ? {
+                  tasks: result.tasks,
+                  totalCount: result.totalCount,
+                  error: null
                 }
-              }
-        )
+              : {
+                  tasks: [],
+                  totalCount: 0,
+                  error: {
+                    message: taskProviderErrorMessage(result),
+                    code: result.errorCode
+                  }
+                }
+          )
     void request
-      .catch(() => ({
-        tasks: [] as DartTask[],
-        totalCount: 0,
-        error: { message: '' } as TaskPageDartError
-      }))
+      .catch((): DartListOutcome => ({ tasks: [], totalCount: 0, error: { message: '' } }))
       .then((outcome) => {
         if (cancelled) {
           return
@@ -187,6 +196,7 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
     [setDartFilter]
   )
 
+  // SAFETY: the fields added below are assigned right after this cast, before the model is returned.
   const nextModel = model as TModel & {
     dartFilters: typeof dartFilters
     setDartFilter: typeof setDartFilter

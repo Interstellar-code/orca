@@ -53,7 +53,7 @@ export function createDartConnectionActions(
       const statusReadGeneration = nextDartStatusReadGeneration()
       const mutationGeneration = currentDartMutationGeneration()
       if (get().dartStatusContextKey !== contextKey) {
-        set({ dartStatusChecked: false })
+        set({ dartStatusChecked: false, dartUpdateRequired: false })
       }
       const isStale = (): boolean =>
         mutationGeneration !== currentDartMutationGeneration() ||
@@ -77,11 +77,17 @@ export function createDartConnectionActions(
         if (isStale()) {
           return
         }
-        const updateRequired = error instanceof DartUpdateRequiredError
-        set((state) => ({
-          ...dartStatusUpdate(state, contextKey, DISCONNECTED),
-          dartUpdateRequired: updateRequired
-        }))
+        if (error instanceof DartUpdateRequiredError) {
+          set((state) => ({
+            ...dartStatusUpdate(state, contextKey, DISCONNECTED),
+            dartUpdateRequired: true
+          }))
+        } else if (get().dartStatusContextKey !== contextKey) {
+          set((state) => dartStatusUpdate(state, contextKey, DISCONNECTED))
+        } else if (!get().dartStatusChecked) {
+          set({ dartStatusChecked: true })
+        }
+        // A transient failure on an already-checked context keeps the last known status.
       }
     },
 
@@ -105,6 +111,8 @@ export function createDartConnectionActions(
           !isCurrentDartMutation(requestGeneration) ||
           !isCurrentDartRuntimeContext(contextKey, get().settings)
         ) {
+          // The host already stored the token; refresh whichever context is current.
+          void get().checkDartConnection()
           return {
             ok: false,
             error: translate(

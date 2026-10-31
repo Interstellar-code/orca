@@ -114,7 +114,8 @@ export function dartTaskCacheKey(sourceContext: TaskSourceContext, taskId: strin
 }
 
 export function scopedDartCacheKey(scope: DartReadScope, key: string): string {
-  return scope.cachePrefix ? `${scope.cachePrefix}::${key}` : key
+  // A default-scope read is keyed by its host so a local and a remote account never share cached rows.
+  return `${scope.cachePrefix ?? scope.contextKey}::${key}`
 }
 
 function nextDartConnectionRevisions(

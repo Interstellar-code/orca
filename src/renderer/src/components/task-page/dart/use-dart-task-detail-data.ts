@@ -5,6 +5,8 @@ import { taskProviderErrorMessage, taskProviderErrorText } from '@/lib/task-prov
 import { useAppStore } from '@/store'
 import type { DartCommentsView, DartDetailLoadState } from './TaskDetailView'
 
+const LOADING_STATE = { status: 'loading' } as const
+
 export function useDartTaskDetailData(
   task: DartTask | null,
   sourceContext: TaskSourceContext | null
@@ -18,6 +20,7 @@ export function useDartTaskDetailData(
     status: 'loading'
   })
   const [reloadNonce, setReloadNonce] = useState(0)
+  const [loadedFor, setLoadedFor] = useState<string | null>(null)
   const taskId = task?.id ?? null
   useEffect(() => {
     if (!taskId) {
@@ -25,6 +28,7 @@ export function useDartTaskDetailData(
     }
     let cancelled = false
     const force = reloadNonce > 0
+    setLoadedFor(taskId)
     setFull({ status: 'loading' })
     setComments({ status: 'loading' })
     void fetchDartTask(taskId, { sourceContext, force })
@@ -76,5 +80,11 @@ export function useDartTaskDetailData(
     }
   }, [taskId, sourceContext, reloadNonce, fetchDartTask, listDartComments])
   const retry = useCallback(() => setReloadNonce((n) => n + 1), [])
-  return { full, comments, retry }
+  // Until the effect runs for a newly opened task, the previous task's state must not show.
+  const isCurrent = loadedFor === taskId
+  return {
+    full: isCurrent ? full : LOADING_STATE,
+    comments: isCurrent ? comments : LOADING_STATE,
+    retry
+  }
 }

@@ -49,10 +49,10 @@ describe('useTaskPageDartState', () => {
   it("lists the signed-in user's tasks by default", async () => {
     const { listDartTasks, hook } = setup()
     await waitFor(() => expect(hook.result.current.dartTasks).toHaveLength(1))
-    expect(listDartTasks).toHaveBeenLastCalledWith({
-      limit: 100,
-      assigneeId: viewer.id
-    })
+    expect(listDartTasks).toHaveBeenLastCalledWith(
+      { limit: 100, assigneeId: viewer.id },
+      { force: false }
+    )
   })
 
   it('sends the full dartboard title, not its last segment', async () => {
@@ -63,7 +63,8 @@ describe('useTaskPageDartState', () => {
 
     await waitFor(() =>
       expect(listDartTasks).toHaveBeenLastCalledWith(
-        expect.objectContaining({ dartboard: 'Example/Platform/Search' })
+        expect.objectContaining({ dartboard: 'Example/Platform/Search' }),
+        { force: false }
       )
     )
   })
@@ -76,10 +77,21 @@ describe('useTaskPageDartState', () => {
     act(() => hook.result.current.applyDartSearch('  archived '))
 
     await waitFor(() =>
-      expect(listDartTasks).toHaveBeenLastCalledWith({
-        limit: 100,
-        title: 'archived'
-      })
+      expect(listDartTasks).toHaveBeenLastCalledWith(
+        { limit: 100, title: 'archived' },
+        { force: false }
+      )
+    )
+  })
+
+  it('bypasses the cache when the user refreshes', async () => {
+    const { listDartTasks, hook } = setup()
+    await waitFor(() => expect(hook.result.current.dartTasks).toHaveLength(1))
+
+    act(() => hook.result.current.setDartRefreshNonce((nonce) => nonce + 1))
+
+    await waitFor(() =>
+      expect(listDartTasks).toHaveBeenLastCalledWith(expect.anything(), { force: true })
     )
   })
 

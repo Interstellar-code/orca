@@ -60,6 +60,18 @@ describe('dart slice connection', () => {
     })
   })
 
+  it('keeps the last known status when a later check fails transiently', async () => {
+    const store = createTestStore()
+    clientMocks.dartStatus.mockResolvedValueOnce({ connected: true, viewer })
+    await store.getState().checkDartConnection()
+
+    clientMocks.dartStatus.mockRejectedValueOnce(new Error('socket closed'))
+    await store.getState().checkDartConnection()
+
+    expect(store.getState().dartStatus).toMatchObject({ connected: true, viewer })
+    expect(store.getState().dartUpdateRequired).toBe(false)
+  })
+
   it('connects, drops cached reads and returns host failures untouched', async () => {
     const store = createTestStore()
     store.setState({
@@ -127,6 +139,19 @@ describe('dart slice reads', () => {
 
     await store.getState().listDartTasks({ assigneeId: viewer.id, status: 'To-do' })
     expect(clientMocks.dartListTasksForTarget).toHaveBeenCalledTimes(3)
+  })
+
+  it('does not serve a cached list from the previous host after switching hosts', async () => {
+    clientMocks.dartListTasksForTarget.mockResolvedValue({ ok: true, tasks: [], totalCount: 0 })
+    const store = createTestStore()
+    await store.getState().listDartTasks({ assigneeId: viewer.id })
+
+    store.setState({
+      settings: { ...store.getState().settings!, activeRuntimeEnvironmentId: 'remote-env' }
+    })
+    await store.getState().listDartTasks({ assigneeId: viewer.id })
+
+    expect(clientMocks.dartListTasksForTarget).toHaveBeenCalledTimes(2)
   })
 
   it('does not cache failures and marks the connection lost on an auth failure', async () => {
