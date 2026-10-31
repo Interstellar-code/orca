@@ -3619,7 +3619,8 @@
       "jiraStatusFailed": "Failed to read Jira status",
       "connectLinearTitle": "Connect your Linear account",
       "connectLinearMessage": "Browse and start work on your assigned Linear issues directly from Tasks.",
-      "connectLinearButton": "Connect Linear"
+      "connectLinearButton": "Connect Linear",
+      "deferredSource": "This task source isn't available in Orca Mobile yet."
     },
     "options": {
       "githubDescription": "Issues and pull requests",

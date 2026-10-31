@@ -642,6 +642,30 @@ describe('Tasks screen repos on the desktop and its servers', () => {
     expect(ranOn(desktopRef.current!, 'linear.listIssues')).toHaveLength(before)
   })
 
+  // The shared normalizer accepts dart, so mobile filters it after normalizing; no Dart chip or view may appear.
+  it('drops a persisted Dart source from the visible providers', async () => {
+    const client = desktop()
+    const model = await mount(client, [MOBILE_DESKTOP_RELAY_RUNTIME_CAPABILITY], [], {
+      visibleTaskProviders: ['github', 'dart'],
+      defaultTaskSource: 'github'
+    })
+    await settle()
+    expect(model().visibleProviders).toEqual(['github'])
+    expect(model().providerOptions.map((option) => option.value)).not.toContain('dart')
+  })
+
+  // A saved dart default cannot be read on mobile, so hydration selects the first supported visible source.
+  it('downgrades a persisted Dart default source', async () => {
+    const client = desktop()
+    const model = await mount(client, [MOBILE_DESKTOP_RELAY_RUNTIME_CAPABILITY], [], {
+      visibleTaskProviders: ['github', 'dart'],
+      defaultTaskSource: 'dart'
+    })
+    await settle()
+    expect(model().provider).toBe('github')
+    expect(model().visibleProviders).toEqual(['github'])
+  })
+
   it('loads Linear once when a removed server widens the repo filter', async () => {
     let hosts = HOSTS
     const client = desktop(undefined, async () => ({ hosts }))

@@ -10,6 +10,10 @@ import {
   type MobileColorScheme
 } from './mobile-tasks-dependencies'
 import { styles } from './mobile-tasks-legacy-styles'
+import {
+  deferredMobileTaskProviderMessage,
+  isDeferredOnMobileTaskProvider
+} from './mobile-task-provider-visibility'
 import { renderMobileTasksGitHubProjectList } from './mobile-tasks-github-project-list'
 import { renderMobileTasksLinearList } from './mobile-tasks-linear-list'
 import { renderMobileTasksProviderItemList } from './mobile-tasks-provider-item-list'
@@ -53,6 +57,10 @@ export function renderMobileTasksListSurface(
         <ActivityIndicator size="small" color={colors.textSecondary} />
       </View>
     )
+  ) : isDeferredOnMobileTaskProvider(provider) ? (
+    <View style={[styles.centered, { paddingBottom: bottomBarHeight }]}>
+      <Text style={styles.emptyText}>{deferredMobileTaskProviderMessage()}</Text>
+    </View>
   ) : provider === 'jira' && !jiraConnection.connected ? (
     <JiraConnectPrompt
       credentialError={jiraConnection.credentialError}

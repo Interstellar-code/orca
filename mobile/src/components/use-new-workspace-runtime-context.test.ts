@@ -139,6 +139,25 @@ describe('useNewWorkspaceRuntimeContext', () => {
     })
   })
 
+  // The shared normalizer accepts every TaskProvider; mobile hides Dart until its read phase ships.
+  it('hides a Dart source a host lists as visible', async () => {
+    const published = await answer(
+      { settings: { ...SETTINGS, visibleTaskProviders: ['github', 'dart'] } },
+      UI_WITH_TRUST
+    )
+    expect(published.availableProviders).toEqual(['github'])
+    expect(published.runtimeSettings).toMatchObject({ visibleTaskProviders: ['github', 'dart'] })
+  })
+
+  it('keeps a selectable source when the host lists only Dart', async () => {
+    const published = await answer(
+      { settings: { ...SETTINGS, visibleTaskProviders: ['dart'] } },
+      UI_WITH_TRUST
+    )
+    // Falls back to the shared default list, then drops the disconnected/uninstalled ones.
+    expect(published.availableProviders).toEqual(['github', 'jira'])
+  })
+
   // Stale trusted hooks would skip the setup-hook approval prompt; assert they are cleared.
   it('blanks the trust an earlier host published when the next ui result is null', async () => {
     expect((await answer({ settings: SETTINGS }, UI_WITH_TRUST)).trustedOrcaHooks).toEqual(

@@ -5,11 +5,8 @@ import type { RpcAcceptedResult } from '../transport/rpc-accepted-result'
 import type { RpcClient } from '../transport/rpc-client'
 import type { RpcResponse } from '../transport/types'
 import { taskLinearStatusRead, taskPreflightRead } from '../tasks/mobile-task-runtime-operations'
-import {
-  filterAvailableTaskProviders,
-  normalizeVisibleTaskProviders,
-  type TaskProvider
-} from '../../../src/shared/task-providers'
+import { filterAvailableTaskProviders, type TaskProvider } from '../../../src/shared/task-providers'
+import { normalizeMobileVisibleTaskProviders } from '../tasks/mobile-task-provider-visibility'
 import {
   readJiraConnectionProbeReply,
   type MobileJiraConnection
@@ -144,7 +141,9 @@ export function useNewWorkspaceRuntimeContext(
       const linearConnected =
         readProbeMember(settledValue(linearRes, taskLinearStatusRead.interpret), 'connected') ===
         true
-      const visibleProviders = normalizeVisibleTaskProviders(settingsValue?.visibleTaskProviders)
+      const visibleProviders = normalizeMobileVisibleTaskProviders(
+        settingsValue?.visibleTaskProviders
+      )
       const availableProviders = filterAvailableTaskProviders(visibleProviders, {
         gitlabInstalled: glabInstalled,
         linearConnected

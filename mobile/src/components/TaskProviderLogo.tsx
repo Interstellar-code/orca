@@ -1,6 +1,6 @@
 import Svg, { Path } from 'react-native-svg'
 
-export type TaskProviderLogoKind = 'github' | 'gitlab' | 'linear' | 'jira'
+export type TaskProviderLogoKind = 'github' | 'gitlab' | 'linear' | 'jira' | 'dart'
 
 type Props = {
   provider: TaskProviderLogoKind
@@ -62,10 +62,29 @@ export function TaskProviderLogo({ provider, size = 16, color }: Props) {
     )
   }
 
+  if (provider === 'linear') {
+    return (
+      <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+        {/* Why: keep Linear's mobile glyph aligned with the desktop sidebar logo. */}
+        <Path d="M2.886 4.18A11.982 11.982 0 0 1 11.99 0C18.624 0 24 5.376 24 12.009c0 3.64-1.62 6.903-4.18 9.105L2.887 4.18ZM1.817 5.626l16.556 16.556c-.524.33-1.075.62-1.65.866L.951 7.277c.247-.575.537-1.126.866-1.65ZM.322 9.163l14.515 14.515c-.71.172-1.443.282-2.195.322L0 11.358a12 12 0 0 1 .322-2.195Zm-.17 4.862 9.823 9.824a12.02 12.02 0 0 1-9.824-9.824Z" />
+      </Svg>
+    )
+  }
+
+  // Neutral mark until the deferred mobile Dart read phase ships a brand glyph; never fall back to Linear's logo.
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-      {/* Why: keep Linear's mobile glyph aligned with the desktop sidebar logo. */}
-      <Path d="M2.886 4.18A11.982 11.982 0 0 1 11.99 0C18.624 0 24 5.376 24 12.009c0 3.64-1.62 6.903-4.18 9.105L2.887 4.18ZM1.817 5.626l16.556 16.556c-.524.33-1.075.62-1.65.866L.951 7.277c.247-.575.537-1.126.866-1.65ZM.322 9.163l14.515 14.515c-.71.172-1.443.282-2.195.322L0 11.358a12 12 0 0 1 .322-2.195Zm-.17 4.862 9.823 9.824a12.02 12.02 0 0 1-9.824-9.824Z" />
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
+      <Path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z" />
     </Svg>
   )
 }
