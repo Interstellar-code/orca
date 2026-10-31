@@ -38,13 +38,13 @@ export abstract class UpdaterMenuChecks extends UpdaterScheduling {
       this.sendStatus({ state: 'not-available', userInitiated: true })
       return
     }
-    if (options?.localBuild) {
-      void this.checkForLocalBuildFromMenu()
+    if (this.isForkBuild()) {
+      // A fork build must never reach Stably's feed by any route, including the local-build picker.
+      this.sendForkBuildUpdateStatus()
       return
     }
-    if (this.isForkBuild()) {
-      // A fork build must never query Stably's feed; its rebuild job owns updates.
-      this.sendForkBuildUpdateStatus()
+    if (options?.localBuild) {
+      void this.checkForLocalBuildFromMenu()
       return
     }
     if (options?.targetTag && options.channel) {

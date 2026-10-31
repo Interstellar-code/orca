@@ -88,6 +88,26 @@ describe('fork build updater guard', () => {
     expect(() => checkForRemoteServerUpdate('runtime-1')).toThrow('remote_update_manual_required')
   })
 
+  it('refuses the local-build picker on a fork build', async () => {
+    vi.useFakeTimers()
+    appMock.getVersion.mockReturnValue(FORK_VERSION)
+    const send = vi.fn()
+    const { setupAutoUpdater, checkForUpdatesFromMenu } = await loadUpdaterModule()
+
+    setupAutoUpdater(updaterMainWindow(send), { getLastUpdateCheckAt: () => Date.now() })
+    checkForUpdatesFromMenu({ localBuild: true })
+
+    await vi.advanceTimersByTimeAsync(0)
+    expect(send).toHaveBeenLastCalledWith('updater:status', {
+      state: 'error',
+      message: FORK_UPDATE_MESSAGE,
+      userInitiated: true,
+      retryable: false
+    })
+    expect(autoUpdaterMock.setFeedURL).not.toHaveBeenCalled()
+    expect(autoUpdaterMock.checkForUpdates).not.toHaveBeenCalled()
+  })
+
   it('leaves a release build on the Stably feed', async () => {
     appMock.getVersion.mockReturnValue('1.4.214')
     autoUpdaterMock.checkForUpdates.mockResolvedValue(undefined)

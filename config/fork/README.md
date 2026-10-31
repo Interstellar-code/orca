@@ -5,8 +5,9 @@ which upstream does not have. This directory builds the fork on your Mac and on 
 server, keeps it level with upstream, and makes sure the packaged updater can never replace
 it with a Stably release.
 
-Nothing here touches `/Applications/Orca.app`, your `~/Library/LaunchAgents`, or the server.
-You install the launchd job and run the install command yourself.
+The rebuild job never touches `/Applications/Orca.app`, your `~/Library/LaunchAgents`, or the
+server: it builds and notifies. Only the install command you run yourself
+(`install-built-app.sh`) replaces the app, and only after you quit Orca.
 
 ## What the pieces do
 
