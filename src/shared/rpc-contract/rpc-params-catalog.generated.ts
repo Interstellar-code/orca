@@ -192,6 +192,15 @@ import {
   ConnectorWatch
 } from './connector-params'
 import {
+  AddComment,
+  Connect,
+  CreateTask,
+  ListComments,
+  ListTasks,
+  TaskId,
+  UpdateTask
+} from './dart-params'
+import {
   AttachParams as AttachParamsOfEmulatorParams,
   AxParams,
   ButtonParams,
@@ -362,7 +371,7 @@ import {
   AssignableUsers,
   AttachmentImage,
   CancelGenerateIssueSummary,
-  Connect,
+  Connect as ConnectOfJiraParams,
   CreateIssue as CreateIssueOfJiraParams,
   GenerateIssueSummary,
   IssueComment as IssueCommentOfJiraParams,
@@ -947,6 +956,17 @@ export const RPC_PARAMS_BY_METHOD = {
   'connector.send': ConnectorSend,
   'connector.start': ConnectorStart,
   'connector.watch': ConnectorWatch,
+  'dart.addComment': AddComment,
+  'dart.config': null,
+  'dart.connect': Connect,
+  'dart.createTask': CreateTask,
+  'dart.disconnect': null,
+  'dart.getTask': TaskId,
+  'dart.listComments': ListComments,
+  'dart.listTasks': ListTasks,
+  'dart.status': null,
+  'dart.testConnection': null,
+  'dart.updateTask': UpdateTask,
   'desktopBrowserBridge.attach': DesktopBrowserBridgeAttachParams,
   'desktopBrowserBridge.result': DesktopBrowserBridgeResultParams,
   'diagnostics.memory': null,
@@ -1138,7 +1158,7 @@ export const RPC_PARAMS_BY_METHOD = {
   'jira.addIssueComment': IssueCommentOfJiraParams,
   'jira.attachmentImage': AttachmentImage,
   'jira.cancelGenerateIssueSummary': CancelGenerateIssueSummary,
-  'jira.connect': Connect,
+  'jira.connect': ConnectOfJiraParams,
   'jira.createIssue': CreateIssueOfJiraParams,
   'jira.disconnect': SiteSelection,
   'jira.generateIssueSummary': GenerateIssueSummary,

@@ -1,21 +1,16 @@
-import { taskProviderFailure } from '../../shared/task-provider-failure'
+import { ipcRenderer } from 'electron'
 import type { DartApi } from '../api-types'
 
-// Stub until Lane A wires the main-process Dart client; every call reports "not connected".
-async function notConnected(): Promise<ReturnType<typeof taskProviderFailure>> {
-  return taskProviderFailure('dart.notConnected', 'Not connected to Dart.')
-}
-
 export const dartApi: DartApi = {
-  status: notConnected,
-  connect: notConnected,
-  disconnect: notConnected,
-  testConnection: notConnected,
-  config: notConnected,
-  listTasks: notConnected,
-  getTask: notConnected,
-  listComments: notConnected,
-  createTask: notConnected,
-  updateTask: notConnected,
-  addComment: notConnected
+  status: () => ipcRenderer.invoke('dart:status'),
+  connect: (args) => ipcRenderer.invoke('dart:connect', args),
+  disconnect: () => ipcRenderer.invoke('dart:disconnect'),
+  testConnection: () => ipcRenderer.invoke('dart:testConnection'),
+  config: () => ipcRenderer.invoke('dart:config'),
+  listTasks: (args) => ipcRenderer.invoke('dart:listTasks', args),
+  getTask: (args) => ipcRenderer.invoke('dart:getTask', args),
+  listComments: (args) => ipcRenderer.invoke('dart:listComments', args),
+  createTask: (args) => ipcRenderer.invoke('dart:createTask', args),
+  updateTask: (args) => ipcRenderer.invoke('dart:updateTask', args),
+  addComment: (args) => ipcRenderer.invoke('dart:addComment', args)
 }
