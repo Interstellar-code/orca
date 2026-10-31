@@ -17,6 +17,7 @@ import { parseGitHubIssueOrPRLink } from '../../../../shared/github/links'
 import { parseGitLabIssueOrMRLink } from '../../../../shared/new-workspace/gitlab-links'
 import { parseLinearIssueInput } from '../../../../shared/linear/links'
 import { parseJiraIssueUrl } from '../../../../shared/jira/jira-issue-url'
+import { parseDartTaskUrl } from '../../../../shared/dart/dart-issue-url'
 import { isWorkItemLinkQueryTooLarge } from '../../../../shared/new-workspace/work-item-link-query-bounds'
 
 export const ATTACHMENT_INPUT_KINDS = [
@@ -87,6 +88,7 @@ export function parseWorkspaceAttachmentInput(
   const github = parseGitHubIssueOrPRLink(value)
   const gitlab = parseGitLabIssueOrMRLink(value)
   const jira = parseJiraIssueUrl(value)
+  const dart = parseDartTaskUrl(value)
   const linear = parseLinearIssueInput(value)
   if (/^https?:\/\//i.test(value)) {
     const otherReview = parseOtherReviewUrl(value)
@@ -98,6 +100,16 @@ export function parseWorkspaceAttachmentInput(
     }
     if (gitlab && Number.isSafeInteger(gitlab.number) && gitlab.number > 0) {
       return { provider: 'gitlab', type: gitlab.type, number: gitlab.number, url: value }
+    }
+    if (dart) {
+      return {
+        provider: 'dart',
+        type: 'issue',
+        number: 0,
+        identifier: dart.taskId,
+        dartIdentifier: dart.taskId,
+        url: dart.canonicalUrl
+      }
     }
     if (jira) {
       return {

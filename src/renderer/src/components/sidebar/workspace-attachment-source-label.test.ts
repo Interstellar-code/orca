@@ -159,6 +159,17 @@ const cases: { name: string; item: Partial<WorkspaceAttachment>; expected: strin
     },
     expected: null
   },
+  {
+    name: 'Dart falls back to its host, ignoring the title slug',
+    item: {
+      provider: 'dart',
+      type: 'issue',
+      number: 0,
+      dartIdentifier: 'aB3dE5gH7jK9',
+      url: 'https://app.dartai.com/t/aB3dE5gH7jK9-search-results'
+    },
+    expected: 'app.dartai.com'
+  },
   { name: 'missing source', item: {}, expected: null }
 ]
 it.each(cases)('$name', ({ item, expected }) => {

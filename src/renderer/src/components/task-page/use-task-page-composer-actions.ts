@@ -3,6 +3,8 @@ import { useCallback } from 'react'
 import type { LinearIssue } from '../../../../shared/linear/issue-types'
 import type { LinearWorkspaceSelection } from '../../../../shared/linear/workspace-types'
 import type { JiraIssue } from '../../../../shared/jira/jira-types'
+import type { DartTask } from '../../../../shared/dart/dart-types'
+import { buildDartWorkspaceSource } from '../../../../shared/new-workspace/workspace-source'
 import { buildLinearIssueLinkedWorkItem } from '@/lib/linear-linked-work-item'
 import { getLinearIssueWorkspaceName } from '../../../../shared/workspace-name'
 import { useAppStore } from '@/store'
@@ -12,7 +14,8 @@ import { translate } from '@/i18n/i18n'
 import { bindTaskPageJiraItemSourceContext } from './jira/task-page-jira-item-source-context'
 import type { LinkedWorkItemSummary } from '@/lib/new-workspace'
 import { shouldHideTaskPageListChrome } from './task-page-list-chrome-visibility'
-import { getJiraIssueWorkspaceSeed } from './task-page-source-context'
+import { getDartTaskWorkspaceSeed, getJiraIssueWorkspaceSeed } from './task-page-source-context'
+import { useTaskPageDartState } from './dart/use-task-page-dart-state'
 import { findJiraIssueDefaultRepo } from '../../../../shared/jira/jira-project-reference'
 import { getRepoWorkspaceCreationTargetHint } from '@/lib/project-host-workspace-target'
 export function useTaskPageComposerActions(model: TaskPageJiraListEffectsModel) {
@@ -33,6 +36,8 @@ export function useTaskPageComposerActions(model: TaskPageJiraListEffectsModel) 
     selectedLinearIssue,
     clearSelectedLinearIssue,
     selectedJiraIssue,
+    selectedDartTask,
+    dartDetailSourceContext,
     linearMode,
     setLinearIssues,
     setLinearLoading,
@@ -235,13 +240,25 @@ export function useTaskPageComposerActions(model: TaskPageJiraListEffectsModel) 
     },
     [openComposerForJiraItem]
   )
+  const openComposerForDartItem = useCallback(
+    (task: DartTask): void => {
+      // Dart links carry only the task id; the source context pins which host and account read it.
+      openModal('new-workspace-composer', {
+        linkedWorkItem: buildDartWorkspaceSource(task),
+        taskSourceContext: dartDetailSourceContext,
+        prefilledName: getDartTaskWorkspaceSeed(task),
+        telemetrySource: 'sidebar'
+      })
+    },
+    [dartDetailSourceContext, openModal]
+  )
+  const handleUseDartItem = openComposerForDartItem
   const taskPageListChromeHidden = shouldHideTaskPageListChrome({
     taskSource,
     hasGitHubDetail: Boolean(dialogWorkItem),
     hasGitLabDetail: Boolean(gitlabDialogItem),
     hasJiraDetail: Boolean(selectedJiraIssue),
-    // Lane B replaces this with the open Dart task detail state.
-    hasDartDetail: false,
+    hasDartDetail: Boolean(selectedDartTask),
     hasLinearIssueDetail: Boolean(selectedLinearIssue),
     hasLinearProjectContext: Boolean(selectedLinearProject),
     hasLinearViewContext: Boolean(selectedLinearCustomView)
@@ -256,6 +273,8 @@ export function useTaskPageComposerActions(model: TaskPageJiraListEffectsModel) 
     handleLinearAccessConnected: typeof handleLinearAccessConnected
     openComposerForJiraItem: typeof openComposerForJiraItem
     handleUseJiraItem: typeof handleUseJiraItem
+    openComposerForDartItem: typeof openComposerForDartItem
+    handleUseDartItem: typeof handleUseDartItem
     taskPageListChromeHidden: typeof taskPageListChromeHidden
   }
   nextModel.openComposerForLinearItem = openComposerForLinearItem
@@ -267,7 +286,9 @@ export function useTaskPageComposerActions(model: TaskPageJiraListEffectsModel) 
   nextModel.handleLinearAccessConnected = handleLinearAccessConnected
   nextModel.openComposerForJiraItem = openComposerForJiraItem
   nextModel.handleUseJiraItem = handleUseJiraItem
+  nextModel.openComposerForDartItem = openComposerForDartItem
+  nextModel.handleUseDartItem = handleUseDartItem
   nextModel.taskPageListChromeHidden = taskPageListChromeHidden
-  return nextModel
+  return useTaskPageDartState(nextModel)
 }
 export type TaskPageComposerActionsModel = ReturnType<typeof useTaskPageComposerActions>

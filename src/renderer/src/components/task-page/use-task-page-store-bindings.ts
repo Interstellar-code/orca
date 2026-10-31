@@ -74,6 +74,14 @@ export function useTaskPageStoreBindings() {
   const searchJiraIssues = useAppStore((s) => s.searchJiraIssues)
   const listJiraIssues = useAppStore((s) => s.listJiraIssues)
   const checkJiraConnection = useAppStore((s) => s.checkJiraConnection)
+  const dartStatus = useAppStore((s) => s.dartStatus)
+  const dartStatusChecked = useAppStore((s) => s.dartStatusChecked)
+  const dartStatusContextKey = useAppStore((s) => s.dartStatusContextKey)
+  const dartUpdateRequired = useAppStore((s) => s.dartUpdateRequired)
+  const checkDartConnection = useAppStore((s) => s.checkDartConnection)
+  const listDartTasks = useAppStore((s) => s.listDartTasks)
+  const fetchDartTask = useAppStore((s) => s.fetchDartTask)
+  const fetchDartConfig = useAppStore((s) => s.fetchDartConfig)
   const providerRuntimeContextKey = getProviderRuntimeContextKey(settings)
   const providerRuntimeContextKeyRef = useRef(providerRuntimeContextKey)
   // Submit handlers must fence against the current provider context immediately.
@@ -81,13 +89,16 @@ export function useTaskPageStoreBindings() {
   providerRuntimeContextKeyRef.current = providerRuntimeContextKey
   const linearStatusCurrent = linearStatusContextKey === providerRuntimeContextKey
   const jiraStatusCurrent = jiraStatusContextKey === providerRuntimeContextKey
+  const dartStatusCurrent = dartStatusContextKey === providerRuntimeContextKey
   const preflightStatusCurrent = preflightStatusContextKey === expectedPreflightContextKey
   // Why: the shared preflight follows the focused host; only a local one answers for desktop-owned repos.
   const preflightDescribesDesktop = !isEnvironmentRuntimeContextKey(expectedPreflightContextKey)
   const linearStatusReady = linearStatusCurrent && linearStatusChecked
   const jiraStatusReady = jiraStatusCurrent && jiraStatusChecked
+  const dartStatusReady = dartStatusCurrent && dartStatusChecked
   const linearConnected = linearStatusCurrent && linearStatus.connected
   const jiraConnected = jiraStatusCurrent && jiraStatus.connected
+  const dartConnected = dartStatusCurrent && dartStatus.connected
   const submitShortcutLabel = getScreenSubmitShortcutLabel()
   return {
     settings,
@@ -148,16 +159,27 @@ export function useTaskPageStoreBindings() {
     searchJiraIssues,
     listJiraIssues,
     checkJiraConnection,
+    dartStatus,
+    dartStatusChecked,
+    dartStatusContextKey,
+    dartUpdateRequired,
+    checkDartConnection,
+    listDartTasks,
+    fetchDartTask,
+    fetchDartConfig,
     providerRuntimeContextKey,
     providerRuntimeContextKeyRef,
     linearStatusCurrent,
     jiraStatusCurrent,
+    dartStatusCurrent,
     preflightStatusCurrent,
     preflightDescribesDesktop,
     linearStatusReady,
     jiraStatusReady,
+    dartStatusReady,
     linearConnected,
     jiraConnected,
+    dartConnected,
     submitShortcutLabel
   }
 }

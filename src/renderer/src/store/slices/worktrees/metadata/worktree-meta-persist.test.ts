@@ -96,6 +96,37 @@ describe('persistWorktreeMeta GitHub PR suppression compatibility', () => {
     expect(mocks.callRuntimeRpc).not.toHaveBeenCalled()
   })
 
+  it('keeps a Dart link, its identifier and source context in the write sent to the host', async () => {
+    const dartLink = {
+      provider: 'dart' as const,
+      type: 'issue' as const,
+      number: 0,
+      identifier: 'aB3dE5gH7jK9',
+      dartIdentifier: 'aB3dE5gH7jK9',
+      title: 'Search results ignore archived projects',
+      url: 'https://app.dartai.com/t/aB3dE5gH7jK9',
+      taskSourceContext: {
+        kind: 'task-source' as const,
+        provider: 'dart' as const,
+        projectId: 'project-1',
+        hostId: 'runtime:env-1' as const
+      }
+    }
+    await persistWorktreeMeta(mocks.target, 'repo::/feature', {
+      linkedItemsBase: [],
+      linkedItems: [dartLink]
+    })
+    const wire = mocks.callRuntimeRpc.mock.lastCall?.[2]
+    const kept = expect.objectContaining({
+      provider: 'dart',
+      identifier: 'aB3dE5gH7jK9',
+      dartIdentifier: 'aB3dE5gH7jK9',
+      taskSourceContext: expect.objectContaining(dartLink.taskSourceContext)
+    })
+    expect(wire.linkedItems).toEqual([kept])
+    expect(normalizeWorkspaceAttachmentUpdate({}, wire).linkedItems).toEqual([kept])
+  })
+
   it('rejects attachment writes before an older host can silently drop them', async () => {
     mocks.assertCapability.mockRejectedValue(new Error('update required'))
     await expect(

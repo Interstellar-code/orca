@@ -108,6 +108,11 @@ export function getDartReadScope(
   }
 }
 
+// Pure key for a task read through an explicit source row; it must match what `fetchDartTask` stores.
+export function dartTaskCacheKey(sourceContext: TaskSourceContext, taskId: string): string {
+  return `${getTaskSourceCacheScope(sourceContext)}::task::${taskId}`
+}
+
 export function scopedDartCacheKey(scope: DartReadScope, key: string): string {
   return scope.cachePrefix ? `${scope.cachePrefix}::${key}` : key
 }

@@ -18,6 +18,7 @@ vi.mock('@/runtime/runtime-dart-client', async (importOriginal) => ({
   ...clientMocks
 }))
 
+const NOW = new Date('2026-01-01T00:00:00Z').getTime()
 const viewer = { id: 'u1AbCdEfGhIj', name: 'Alex Example', email: 'alex@example.com' }
 
 function task(id: string): DartTask {
@@ -25,6 +26,7 @@ function task(id: string): DartTask {
 }
 
 beforeEach(() => {
+  vi.useFakeTimers({ now: NOW })
   for (const mock of Object.values(clientMocks)) {
     mock.mockReset()
   }
@@ -61,7 +63,7 @@ describe('dart slice connection', () => {
   it('connects, drops cached reads and returns host failures untouched', async () => {
     const store = createTestStore()
     store.setState({
-      dartListCache: { stale: { data: { tasks: [], totalCount: 0 }, fetchedAt: Date.now() } }
+      dartListCache: { stale: { data: { tasks: [], totalCount: 0 }, fetchedAt: NOW } }
     })
     clientMocks.dartStatus.mockResolvedValue({ connected: true, viewer })
     clientMocks.dartConnect.mockResolvedValueOnce({ ok: true, viewer })
@@ -87,7 +89,7 @@ describe('dart slice connection', () => {
     const store = createTestStore()
     store.setState({
       dartStatus: { connected: true, viewer },
-      dartTaskCache: { k: { data: task('aB3dE5gH7jK9'), fetchedAt: Date.now() } }
+      dartTaskCache: { k: { data: task('aB3dE5gH7jK9'), fetchedAt: NOW } }
     })
     clientMocks.dartDisconnect.mockResolvedValue({ ok: true })
     clientMocks.dartStatus.mockResolvedValue({ connected: false, viewer: null })

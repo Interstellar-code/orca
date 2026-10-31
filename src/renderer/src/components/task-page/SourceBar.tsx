@@ -15,6 +15,9 @@ import {
   SelectItem
 } from '@/components/ui/select'
 import { openAppHttpLink } from '@/lib/app-http-link-open'
+import { DART_APP_HOST } from '../../../../shared/dart/dart-types'
+
+const DART_APP_URL = `https://${DART_APP_HOST}`
 export function TaskPageSourceBar({
   model
 }: {
@@ -27,6 +30,8 @@ export function TaskPageSourceBar({
     selectJiraSite,
     linearConnected,
     jiraConnected,
+    dartConnected,
+    dartStatus,
     linearWorkspaces,
     selectedLinearWorkspaceId,
     jiraSites,
@@ -171,7 +176,9 @@ export function TaskPageSourceBar({
                   if (!selectedLinearTeamForExternalLink?.url) {
                     return
                   }
-                  openAppHttpLink(selectedLinearTeamForExternalLink.url, { event })
+                  openAppHttpLink(selectedLinearTeamForExternalLink.url, {
+                    event
+                  })
                 }}
                 disabled={!selectedLinearTeamForExternalLink}
                 aria-label={
@@ -239,6 +246,41 @@ export function TaskPageSourceBar({
               </SelectContent>
             </Select>
           ) : null}
+        </div>
+      ) : null}
+      {taskSource === 'dart' && dartConnected ? (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          {dartStatus.viewer ? (
+            <span className="hidden truncate sm:inline">
+              {translate(
+                'auto.components.task.page.SourceBar.dartSignedInAs',
+                'Dart · signed in as {{value0}}',
+                { value0: dartStatus.viewer.name }
+              )}
+            </span>
+          ) : null}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                onClick={(event) => openAppHttpLink(DART_APP_URL, { event })}
+                aria-label={translate(
+                  'auto.components.task.page.SourceBar.openDart',
+                  'Open Dart in the browser'
+                )}
+              >
+                <ExternalLink className="size-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" sideOffset={6}>
+              {translate(
+                'auto.components.task.page.SourceBar.openDart',
+                'Open Dart in the browser'
+              )}
+            </TooltipContent>
+          </Tooltip>
         </div>
       ) : null}
     </div>

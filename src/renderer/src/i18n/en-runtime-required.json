@@ -1183,6 +1183,14 @@
         }
       },
       "task": {
+        "page": {
+          "dart": {
+            "TaskList": {
+              "linkedWorkspaceCount_one": "{{count}} workspace linked to this task",
+              "linkedWorkspaceCount_other": "{{count}} workspaces linked to this task"
+            }
+          }
+        },
         "project": {
           "source": {
             "combobox": {

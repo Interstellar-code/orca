@@ -31,6 +31,7 @@ export function useTaskPageSourceAvailabilityPrelude(model: TaskPageRuntimeHosts
     selectedLinearWorkspace,
     selectedJiraSiteId,
     selectedJiraSite,
+    dartStatus,
     taskSource,
     runtimePreflightStatusByHostId,
     taskSourceRepoContexts,
@@ -131,11 +132,24 @@ export function useTaskPageSourceAvailabilityPrelude(model: TaskPageRuntimeHosts
       selectedJiraSiteId
     ]
   )
+  const dartViewerId = dartStatus.viewer?.id ?? null
+  const dartViewerName = dartStatus.viewer?.name ?? null
+  const dartTaskSourceContext = useMemo(
+    () =>
+      normalizeTaskSourceContext({
+        provider: 'dart',
+        projectId: fallbackTaskSourceProjectId,
+        hostId: accountBackedTaskSourceHostId,
+        providerIdentity: { provider: 'dart', userId: dartViewerId },
+        accountLabel: dartViewerName
+      }),
+    [accountBackedTaskSourceHostId, dartViewerId, dartViewerName, fallbackTaskSourceProjectId]
+  )
   const jiraTaskSourceScopeKey = jiraTaskSourceContext
     ? getTaskSourceCacheScope(jiraTaskSourceContext)
     : providerRuntimeContextKey
   const accountBackedTaskSourceHostAvailability = useMemo<TaskSourceHostAvailability[]>(() => {
-    if (taskSource !== 'linear' && taskSource !== 'jira') {
+    if (taskSource !== 'linear' && taskSource !== 'jira' && taskSource !== 'dart') {
       return []
     }
     const host = hostRegistryById.get(accountBackedTaskSourceHostId)
@@ -149,6 +163,7 @@ export function useTaskPageSourceAvailabilityPrelude(model: TaskPageRuntimeHosts
     fallbackTaskSourceProjectId: typeof fallbackTaskSourceProjectId
     linearTaskSourceContext: typeof linearTaskSourceContext
     jiraTaskSourceContext: typeof jiraTaskSourceContext
+    dartTaskSourceContext: typeof dartTaskSourceContext
     jiraTaskSourceScopeKey: typeof jiraTaskSourceScopeKey
     accountBackedTaskSourceHostAvailability: typeof accountBackedTaskSourceHostAvailability
   }
@@ -158,6 +173,7 @@ export function useTaskPageSourceAvailabilityPrelude(model: TaskPageRuntimeHosts
   nextModel.fallbackTaskSourceProjectId = fallbackTaskSourceProjectId
   nextModel.linearTaskSourceContext = linearTaskSourceContext
   nextModel.jiraTaskSourceContext = jiraTaskSourceContext
+  nextModel.dartTaskSourceContext = dartTaskSourceContext
   nextModel.jiraTaskSourceScopeKey = jiraTaskSourceScopeKey
   nextModel.accountBackedTaskSourceHostAvailability = accountBackedTaskSourceHostAvailability
   return nextModel

@@ -64,7 +64,8 @@ export function getWorkspaceReferenceRequest(
       : item.provider === 'github' ||
           item.provider === 'gitlab' ||
           item.provider === 'linear' ||
-          item.provider === 'jira'
+          item.provider === 'jira' ||
+          item.provider === 'dart'
         ? getWorkspaceAttachmentSourceContext(item.provider, repo, workspace)
         : null)
   return {

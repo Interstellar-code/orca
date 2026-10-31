@@ -5,6 +5,9 @@ import type { AppState } from '@/store/types'
 import { PrioritySemaphore } from '../../../../shared/priority-semaphore'
 import { getRepoExecutionHostId } from '../../../../shared/execution-host'
 import { getTaskSourceCacheScope } from '../../../../shared/task-source-context'
+import { buildDartTaskUrl } from '../../../../shared/dart/dart-issue-url'
+import { dartTaskCacheKey } from '@/store/slices/dart/dart-read-coordination'
+import { dartAttachmentTaskId } from '@/lib/dart-issue-workspace-attachment'
 import { canReadWorkspaceReferenceReview } from './workspace-reference-review-source'
 import { isWorkspaceRepositoryAttachment } from './worktree-attachment-editing'
 import {
@@ -121,6 +124,26 @@ export function getWorkspaceReferenceLookup(request: WorkspaceReferenceRequest, 
                     : issue.status.categoryKey === 'new'
                       ? 'unstarted'
                       : undefined
+            }
+          : null
+    )
+  }
+  const dartTaskId = dartAttachmentTaskId(item)
+  if (dartTaskId && sourceContext.provider === 'dart') {
+    const cacheKey = dartTaskCacheKey(sourceContext, dartTaskId)
+    return lookup(
+      state.dartTaskCache?.[cacheKey],
+      async () => {
+        const result = await state.fetchDartTask(dartTaskId, { sourceContext })
+        return result.ok ? result.task : null
+      },
+      (task) =>
+        task.id === dartTaskId
+          ? {
+              title: task.title,
+              // The client blanks an untrusted link; the id alone rebuilds the canonical one.
+              url: task.htmlUrl || buildDartTaskUrl(task.id),
+              ...(task.status ? { stateName: task.status } : {})
             }
           : null
     )

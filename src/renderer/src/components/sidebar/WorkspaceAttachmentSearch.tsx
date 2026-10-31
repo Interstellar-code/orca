@@ -33,6 +33,9 @@ import {
 
 import type { WorkspaceAttachmentComposerProps } from './WorkspaceAttachmentComposer'
 import { WorkspaceAttachmentSourceStatus } from './WorkspaceAttachmentSourceStatus'
+import { WorkspaceAttachmentDartStatus } from './WorkspaceAttachmentDartStatus'
+import { useDartAttachmentUrlSource } from './use-dart-attachment-url-source'
+import { DartIcon } from '@/components/icons/DartIcon'
 
 export function WorkspaceAttachmentSearch({
   query,
@@ -55,7 +58,8 @@ export function WorkspaceAttachmentSearch({
       github: getWorkspaceAttachmentSourceContext('github', props.repo, props.workspace),
       gitlab: getWorkspaceAttachmentSourceContext('gitlab', props.repo, props.workspace),
       linear: getWorkspaceAttachmentSourceContext('linear', props.repo, props.workspace),
-      jira: getWorkspaceAttachmentSourceContext('jira', props.repo, props.workspace)
+      jira: getWorkspaceAttachmentSourceContext('jira', props.repo, props.workspace),
+      dart: getWorkspaceAttachmentSourceContext('dart', props.repo, props.workspace)
     }),
     [props.repo, props.workspace]
   )
@@ -95,6 +99,10 @@ export function WorkspaceAttachmentSearch({
     gitlabSourceContext: contexts.gitlab,
     jiraSourceContext: contexts.jira
   })
+  const dartSource = useDartAttachmentUrlSource({
+    value: props.disabled ? '' : query,
+    sourceContext: contexts.dart
+  })
   const toAttachment = controller.resolveRow
   const linked = (row: RowEntry): boolean => {
     const item = toAttachment(row)
@@ -122,9 +130,13 @@ export function WorkspaceAttachmentSearch({
           return item ? matchesWorkspaceAttachmentQuery(parsedDirect, item) : false
         })
       : null
-  const direct = resolvedDirectRow
-    ? (toAttachment(resolvedDirectRow) ?? parsedDirect)
-    : parsedDirect
+  const dartDirectUrl = parsedDirect?.provider === 'dart'
+  // A Dart link is offered only once its task has loaded, so the row can show the title.
+  const direct = dartDirectUrl
+    ? dartSource.attachment
+    : resolvedDirectRow
+      ? (toAttachment(resolvedDirectRow) ?? parsedDirect)
+      : parsedDirect
   const directLinked = direct ? isWorkspaceAttachmentLinked(props.items, direct) : false
   const scopeError = direct ? props.getScopeError(direct) : null
   const directValue = direct ? `attachment-direct:${getWorkspaceAttachmentKey(direct)}` : ''
@@ -278,14 +290,26 @@ export function WorkspaceAttachmentSearch({
                     disabled={!directEnabled}
                     onSelect={() => add(direct)}
                   >
-                    <Plus className="size-3.5" />
+                    {direct.provider === 'dart' ? (
+                      <DartIcon className="size-3.5" />
+                    ) : (
+                      <Plus className="size-3.5" />
+                    )}
                     <span>
                       {translate('workspace.links.addItem', 'Add {{label}}', {
-                        label: workspaceAttachmentLabel(direct)
+                        label:
+                          direct.provider === 'dart' && direct.title
+                            ? direct.title
+                            : workspaceAttachmentLabel(direct)
                       })}
                     </span>
-                    {directLinked ? (
+                    {direct.provider === 'dart' && dartSource.task?.status ? (
                       <span className="ml-auto text-xs text-muted-foreground">
+                        {dartSource.task.status}
+                      </span>
+                    ) : null}
+                    {directLinked ? (
+                      <span className="ml-auto pl-2 text-xs text-muted-foreground">
                         {translate('workspace.links.linkedResult', 'Linked')}
                       </span>
                     ) : null}
@@ -298,13 +322,17 @@ export function WorkspaceAttachmentSearch({
       ) : null}
       {query.trim() ? (
         <div className="mt-2 flex shrink-0 items-center justify-between gap-3">
-          <WorkspaceAttachmentSourceStatus
-            controller={controller}
-            taskUrlProvider={taskUrlProvider}
-            resolved={Boolean(resolvedDirectRow)}
-            error={props.error ?? scopeError}
-            onRetry={onRetry}
-          />
+          {dartSource.intent && !props.error && !scopeError ? (
+            <WorkspaceAttachmentDartStatus source={dartSource} disabled={props.disabled} />
+          ) : (
+            <WorkspaceAttachmentSourceStatus
+              controller={controller}
+              taskUrlProvider={taskUrlProvider}
+              resolved={Boolean(resolvedDirectRow)}
+              error={props.error ?? scopeError}
+              onRetry={onRetry}
+            />
+          )}
           {/^[#!]?\d+$|^[a-z][a-z0-9]*-\d+$/i.test(query.trim()) ? (
             <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>

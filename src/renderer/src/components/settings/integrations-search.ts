@@ -191,6 +191,36 @@ export const getIntegrationsPaneSearchEntries = createLocalizedCatalog(() => [
     ]
   },
   {
+    title: translate('auto.components.settings.integrations.search.dartTitle', 'Dart Integration'),
+    description: translate(
+      'auto.components.settings.integrations.search.dartDescription',
+      'Connect Dart with an authorization token to browse and link tasks.'
+    ),
+    keywords: [
+      ...translateSearchKeyword('auto.components.settings.integrations.search.dart', 'dart'),
+      ...translateSearchKeyword(
+        'auto.components.settings.integrations.search.c450244ad7',
+        'integration'
+      ),
+      ...translateSearchKeyword(
+        'auto.components.settings.integrations.search.dartAuthorizationToken',
+        'authorization token'
+      ),
+      ...translateSearchKeyword(
+        'auto.components.settings.integrations.search.20540996ef',
+        'credentials'
+      ),
+      ...translateSearchKeyword(
+        'auto.components.settings.integrations.search.3c3d3d8ffa',
+        'connect'
+      ),
+      ...translateSearchKeyword(
+        'auto.components.settings.integrations.search.a626990bd2',
+        'disconnect'
+      )
+    ]
+  },
+  {
     title: translate(
       'auto.components.settings.integrations.search.b027b4b318',
       'Linear Integration'

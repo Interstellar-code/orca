@@ -13,6 +13,10 @@ export function useTaskPageGlobalEffects(model: TaskPageJiraSummaryGenerationMod
     expectedPreflightContextKey,
     jiraStatusContextKey,
     checkJiraConnection,
+    taskSource,
+    dartStatusContextKey,
+    dartStatusReady,
+    checkDartConnection,
     providerRuntimeContextKey,
     preflightStatusCurrent,
     linearStatusReady,
@@ -24,6 +28,8 @@ export function useTaskPageGlobalEffects(model: TaskPageJiraSummaryGenerationMod
     newIssueOpen,
     selectedLinearIssue,
     selectedJiraIssue,
+    selectedDartTask,
+    dartConnectOpen,
     newLinearIssueOpen,
     newJiraIssueOpen
   } = model
@@ -33,6 +39,8 @@ export function useTaskPageGlobalEffects(model: TaskPageJiraSummaryGenerationMod
     if (
       dialogWorkItem ||
       selectedJiraIssue ||
+      selectedDartTask ||
+      dartConnectOpen ||
       selectedLinearIssue ||
       newIssueOpen ||
       newLinearIssueOpen ||
@@ -83,7 +91,9 @@ export function useTaskPageGlobalEffects(model: TaskPageJiraSummaryGenerationMod
     newLinearIssueOpen,
     newJiraIssueOpen,
     selectedLinearIssue,
-    selectedJiraIssue
+    selectedJiraIssue,
+    selectedDartTask,
+    dartConnectOpen
   ])
   useEffect(() => {
     if (!preflightStatusCurrent || !preflightStatusChecked) {
@@ -95,8 +105,16 @@ export function useTaskPageGlobalEffects(model: TaskPageJiraSummaryGenerationMod
     if (!jiraStatusReady) {
       void checkJiraConnection()
     }
+    // Dart is opt-in: only probe it when the Tasks page is showing Dart.
+    if (taskSource === 'dart' && !dartStatusReady) {
+      void checkDartConnection()
+    }
   }, [
+    checkDartConnection,
     checkJiraConnection,
+    dartStatusContextKey,
+    dartStatusReady,
+    taskSource,
     checkLinearConnection,
     expectedPreflightContextKey,
     jiraStatusContextKey,

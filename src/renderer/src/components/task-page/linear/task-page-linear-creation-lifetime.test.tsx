@@ -12,6 +12,7 @@ import { useLinearIssueCreationForm } from './use-task-page-linear-creation-stat
 import { useTaskPageLinearIssueCreation } from './use-task-page-linear-issue-creation'
 import { useTaskPageLinearCustomViewEffects } from './use-task-page-linear-custom-view-effects'
 import { useTaskPageSourceAvailabilityPrelude } from '../use-task-page-source-availability'
+import { DEFAULT_DART_LIST_FILTERS } from '../dart/task-page-dart-list-model'
 import { useTaskPageJiraCreationStatePrelude } from '../jira/use-task-page-jira-creation-state'
 import { TaskPageLinearFilters } from './Filters'
 import { TaskPageLinearIssueDialog } from './IssueDialog'
@@ -98,6 +99,7 @@ it.each([
           null,
         selectedJiraSiteId: null,
         selectedJiraSite: null,
+        dartStatus: { connected: false, viewer: null },
         taskSource: 'linear',
         taskSourceRepoContexts: [],
         hostRegistryById: new Map()
@@ -156,6 +158,22 @@ it.each([
         handleLinearAccessConnected: vi.fn<LinearDialogModel['handleLinearAccessConnected']>(),
         openComposerForJiraItem: vi.fn<LinearDialogModel['openComposerForJiraItem']>(),
         handleUseJiraItem: vi.fn<LinearDialogModel['handleUseJiraItem']>(),
+        openComposerForDartItem: vi.fn<LinearDialogModel['openComposerForDartItem']>(),
+        handleUseDartItem: vi.fn<LinearDialogModel['handleUseDartItem']>(),
+        dartFilters: DEFAULT_DART_LIST_FILTERS,
+        setDartFilter: vi.fn<LinearDialogModel['setDartFilter']>(),
+        dartSearchInput: '',
+        setDartSearchInput: vi.fn<LinearDialogModel['setDartSearchInput']>(),
+        applyDartSearch: vi.fn<LinearDialogModel['applyDartSearch']>(),
+        dartHasWorkspace: false,
+        setDartHasWorkspace: vi.fn<LinearDialogModel['setDartHasWorkspace']>(),
+        setDartRefreshNonce: vi.fn<LinearDialogModel['setDartRefreshNonce']>(),
+        dartTasks: [],
+        dartTotalCount: 0,
+        dartLoading: false,
+        dartError: null,
+        dartConfig: null,
+        getDartTaskWorkspaces: () => [],
         taskPageListChromeHidden: false
       } satisfies LinearDialogModel
       useLayoutEffect(() => {

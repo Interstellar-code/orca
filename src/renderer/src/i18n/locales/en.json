@@ -7326,6 +7326,12 @@
           "needsInput": "Needs input",
           "running": "Running",
           "idle": "Idle"
+        },
+        "WorkspaceAttachmentDartStatus": {
+          "loadingDart": "Loading Dart task…"
+        },
+        "WorktreeReferenceStack": {
+          "linkedDart": "Linked Dart {{value0}}"
         }
       },
       "shared": {
@@ -10525,7 +10531,11 @@
             "7166b9090c": "GitHub authentication via the gh CLI.",
             "f16e41cc72": "GitHub Integration",
             "760e2446e0": "Bitbucket Cloud authentication with a saved API token or environment variables.",
-            "af5ae87847": "access token"
+            "af5ae87847": "access token",
+            "dartTitle": "Dart Integration",
+            "dartDescription": "Connect Dart with an authorization token to browse and link tasks.",
+            "dart": "dart",
+            "dartAuthorizationToken": "authorization token"
           }
         },
         "jira": {
@@ -11013,7 +11023,8 @@
             "setup": "setup",
             "apiKey": "api key",
             "skill": "skill",
-            "connect": "connect"
+            "connect": "connect",
+            "dart": "dart"
           }
         },
         "terminal": {
@@ -13424,6 +13435,46 @@
           "manyDescription": "They won’t update until you review them.",
           "review": "Review",
           "dismiss": "Dismiss"
+        },
+        "TaskSourceDartSetup": {
+          "connectTitle": "Connect Dart",
+          "connectDescription": "Paste your Dart authorization token so Orca can browse tasks.",
+          "openIntegrations": "Open Integrations",
+          "manage": "Manage token",
+          "connect": "Connect Dart",
+          "skillHint": "Optional: install the {{skill}} skill under Integrations so agents can read and update Dart tasks."
+        },
+        "dart": {
+          "agent": {
+            "skill": {
+              "install": {
+                "cta": {
+                  "remoteCopy": "This installs host setup; remote agent environments may need separate setup.",
+                  "wslCopy": "Orca installs this skill on the host. WSL agents need it set up separately.",
+                  "hostCopy": "Install it for host agent handoffs from linked Dart work.",
+                  "description": "Let agents read and update Dart tasks."
+                }
+              }
+            }
+          },
+          "integration": {
+            "card": {
+              "descriptionChecking": "Checking Dart access before showing setup actions.",
+              "description": "Browse Dart tasks and start workspaces from them.",
+              "statusNeedsAttention": "Needs attention",
+              "statusConnected": "Connected",
+              "statusUpdateRequired": "Update required",
+              "statusNotConnected": "Not connected",
+              "reconnect": "Reconnect",
+              "replaceToken": "Replace token",
+              "connect": "Connect Dart",
+              "dartTokenName": "Your Dart token",
+              "updateRequiredBody": "{{message}} Dart stays off for this host; nothing falls back to this computer.",
+              "connectedAs": "Connected with an authorization token",
+              "disconnect": "Disconnect Dart",
+              "connectHelp": "Connect with your Dart authorization token. API access needs a Dart Premium plan or above."
+            }
+          }
         }
       },
       "right": {
@@ -18356,6 +18407,101 @@
                 }
               }
             }
+          },
+          "SourceBar": {
+            "dartSignedInAs": "Dart · signed in as {{value0}}",
+            "openDart": "Open Dart in the browser"
+          },
+          "dart": {
+            "Content": {
+              "openWorkspaceFailed": "Unable to open the workspace linked to this Dart task.",
+              "updateServerHint": "This remote server was built before Dart support. Update it, or switch to a different environment.",
+              "hideDart": "Hide Dart",
+              "connectTitle": "Connect your Dart account",
+              "connectBody": "Browse Dart tasks and start workspaces from them.",
+              "connectDart": "Connect Dart",
+              "listTitle": "Dart tasks",
+              "shownCount": "{{count}} shown",
+              "truncated": "Showing first {{count}} of {{total}} tasks. Narrow the filters to see the rest.",
+              "loadFailed": "Failed to load Dart tasks.",
+              "reconnect": "Reconnect Dart",
+              "emptyTitle": "No Dart tasks found",
+              "emptyLinked": "Link a Dart task to a workspace, or choose another view.",
+              "emptyFiltered": "No tasks match these filters. Try All tasks or clear the search."
+            },
+            "Filters": {
+              "assignedToMe": "Assigned to me",
+              "allTasks": "All tasks",
+              "statusFilter": "Status",
+              "allStatuses": "All statuses",
+              "dartboardFilter": "Dartboard",
+              "allDartboards": "All dartboards",
+              "hasWorkspace": "Has Workspace",
+              "refresh": "Refresh Dart tasks",
+              "searchLabel": "Search",
+              "searchLinked": "Search linked tasks",
+              "searchTitles": "Search task titles, then press Enter",
+              "clearSearch": "Clear search"
+            },
+            "TaskDetail": {
+              "sheetTitle": "Dart task",
+              "sheetDescription": "Read the selected Dart task and start work from it.",
+              "retry": "Retry",
+              "dartTasks": "Dart tasks",
+              "openInDart": "Open in Dart",
+              "startWorkspace": "Start workspace",
+              "closeTask": "Close Dart task preview",
+              "close": "Close",
+              "invalidTaskUrl": "Dart sent a link for this task that Orca could not verify, so it is not shown.",
+              "status": "Status",
+              "priority": "Priority",
+              "assignee": "Assignee",
+              "unassigned": "Unassigned",
+              "due": "Due",
+              "description": "Description",
+              "noDescription": "No description.",
+              "linkedWorkspaces": "Linked workspaces",
+              "noLinkedWorkspaces": "No workspace is linked to this task yet.",
+              "commentsCount": "Comments · {{count}}",
+              "comments": "Comments",
+              "noComments": "No comments yet.",
+              "commentsTruncated": "Showing first {{shown}} of {{total}} comments."
+            },
+            "TaskList": {
+              "linkedWorkspaceCount_one": "{{count}} workspace linked to this task",
+              "linkedWorkspaceCount_other": "{{count}} workspaces linked to this task",
+              "startAnotherWorkspace": "Start new workspace",
+              "unassigned": "Unassigned",
+              "startWorkspaceFrom": "Start workspace from {{value0}}",
+              "startWorkspace": "Start workspace",
+              "openInDartNamed": "Open {{value0}} in Dart",
+              "openInDart": "Open in Dart",
+              "columnTask": "Task",
+              "columnStatus": "Status",
+              "columnPriority": "Priority",
+              "columnAssignee": "Assignee",
+              "columnUpdated": "Updated"
+            },
+            "task": {
+              "page": {
+                "dart": {
+                  "linked": {
+                    "issues": {
+                      "someTasksFailed": "Some Dart tasks linked to workspaces could not be loaded. Refresh to try again."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "task": {
+            "page": {
+              "localized": {
+                "options": {
+                  "dart": "Dart"
+                }
+              }
+            }
           }
         }
       },
@@ -18978,6 +19124,32 @@
         "pluginInstallCount": {
           "installs": "{{value0}} installs"
         }
+      },
+      "dart": {
+        "dart": {
+          "connect": {
+            "dialog": {
+              "connectionFailed": "Connection failed",
+              "title": "Connect Dart",
+              "description": "Paste your Dart authorization token. Orca checks it before saving.",
+              "tokenLabel": "Authorization token",
+              "tokenPlaceholder": "dsa_...",
+              "tokenHelp": "In Dart, open Settings > Account (your profile icon at the top left, then Account), scroll down and copy your Authorization token. It starts with dsa_.",
+              "premiumNote": "API access needs a Dart Premium plan or above.",
+              "cancel": "Cancel",
+              "verifying": "Verifying…",
+              "connect": "Connect"
+            }
+          },
+          "credential": {
+            "storage": {
+              "copy": {
+                "remoteTokenStorage": "Your token is sent to the selected remote runtime and stored there with runtime-supported encryption.",
+                "localTokenStorage": "Your token is stored locally and encrypted when local runtime storage supports it."
+              }
+            }
+          }
+        }
       }
     },
     "i18n": {
@@ -19031,6 +19203,17 @@
       },
       "runtimeGitWorkingTreeClient": {
         "resolveConflictNeedsNewerHost": "Resolving conflicts needs a newer Orca on this host. Update Orca on that host."
+      },
+      "runtime": {
+        "linked": {
+          "task": {
+            "provider": {
+              "capabilities": {
+                "linkDart": "Update the remote runtime to link Dart"
+              }
+            }
+          }
+        }
       }
     },
     "ssh": {
@@ -22843,6 +23026,10 @@
         "rateLimited": "Dart is rate limiting requests. Try again shortly.",
         "invalidTaskUrl": "Enter a valid Dart task URL."
       }
+    },
+    "dart": {
+      "updateRequired": "Update the remote Orca server to use Dart.",
+      "connectSuperseded": "Dart connection was superseded by a newer request."
     }
   },
   "editorConflicts": {
