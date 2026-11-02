@@ -66,6 +66,22 @@
       ]
     },
     {
+      "name": "orca-dart",
+      "sourcePath": "skills/orca-dart",
+      "packageDigest": "ab19e705146a16b2974b314cf3fad263de0c2bb8e6461302bd596310b0c2d619",
+      "files": [
+        {
+          "path": "SKILL.md",
+          "size": 2116,
+          "executable": false,
+          "classification": "text",
+          "exactSha256": "2927bf9439d3f4c636d9e132b627a0734156da00b795d4c22494054a8d344d8b",
+          "textNormalizedSha256": "2927bf9439d3f4c636d9e132b627a0734156da00b795d4c22494054a8d344d8b",
+          "identitySha256": "2927bf9439d3f4c636d9e132b627a0734156da00b795d4c22494054a8d344d8b"
+        }
+      ]
+    },
+    {
       "name": "orca-emulator",
       "sourcePath": "skills/orca-emulator",
       "packageDigest": "1dc42e5addc613abd85eba639d4ac36d9c7b3bc6f7186f0a2d54d10dae3f06d3",
