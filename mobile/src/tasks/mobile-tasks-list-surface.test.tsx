@@ -41,6 +41,7 @@ function surfaceFor(provider: string): string[] {
         'Surface',
         null,
         renderMobileTasksListSurface(
+          // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: this branch test supplies only the fields renderMobileTasksListSurface reads; every other model field is deliberately absent.
           {
             provider,
             tasksSupported: true,
