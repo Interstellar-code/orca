@@ -181,7 +181,14 @@ swap_server_install() {
   trap restore_server_install EXIT
 
   log "installing $version into $INSTALL_DIR"
-  sudo -n rm -rf "$SWAP_STAGE" "$SWAP_RETIRED" || fail 'could not clear the staging paths'
+  # An earlier failed cleanup may have left the only rollback copy here.
+  if sudo -n test -e "$SWAP_RETIRED"; then
+    local leftover="$SWAP_RETIRED.$(date +%Y%m%d%H%M%S).$$"
+    sudo -n mv "$SWAP_RETIRED" "$leftover" ||
+      fail "could not preserve the old install at $SWAP_RETIRED"
+    log "WARN: preserved an earlier install at $leftover; inspect or restore it"
+  fi
+  sudo -n rm -rf "$SWAP_STAGE" || fail 'could not clear the staging path'
   sudo -n cp -a "$source" "$SWAP_STAGE" || fail 'copy into the staging path failed'
   sudo -n systemctl stop "$SYSTEMD_UNIT" || fail "systemctl stop $SYSTEMD_UNIT failed"
   STOPPED=1

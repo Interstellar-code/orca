@@ -52,7 +52,15 @@ restore() {
 trap restore EXIT
 
 echo "Installing $version from $app"
-rm -rf "$STAGE" "$RETIRED"
+if [[ -e $RETIRED ]]; then
+  leftover="$RETIRED.$(date +%Y%m%d%H%M%S).$$"
+  mv "$RETIRED" "$leftover" || {
+    echo "Could not preserve the old app at $RETIRED; leaving it untouched." >&2
+    exit 1
+  }
+  echo "Preserved an earlier install at $leftover; inspect or restore it." >&2
+fi
+rm -rf "$STAGE"
 cp -R "$app" "$STAGE"
 mv "$TARGET" "$RETIRED"
 swapped=1
