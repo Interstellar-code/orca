@@ -29,6 +29,7 @@
 1 src/renderer/src/components/browser-pane/stream-remote/use-remote-browser-page-stream.ts
 1 src/renderer/src/components/browser-pane/stream-remote/use-remote-browser-stream-activation.ts
 2 src/renderer/src/components/cmd-j/quick-action-context.ts
+1 src/renderer/src/components/dart/dart-connect-dialog.tsx # token storage guidance must follow the current host, even before status refreshes
 2 src/renderer/src/components/editor/EditorContent.tsx
 1 src/renderer/src/components/editor/EditorDiffFileSurface.tsx
 1 src/renderer/src/components/editor/EditorEditFileSurface.tsx

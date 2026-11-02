@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { isEnvironmentRuntimeContextKey } from '@/lib/provider-runtime-context'
+import { hasRemoteProviderRuntime } from '@/lib/provider-runtime-context'
 import { preventOutsideDismissWhenDirty } from '@/lib/outside-dismiss-guard'
 import { taskProviderErrorMessage, taskProviderErrorText } from '@/lib/task-provider-error-copy'
 import { translate } from '@/i18n/i18n'
@@ -36,9 +36,8 @@ export function DartConnectDialog({
   elevated
 }: DartConnectDialogProps): React.JSX.Element {
   const connectDart = useAppStore((s) => s.connectDart)
-  const dartStatusContextKey = useAppStore((s) => s.dartStatusContextKey)
-  // The status read already keyed this host; a paired server's token stays on that server.
-  const remoteRuntime = isEnvironmentRuntimeContextKey(dartStatusContextKey)
+  const settings = useAppStore((s) => s.settings)
+  const remoteRuntime = hasRemoteProviderRuntime(settings)
   const mountedRef = useMountedRef()
   const tokenId = useId()
   const errorId = useId()
