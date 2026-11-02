@@ -33,12 +33,13 @@ function mockRemote(options: { withDartCapability: boolean; reply?: unknown }): 
   runtimeCall.mockImplementation(async (args: { method: string }) => {
     if (args.method === 'status.get') {
       const status = createCompatibleRuntimeStatusResponse('remote-dart')
-      if (options.withDartCapability) {
-        status.result.capabilities = [
-          ...(status.result.capabilities ?? []),
-          DART_PROVIDER_RUNTIME_CAPABILITY
-        ]
-      }
+      // The compatible status already advertises every current capability, Dart included.
+      const others = (status.result.capabilities ?? []).filter(
+        (capability) => capability !== DART_PROVIDER_RUNTIME_CAPABILITY
+      )
+      status.result.capabilities = options.withDartCapability
+        ? [...others, DART_PROVIDER_RUNTIME_CAPABILITY]
+        : others
       return status
     }
     return {
