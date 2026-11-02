@@ -18,6 +18,7 @@ import { printResult } from '../format'
 import { formatJiraCreate } from '../jira-format'
 import { resolveJiraTarget } from '../jira-target'
 import { RuntimeClientError, type RuntimeRpcSuccess } from '../runtime-client'
+import { UNVERIFIED_WRITE_OUTCOME_CODES } from '../unverified-write-outcome-codes'
 
 async function callJiraWrite<T>(
   context: HandlerContext,
@@ -29,12 +30,7 @@ async function callJiraWrite<T>(
   } catch (error) {
     if (
       error instanceof RuntimeClientError &&
-      [
-        'runtime_timeout',
-        'runtime_connection_failed',
-        'runtime_disconnected',
-        'runtime_unavailable'
-      ].includes(error.code)
+      UNVERIFIED_WRITE_OUTCOME_CODES.includes(error.code)
     ) {
       throw new RuntimeClientError(
         'jira_write_unverified',
