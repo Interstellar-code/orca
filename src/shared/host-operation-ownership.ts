@@ -36,6 +36,7 @@ export const HOST_OPERATION_OWNERSHIP = {
   hostedReview: 'credential',
   jira: 'scope-picked',
   layout: 'host',
+  dart: 'scope-picked',
   linear: 'scope-picked',
   linkPreview: 'host',
   managedRuntime: 'host',

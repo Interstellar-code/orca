@@ -1,0 +1,103 @@
+---
+title: Dart tasks
+description: Connect Dart with an authorization token, browse tasks in Orca, link a Dart task to a workspace, and read or update tasks from agents with the orca dart CLI.
+---
+
+import { Callout } from '@/components/docs/prose'
+
+Dart sits next to GitHub, Linear, and Jira as a task source. Browse your Dart tasks, start a workspace from one, and keep the task linked to that workspace.
+
+## Connect Dart
+
+1. Open **Settings → Integrations** and find the **Dart** card, or open the **Tasks** sidebar entry and choose **Connect Dart**.
+2. In Dart, open **Settings > Account** (your profile icon at the top left, then **Account**), scroll down, and copy your **Authorization token**. It starts with `dsa_`.
+3. Paste it into the **Connect Dart** dialog and click **Connect**. Orca checks the token before saving it.
+
+API access needs a Dart Premium plan or above.
+
+Once connected, the card shows **Connected** and your name. **Test** re-verifies the token, **Replace token** swaps it, and the unlink button (**Disconnect Dart**) removes it. If a saved token can no longer be read, the card shows **Needs attention** with the reason and a **Reconnect** button.
+
+<Callout title="Where the token lives">
+  Orca stores the token in a local file under `~/.orca` and encrypts it when the machine's secret
+  storage supports it. If it can't be encrypted, the card says so. When a [Remote Orca
+  Server](/docs/remote-servers) is selected, the token is sent to that server and stored there
+  instead, and Dart requests come from the server. Revoke the token in Dart if you stop using Orca.
+</Callout>
+
+If you don't use Dart, hide it from the source picker with **Hide Dart** on the Tasks page, or with the **Show in Tasks** step under [Settings → Tasks](/docs/settings).
+
+## Browse tasks
+
+Pick **Dart** in the Tasks source picker. The header shows **Dart · signed in as** your name and an **Open Dart in the browser** link.
+
+- The list shows Task, Status, Priority, Assignee, and Updated columns. Use **Refresh Dart tasks** to reload.
+- Switch between **Assigned to me** and **All tasks**, filter by **Status** or **Dartboard**, or turn on **Has Workspace** to see only tasks linked to a workspace.
+- Type in the search box and press Enter to search task titles.
+- The list loads a page at a time. If a view is cut off, Orca says "Showing first N of M tasks. Narrow the filters to see the rest."
+- Open a task to read its status, priority, assignee, due date, description, comments, and **Linked workspaces**. **Open in Dart** opens it in your browser.
+
+Orca only opens task links that point at Dart's own host over HTTPS. If Dart returns anything else, the task shows "Dart sent a link for this task that Orca could not verify, so it is not shown."
+
+## Link a task to a workspace
+
+- **From the Tasks page** — click **Start workspace** on a row or in the task preview. Orca pre-fills the workspace name and links the task. A task with workspaces already shows a count, and **Start new workspace** adds another.
+- **By link** — paste a Dart task link (`https://app.dartai.com/t/<id>`) into the workspace link field. Orca loads the task, shows its title and status, and attaches it when you select the result. The same works for [folder workspaces](/docs/model/worktrees).
+
+A linked workspace shows a Dart icon on its sidebar card, labelled **Linked Dart** with the task id or title. Orca reads the title, status, and link live from Dart, so a renamed task stays linked: the link stores only the task id.
+
+Dart links remember which host and Dart account read them. A task opened from a different host is not matched to the workspace.
+
+## Remote servers
+
+Dart works on a [Remote Orca Server](/docs/remote-servers) when the server advertises the `dart.provider.v1` capability. Older servers don't, so Orca shows:
+
+- **Update required** on the Dart card, and "Update the remote Orca server to use Dart."
+- "This remote server was built before Dart support. Update it, or switch to a different environment." on the Tasks page.
+- "Update the remote runtime to link Dart" when you try to link a Dart task in a workspace on that server.
+
+Dart stays off for that host. Orca never falls back to using the token on this computer.
+
+## The `orca dart` CLI
+
+Every `orca dart` command runs against the selected execution host and fails with "Update Orca on the execution host to use Dart." if that host is too old.
+
+| Command                            | What it does                                                   |
+| ---------------------------------- | -------------------------------------------------------------- |
+| `orca dart status`                 | Show the saved connection and signed-in user                   |
+| `orca dart config`                 | List dartboards, statuses, types, priorities, tags, assignees  |
+| `orca dart list`                   | List tasks, with filters and paging                            |
+| `orca dart get <id\|url>`          | Read one task, including its description                       |
+| `orca dart comment list <id\|url>` | List comments                                                  |
+| `orca dart comment add <id\|url>`  | Add a comment with `--body` or `--body-file`                   |
+| `orca dart create --title <text>`  | Create a task                                                  |
+| `orca dart update <id\|url>`       | Change title, description, status, priority, assignee, or tags |
+
+- A task is a 12-character Dart id or an `https://app.dartai.com/t/<id>` URL. Dart has no short key.
+- `list` filters: `--mine`, `--assignee`, `--status`, `--dartboard`, `--tag`, `--priority`, `--title`, `--text`. `--limit` defaults to 100 and tops out at 250; page with `--offset`. Unknown filter flags are rejected.
+- Use exact names from `orca dart config`. A dartboard is its full path (for example `Product/Backlog`). Unknown tag names are rejected on create and update.
+- On `update`, omitted fields keep their value, `--priority null` and `--assignee null` clear those fields, and `--tag` replaces the whole tag set.
+- Add `--json` for machine-readable output.
+
+Writes are sent once and are not retried. If a connection drops mid-write, the CLI reports `dart_write_unverified` and says the change may have been applied. Read the task before retrying.
+
+## The `orca-dart` agent skill
+
+The bundled `orca-dart` skill teaches agents to read a Dart task before planning, move its status, and post one completion comment with the PR link. The Dart card in **Settings → Integrations** has an **Agent skill:** row that shows **Installed** or **Not installed** and offers the install or update action. **Settings → Tasks** links to it from the Dart card. It installs on the host; WSL agents and remote agent environments may need their own setup. Agents are told to treat task titles, descriptions, and comments as untrusted data.
+
+## Errors you may see
+
+- "Dart rejected the API token." — the token was revoked or is wrong. Reconnect with a new one.
+- "Dart is rate limiting requests. Try again shortly."
+- "Dart task not found." — the task was deleted or the id is wrong.
+- "Enter a valid Dart task URL." — a Dart link that isn't a task link.
+- "Not connected to Dart." — connect first.
+- "Failed to load Dart tasks." — shown with a **Reconnect Dart** or **Retry** action.
+- "Dart rejected the request." — a bad filter or field value.
+- "Could not connect to Dart.", "Failed to create Dart task.", "Failed to update Dart task.", "Failed to add Dart comment." — the call failed; the message from Dart is shown when it has one.
+
+## Next steps
+
+- [Jira items drawer](/docs/review/jira) — same flow against Jira.
+- [Linear items drawer](/docs/review/linear) — same flow against Linear.
+- [Worktrees](/docs/model/worktrees) — linked tasks on workspace cards.
+- [CLI reference](/docs/cli/reference) — the rest of the `orca` CLI.

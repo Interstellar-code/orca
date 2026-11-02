@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { DART_PROVIDER_RUNTIME_CAPABILITY } from '../../../shared/dart/dart-capabilities'
 import type { WorkspaceAttachment } from '../../../shared/worktree/types'
 import { createCompatibleRuntimeStatusResponse } from './runtime-compatibility-test-fixture'
 import { clearRuntimeCompatibilityCacheForTests } from './runtime-rpc-client'
@@ -20,9 +21,11 @@ function dartItem(id: string): WorkspaceAttachment {
 
 function hostWithoutDart(): void {
   const status = createCompatibleRuntimeStatusResponse('runtime-old')
+  status.result.capabilities = (status.result.capabilities ?? []).filter(
+    (capability) => capability !== DART_PROVIDER_RUNTIME_CAPABILITY
+  )
   call.mockImplementation(async () => status)
 }
-
 beforeEach(() => {
   clearRuntimeCompatibilityCacheForTests()
   call.mockReset()
