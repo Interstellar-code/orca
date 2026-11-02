@@ -128,6 +128,7 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
     const force = dartRefreshNonce > 0
     setDartLoading(true)
     setDartError(null)
+    const listArgs = dartHasWorkspace ? null : buildDartListArgs(dartFilters, viewerId)
     const request: Promise<DartListOutcome> = dartHasWorkspace
       ? readLinkedDartTasks(
           linkedRefs,
@@ -139,9 +140,9 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
           totalCount: linked.tasks.length,
           error: linked.error
         }))
-      : actionsRef.current
-          .listDartTasks(buildDartListArgs(dartFilters, viewerId), { force })
-          .then((result) =>
+      : listArgs === null
+        ? Promise.resolve({ tasks: [], totalCount: 0, error: null })
+        : actionsRef.current.listDartTasks(listArgs, { force }).then((result) =>
             result.ok
               ? {
                   tasks: result.tasks,
