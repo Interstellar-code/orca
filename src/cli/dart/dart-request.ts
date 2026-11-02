@@ -72,7 +72,7 @@ async function mineAssigneeId(context: HandlerContext): Promise<string> {
   const { result } = await callDart<{ viewer: { id: string } | null }>(context, 'dart.status')
   if (!result.viewer) {
     throw new RuntimeClientError(
-      'dart_not_connected',
+      'dart.notConnected',
       'Dart did not report a signed-in user, so --mine cannot resolve your id. Check the Dart connection in Orca settings.'
     )
   }

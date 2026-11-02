@@ -1176,6 +1176,7 @@ const ORCA_DART_MARKDOWN = [
   "- `dart.taskNotFound`: the id does not exist in this workspace. Re-read the task from a link or a list row rather than guessing an id.",
   "- `dart.badRequest`: Dart rejected a field value or name. Re-read `ORCA dart config --json` and use a returned name.",
   "- `dart.rateLimited`: Dart asked for a pause. Wait before the next call instead of retrying immediately.",
+  "- `dart_write_unverified`: the reply was lost (timeout or dropped connection) while creating, updating or commenting, so the change may or may not have been applied. Read the task before retrying, and never report success from this outcome.",
   "- `incompatible_runtime`: the execution host predates the Dart provider. Update that host; a paired server must be updated too.",
   "",
   "A successful empty list means the read completed; API, permission and network errors remain errors.",

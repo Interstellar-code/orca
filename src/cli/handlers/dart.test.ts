@@ -285,6 +285,40 @@ describe('orca dart CLI', () => {
     })
   })
 
+  it('rejects a bare --tag before any Dart call', async () => {
+    queueFixtures(callMock, runtimeFixture())
+
+    await main(['dart', 'update', TASK_ID, '--tag', '--json'], '/tmp/repo')
+
+    expect(process.exitCode).toBe(1)
+    expect(callMock).toHaveBeenCalledTimes(1)
+    expect(printedJson()).toMatchObject({
+      ok: false,
+      error: { code: 'invalid_argument', message: expect.stringContaining('requires a value') }
+    })
+  })
+
+  it('clears every tag on an explicit empty --tag and dedupes repeated names', async () => {
+    queueFixtures(callMock, runtimeFixture(), dartFixture('req_update', { task: TASK }))
+    await main(['dart', 'update', TASK_ID, '--tag=', '--json'], '/tmp/repo')
+    expect(callMock).toHaveBeenNthCalledWith(2, 'dart.updateTask', {
+      taskId: TASK_ID,
+      updates: expect.objectContaining({ tags: [] })
+    })
+
+    callMock.mockReset()
+    vi.mocked(console.log).mockClear()
+    queueFixtures(callMock, runtimeFixture(), dartFixture('req_update_dedupe', { task: TASK }))
+    await main(
+      ['dart', 'update', TASK_ID, '--tag', 'bug', '--tag', 'bug', '--tag', 'backend', '--json'],
+      '/tmp/repo'
+    )
+    expect(callMock).toHaveBeenNthCalledWith(2, 'dart.updateTask', {
+      taskId: TASK_ID,
+      updates: expect.objectContaining({ tags: ['bug', 'backend'] })
+    })
+  })
+
   it('updates only the fields given, clearing a field given as null', async () => {
     queueFixtures(callMock, runtimeFixture(), dartFixture('req_update', { task: TASK }))
 
@@ -342,6 +376,25 @@ describe('orca dart CLI', () => {
     callMock.mockRejectedValueOnce(new RuntimeClientError('runtime_timeout', 'Runtime timed out.'))
 
     await main(['dart', 'update', TASK_ID, '--status', 'Done', '--json'], '/tmp/repo')
+
+    expect(process.exitCode).toBe(1)
+    expect(printedJson()).toMatchObject({
+      ok: false,
+      error: {
+        code: 'dart_write_unverified',
+        message: expect.stringContaining('may have been applied')
+      }
+    })
+  })
+
+  it('reports a lost create reply as an unverified Dart change', async () => {
+    const { RuntimeClientError } = await import('../runtime/types.js')
+    queueFixtures(callMock, runtimeFixture())
+    callMock.mockRejectedValueOnce(
+      new RuntimeClientError('runtime_connection_failed', 'Connection lost.')
+    )
+
+    await main(['dart', 'create', '--title', 'Fix login redirect', '--json'], '/tmp/repo')
 
     expect(process.exitCode).toBe(1)
     expect(printedJson()).toMatchObject({

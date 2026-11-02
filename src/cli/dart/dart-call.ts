@@ -12,7 +12,8 @@ export type DartCall<T extends object> = {
   result: { ok: true } & T
 }
 
-// A lost reply leaves the write's outcome unknown; Jira's write gate uses the same codes.
+// A lost reply leaves the write's outcome unknown. Duplicated from Jira's inline list: jira-write.ts
+// exports only its handler map, so there is no shared constant to import.
 const OUTCOME_UNKNOWN_CODES = [
   'runtime_timeout',
   'runtime_connection_failed',
