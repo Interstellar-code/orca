@@ -205,8 +205,11 @@ swap_server_install() {
   [[ $ready == 1 ]] ||
     fail "$SYSTEMD_UNIT did not stay active${port:+ and listen on port $port} within 10s"
   # The older rollback copy goes only after the new install is running.
-  sudo -n rm -rf "$SWAP_PREVIOUS" || true
-  sudo -n mv "$SWAP_RETIRED" "$SWAP_PREVIOUS" || log "WARN: could not keep $SWAP_PREVIOUS for rollback"
+  if ! sudo -n rm -rf "$SWAP_PREVIOUS"; then
+    log "WARN: could not clear $SWAP_PREVIOUS; kept the old install at $SWAP_RETIRED"
+  elif ! sudo -n mv "$SWAP_RETIRED" "$SWAP_PREVIOUS"; then
+    log "WARN: could not keep $SWAP_PREVIOUS for rollback; old install remains at $SWAP_RETIRED"
+  fi
   SWAPPED=0
   STOPPED=0
   trap - EXIT

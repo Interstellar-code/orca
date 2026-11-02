@@ -60,8 +60,11 @@ mv "$STAGE" "$TARGET"
 # The new app is in place, so a later cleanup failure must not roll it back.
 swapped=0
 # The older rollback copy goes only after the new app is fully in place.
-rm -rf "$PREVIOUS" || true
-mv "$RETIRED" "$PREVIOUS" || echo "Kept the old app at $RETIRED (could not replace $PREVIOUS)." >&2
+if ! rm -rf "$PREVIOUS"; then
+  echo "Kept the old app at $RETIRED (could not clear $PREVIOUS)." >&2
+elif ! mv "$RETIRED" "$PREVIOUS"; then
+  echo "Kept the old app at $RETIRED (could not replace $PREVIOUS)." >&2
+fi
 trap - EXIT
 
 echo "Installed. Roll back by quitting Orca and running:"
