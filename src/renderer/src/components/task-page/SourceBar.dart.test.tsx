@@ -16,10 +16,11 @@ function renderSourceBar(overrides: Record<string, unknown>): string {
     taskSourceManuallyChangedRef: { current: false },
     ...overrides
   }
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the Dart branch reads only the fields set above.
+  const sourceBarModel = model as unknown as TaskPageComposerActionsModel
   return renderToStaticMarkup(
     <TooltipProvider>
-      {/* SAFETY: the Dart branch reads only the fields set above. */}
-      <TaskPageSourceBar model={model as unknown as TaskPageComposerActionsModel} />
+      <TaskPageSourceBar model={sourceBarModel} />
     </TooltipProvider>
   )
 }

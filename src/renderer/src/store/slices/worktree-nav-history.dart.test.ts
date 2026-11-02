@@ -13,16 +13,19 @@ type MinimalState = Pick<
   'worktreeNavHistory' | 'worktreeNavHistoryIndex' | 'recordViewVisit'
 >
 
+// SAFETY lines below: the slice reads only the fields in MinimalState, so a narrow store stands in for AppState.
 function createHistoryStore(): StoreApi<MinimalState> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return createStore<any>()((set, get, api) => ({
-    worktreesByRepo: {},
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: narrow test store typed back to MinimalState.
+  return createStore<MinimalState>()((set, get, api) => ({
     ...createWorktreeNavHistorySlice(
-      set as Parameters<typeof createWorktreeNavHistorySlice>[0],
-      get as Parameters<typeof createWorktreeNavHistorySlice>[1],
-      api as Parameters<typeof createWorktreeNavHistorySlice>[2]
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: MinimalState is the subset of AppState the slice touches.
+      set as unknown as Parameters<typeof createWorktreeNavHistorySlice>[0],
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: MinimalState is the subset of AppState the slice touches.
+      get as unknown as Parameters<typeof createWorktreeNavHistorySlice>[1],
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: MinimalState is the subset of AppState the slice touches.
+      api as unknown as Parameters<typeof createWorktreeNavHistorySlice>[2]
     )
-  })) as unknown as StoreApi<MinimalState>
+  }))
 }
 
 const task = (id: string): DartTask => ({
