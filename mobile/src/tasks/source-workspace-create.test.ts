@@ -3,7 +3,10 @@ import type { RpcClient } from '../transport/rpc-client'
 import { createFakeRpcClient } from '../mobile-web-shell/bridge-host-test-fakes'
 import type { AgentLaunchResult } from '../../../src/shared/agent-launch-intent'
 import { createWorkspaceFromComposerSource } from './source-workspace-create'
-import { DeferredMobileTaskProviderError } from './mobile-task-provider-visibility'
+import {
+  DeferredMobileTaskProviderError,
+  deferredMobileTaskProviderMessage
+} from './mobile-task-provider-visibility'
 import type { MobileComposerCreateSelection } from './mobile-composer-source-types'
 import { WORKTREE_CREATE_DEDUPE_TTL_LEGACY_HOST_MS } from './worktree-create-idempotency-policy'
 import { readNewWorktreeRuntimeCapabilities } from './worktree-create-capability'
@@ -233,7 +236,7 @@ describe('createWorkspaceFromComposerSource', () => {
   })
 
   // A restored Dart item is deferred on mobile; it must fail before any Linear relink reaches the host.
-  it('refuses a Dart work item before sending anything', async () => {
+  it('refuses a Dart work item with the deferred notice before sending anything', async () => {
     const calls: Call[] = []
     const client = fakeClient(() => ({ worktree: { id: 'wt-dart' } }), calls)
     const selection: MobileComposerCreateSelection = {
@@ -247,9 +250,10 @@ describe('createWorkspaceFromComposerSource', () => {
         dartIdentifier: 'DART-1'
       }
     }
-    await expect(
-      createWorkspaceFromComposerSource({ client, selection, ...baseArgs })
-    ).rejects.toThrow(DeferredMobileTaskProviderError)
+    const failure = createWorkspaceFromComposerSource({ client, selection, ...baseArgs })
+    // The create-error display renders error.message, so the exact deferred text must survive the throw.
+    await expect(failure).rejects.toThrow(DeferredMobileTaskProviderError)
+    await expect(failure).rejects.toThrow(deferredMobileTaskProviderMessage())
     expect(calls).toEqual([])
   })
 

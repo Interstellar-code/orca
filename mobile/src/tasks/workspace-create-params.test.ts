@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { startupAgentCreateFields, buildTaskWorkspaceCreateParams } from './workspace-create-params'
-import { DeferredMobileTaskProviderError } from './mobile-task-provider-visibility'
 
 describe('startupAgentCreateFields', () => {
   it('sends startupAgent + createdWithAgent so the host resolves launch args', () => {
@@ -245,23 +244,5 @@ describe('task workspace create params', () => {
         nameIsAutoManaged: false
       })
     ).toMatchObject({ name: 'my-branch' })
-  })
-
-  // An unknown provider used to fall through to a linkedLinearIssue; Dart must never be sent as Linear.
-  it('refuses a Dart item instead of building a Linear payload', () => {
-    expect(() =>
-      buildTaskWorkspaceCreateParams({
-        item: {
-          provider: 'dart',
-          source: {
-            identifier: 'DART-1',
-            title: 'Deferred on mobile',
-            url: 'https://dart.example/task/DART-1'
-          }
-        },
-        targetRepoId: 'repo-dart',
-        setupDecision: 'inherit'
-      })
-    ).toThrow(DeferredMobileTaskProviderError)
   })
 })
