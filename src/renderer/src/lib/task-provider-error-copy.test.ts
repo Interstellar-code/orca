@@ -28,4 +28,23 @@ describe('task provider error copy', () => {
       'New host failure'
     )
   })
+
+  it('shows only a validated Dart rate-limit wait, not arbitrary host detail', async () => {
+    await i18n.changeLanguage('en')
+    expect(
+      taskProviderErrorText(
+        'Dart request failed (HTTP 429). Retry after 30 seconds.',
+        'dart.rateLimited'
+      )
+    ).toContain('Retry after 30 seconds.')
+    expect(
+      taskProviderErrorText(
+        'Dart request failed (HTTP 429). Retry after 2026-11-02T12:00:00.000Z.',
+        'dart.rateLimited'
+      )
+    ).toContain('Retry after 2026-11-02T12:00:00.000Z.')
+    expect(taskProviderErrorText('secret Retry after <script>.', 'dart.rateLimited')).not.toContain(
+      'secret'
+    )
+  })
 })

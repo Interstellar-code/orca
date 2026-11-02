@@ -21,10 +21,7 @@ import {
   type TaskProviderErrorCode
 } from '../../../shared/task-provider-failure'
 import { translate } from '@/i18n/i18n'
-import { rowLessSourceTarget, type RowLessSource } from '@/lib/default-creation-host'
 import { callRuntimeRpc, runtimeEnvironmentSupportsCapability } from './runtime-rpc-client'
-
-export type RuntimeDartSettings = RowLessSource
 
 /** A contract failure, or the client's own "update the remote server" refusal (no error code). */
 export type DartClientFailure = { ok: false; error: string; errorCode?: TaskProviderErrorCode }
@@ -45,10 +42,6 @@ export class DartUpdateRequiredError extends Error {
     super(dartUpdateRequiredMessage())
     this.name = 'DartUpdateRequiredError'
   }
-}
-
-export function getDartRuntimeTarget(source: RuntimeDartSettings): RuntimeClientTarget {
-  return rowLessSourceTarget(source)
 }
 
 const SECRET_AT_REST_PROTECTIONS = { sealed: true, plaintext: true } as const satisfies Readonly<
@@ -164,40 +157,24 @@ export async function dartStatusForTarget(
   return parseDartConnectionStatus(reply)
 }
 
-export async function dartStatus(settings: RuntimeDartSettings): Promise<DartConnectionStatus> {
-  return dartStatusForTarget(getDartRuntimeTarget(settings))
-}
-
-export async function dartConnect(
-  settings: RuntimeDartSettings,
+export async function dartConnectForTarget(
+  target: RuntimeClientTarget,
   args: { apiToken: string }
 ): Promise<DartClientResult<{ viewer: DartUser }>> {
-  return callDart(
-    getDartRuntimeTarget(settings),
-    'dart.connect',
-    args,
-    () => window.api.dart.connect(args),
-    30_000
-  )
+  return callDart(target, 'dart.connect', args, () => window.api.dart.connect(args), 30_000)
 }
 
-export async function dartDisconnect(
-  settings: RuntimeDartSettings
+export async function dartDisconnectForTarget(
+  target: RuntimeClientTarget
 ): Promise<DartClientResult<object>> {
-  return callDart(
-    getDartRuntimeTarget(settings),
-    'dart.disconnect',
-    undefined,
-    () => window.api.dart.disconnect(),
-    15_000
-  )
+  return callDart(target, 'dart.disconnect', undefined, () => window.api.dart.disconnect(), 15_000)
 }
 
-export async function dartTestConnection(
-  settings: RuntimeDartSettings
+export async function dartTestConnectionForTarget(
+  target: RuntimeClientTarget
 ): Promise<DartClientResult<{ viewer: DartUser }>> {
   return callDart(
-    getDartRuntimeTarget(settings),
+    target,
     'dart.testConnection',
     undefined,
     () => window.api.dart.testConnection(),

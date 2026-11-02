@@ -79,6 +79,24 @@ describe('dart error mapping', () => {
     })
   })
 
+  it.each([
+    ['30', 'Retry after 30 seconds.'],
+    ['2026-11-02T12:00:00Z', 'Retry after 2026-11-02T12:00:00.000Z.']
+  ])('keeps a 429 Retry-After (%s) in the rate-limited failure', async (retryAfter, wait) => {
+    const { host, tasks } = await connected()
+    host.route(
+      'GET',
+      `/tasks/${TASK_ID}`,
+      () => new Response(null, { status: 429, headers: { 'retry-after': retryAfter } })
+    )
+
+    await expect(tasks.getTask({ taskId: TASK_ID })).resolves.toEqual({
+      ok: false,
+      error: `Dart request failed (HTTP 429). ${wait}`,
+      errorCode: 'dart.rateLimited'
+    })
+  })
+
   it('maps a network failure and a 400 field error on writes', async () => {
     const { host, tasks } = await connected()
     host.route('PUT', `/tasks/${TASK_ID}`, () => jsonResponse(400, { title: ['too long'] }))

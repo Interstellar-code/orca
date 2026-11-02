@@ -6,20 +6,12 @@ import {
 import type { HandlerContext } from '../dispatch'
 import { printResult } from '../format'
 import { RuntimeClientError, type RuntimeRpcSuccess } from '../runtime-client'
+import { UNVERIFIED_WRITE_OUTCOME_CODES } from '../unverified-write-outcome-codes'
 
 export type DartCall<T extends object> = {
   response: RuntimeRpcSuccess<DartResult<T>>
   result: { ok: true } & T
 }
-
-// A lost reply leaves the write's outcome unknown. Duplicated from Jira's inline list: jira-write.ts
-// exports only its handler map, so there is no shared constant to import.
-const OUTCOME_UNKNOWN_CODES = [
-  'runtime_timeout',
-  'runtime_connection_failed',
-  'runtime_disconnected',
-  'runtime_unavailable'
-]
 
 /** Calls one dart.* method and turns the host's `taskProviderFailure` into a CLI error with its code. */
 export async function callDart<T extends object>(
@@ -34,7 +26,7 @@ export async function callDart<T extends object>(
     if (
       DART_UNVERIFIED_WRITE_METHODS.includes(method) &&
       error instanceof RuntimeClientError &&
-      OUTCOME_UNKNOWN_CODES.includes(error.code)
+      UNVERIFIED_WRITE_OUTCOME_CODES.includes(error.code)
     ) {
       throw new RuntimeClientError(
         'dart_write_unverified',

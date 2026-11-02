@@ -44,6 +44,22 @@ function codeForStatus(status: number, operation: DartOperation): TaskProviderEr
   return null
 }
 
+const RETRY_AFTER_MAX_CHARS = 64
+
+/** A 429's Retry-After as seconds or an HTTP date, bounded so a hostile header cannot bloat it. */
+function retryAfterWait(retryAfter: string | null): string | null {
+  const raw = retryAfter?.trim().slice(0, RETRY_AFTER_MAX_CHARS)
+  if (!raw) {
+    return null
+  }
+  if (/^\d+$/.test(raw)) {
+    const seconds = Number(raw)
+    return `Retry after ${seconds} second${seconds === 1 ? '' : 's'}.`
+  }
+  const date = new Date(raw)
+  return Number.isNaN(date.getTime()) ? null : `Retry after ${date.toISOString()}.`
+}
+
 /** Only a 401 revokes the token; a 403 is a per-call permission denial that keeps the cache. */
 export function isDartTokenRejected(error: unknown): boolean {
   return error instanceof DartApiError && error.status === 401
@@ -56,5 +72,9 @@ export function toDartFailure(error: unknown, operation: DartOperation): DartFai
     return taskProviderFailure(fallback.code, fallback.message)
   }
   const code = error.status === null ? null : codeForStatus(error.status, operation)
+  if (code === 'dart.rateLimited') {
+    const wait = retryAfterWait(error.retryAfter)
+    return taskProviderFailure(code, wait ? `${error.message} ${wait}` : error.message)
+  }
   return taskProviderFailure(code ?? fallback.code, error.message)
 }

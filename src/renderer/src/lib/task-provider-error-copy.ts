@@ -217,6 +217,16 @@ export function taskProviderErrorText(error: unknown, errorCode?: unknown): stri
     : Object.hasOwn(LEGACY_CODES, message)
       ? LEGACY_CODES[message]
       : undefined
+  if (code === 'dart.rateLimited') {
+    // Only surface the bounded wait emitted by the Dart host, never arbitrary provider detail.
+    const wait =
+      /(?:^|\s)Retry after (\d{1,64} seconds?|\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)\.$/.exec(
+        message
+      )
+    if (wait) {
+      return `${COPY[code]()} ${translate('taskProviders.errors.dart.retryAfter', 'Retry after {{wait}}.', { wait: wait[1] })}`
+    }
+  }
   return code === undefined ? raw : COPY[code]()
 }
 

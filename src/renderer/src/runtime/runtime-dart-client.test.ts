@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DART_PROVIDER_RUNTIME_CAPABILITY } from '../../../shared/dart/dart-capabilities'
 import type { DartTask } from '../../../shared/dart/dart-types'
 import {
-  dartConnect,
+  dartConnectForTarget,
   dartListTasksForTarget,
   dartStatusForTarget,
   DartUpdateRequiredError
@@ -131,7 +131,9 @@ describe('runtime Dart client', () => {
       errorCode: 'dart.unauthorized'
     })
 
-    await expect(dartConnect({ kind: 'local' }, { apiToken: 'dsa_FAKE' })).resolves.toEqual({
+    await expect(
+      dartConnectForTarget({ kind: 'local' }, { apiToken: 'dsa_FAKE' })
+    ).resolves.toEqual({
       ok: false,
       error: 'Dart rejected the API token.',
       errorCode: 'dart.unauthorized'

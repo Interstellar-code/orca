@@ -10,7 +10,6 @@ import {
   getWorkspaceSourceName
 } from '../../../src/shared/new-workspace/workspace-source'
 import { resolveMobileWorkspaceCreateName } from './mobile-workspace-name'
-import { DeferredMobileTaskProviderError } from './mobile-task-provider-visibility'
 import type { WorkspaceAgentChoice } from './workspace-agent-selection'
 
 export type WorkspaceCreateSetupDecision = SetupDecision
@@ -64,22 +63,11 @@ type WorkspaceCreateJiraItem = {
   }
 }
 
-// A restored mobile link can still carry Dart; phase 1 refuses it rather than building a Linear payload.
-type WorkspaceCreateDartItem = {
-  provider: 'dart'
-  source: {
-    identifier: string
-    title: string
-    url: string
-  }
-}
-
 export type WorkspaceCreateTaskItem =
   | WorkspaceCreateGitHubItem
   | WorkspaceCreateGitLabItem
   | WorkspaceCreateLinearItem
   | WorkspaceCreateJiraItem
-  | WorkspaceCreateDartItem
 
 export type WorkspaceCreateParams = RpcSendParams<'worktree.create'>
 
@@ -124,10 +112,6 @@ export function buildTaskWorkspaceCreateParams(args: {
     hostedStartPoint,
     nameIsAutoManaged = true
   } = args
-  // Phase 1 has no mobile Dart reader; a restored selection must not be sent down the Linear path.
-  if (item.provider === 'dart') {
-    throw new DeferredMobileTaskProviderError(item.provider)
-  }
   const shouldLaunchAgent = agent !== 'blank'
   const createdWithAgent = shouldLaunchAgent ? (agent as TuiAgent) : undefined
   const comment = note?.trim()

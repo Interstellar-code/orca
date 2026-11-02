@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { useMountedRef } from '@/hooks/useMountedRef'
 import {
   getProviderRuntimeContextKey,
-  hasRemoteProviderRuntime
+  isEnvironmentRuntimeContextKey
 } from '@/lib/provider-runtime-context'
 import { dartUpdateRequiredMessage } from '@/runtime/runtime-dart-client'
 import { useAppStore } from '@/store'
@@ -39,14 +39,15 @@ export function DartIntegrationCard(): React.JSX.Element {
   const [testResult, setTestResult] = useState<VerificationResult | null>(null)
   const [disconnectError, setDisconnectError] = useState<string | null>(null)
 
-  const contextMatches = dartStatusContextKey === getProviderRuntimeContextKey(settings)
+  const providerRuntimeContextKey = getProviderRuntimeContextKey(settings)
+  const contextMatches = dartStatusContextKey === providerRuntimeContextKey
   const checking = !contextMatches || !dartStatusChecked
   const updateRequired = contextMatches && dartUpdateRequired
   const connected = contextMatches && !updateRequired && dartStatus.connected
   const credentialError = contextMatches ? dartStatus.credentialError : undefined
   const viewer = connected ? dartStatus.viewer : null
   const accountScope = getProviderAccountScope(settings)
-  const remote = hasRemoteProviderRuntime(settings)
+  const remote = isEnvironmentRuntimeContextKey(providerRuntimeContextKey)
   const subordinateRowClass = useIntegrationSubordinateRowClass('flex items-center gap-3')
   const accountScopeRowClass = useIntegrationSubordinateRowClass('text-xs')
 

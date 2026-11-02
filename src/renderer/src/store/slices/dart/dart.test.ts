@@ -5,10 +5,10 @@ import type * as DartClient from '@/runtime/runtime-dart-client'
 import { createTestStore } from '../store-test-helpers'
 
 const clientMocks = vi.hoisted(() => ({
-  dartStatus: vi.fn(),
-  dartConnect: vi.fn(),
-  dartDisconnect: vi.fn(),
-  dartTestConnection: vi.fn(),
+  dartStatusForTarget: vi.fn(),
+  dartConnectForTarget: vi.fn(),
+  dartDisconnectForTarget: vi.fn(),
+  dartTestConnectionForTarget: vi.fn(),
   dartListTasksForTarget: vi.fn(),
   dartGetTaskForTarget: vi.fn()
 }))
@@ -34,7 +34,7 @@ beforeEach(() => {
 
 describe('dart slice connection', () => {
   it('stores the connected status and marks the check as done', async () => {
-    clientMocks.dartStatus.mockResolvedValue({ connected: true, viewer })
+    clientMocks.dartStatusForTarget.mockResolvedValue({ connected: true, viewer })
     const store = createTestStore()
 
     await store.getState().checkDartConnection()
@@ -47,7 +47,7 @@ describe('dart slice connection', () => {
   })
 
   it('flags an old remote server instead of reporting a plain disconnect', async () => {
-    clientMocks.dartStatus.mockRejectedValue(new DartUpdateRequiredError())
+    clientMocks.dartStatusForTarget.mockRejectedValue(new DartUpdateRequiredError())
     const store = createTestStore()
     store.setState({ dartStatus: { connected: true, viewer }, dartStatusChecked: true })
 
@@ -62,10 +62,10 @@ describe('dart slice connection', () => {
 
   it('keeps the last known status when a later check fails transiently', async () => {
     const store = createTestStore()
-    clientMocks.dartStatus.mockResolvedValueOnce({ connected: true, viewer })
+    clientMocks.dartStatusForTarget.mockResolvedValueOnce({ connected: true, viewer })
     await store.getState().checkDartConnection()
 
-    clientMocks.dartStatus.mockRejectedValueOnce(new Error('socket closed'))
+    clientMocks.dartStatusForTarget.mockRejectedValueOnce(new Error('socket closed'))
     await store.getState().checkDartConnection()
 
     expect(store.getState().dartStatus).toMatchObject({ connected: true, viewer })
@@ -77,8 +77,8 @@ describe('dart slice connection', () => {
     store.setState({
       dartListCache: { stale: { data: { tasks: [], totalCount: 0 }, fetchedAt: NOW } }
     })
-    clientMocks.dartStatus.mockResolvedValue({ connected: true, viewer })
-    clientMocks.dartConnect.mockResolvedValueOnce({ ok: true, viewer })
+    clientMocks.dartStatusForTarget.mockResolvedValue({ connected: true, viewer })
+    clientMocks.dartConnectForTarget.mockResolvedValueOnce({ ok: true, viewer })
 
     await expect(store.getState().connectDart({ apiToken: 'dsa_FAKE' })).resolves.toEqual({
       ok: true,
@@ -92,7 +92,7 @@ describe('dart slice connection', () => {
       error: 'Dart rejected the API token.',
       errorCode: 'dart.unauthorized'
     }
-    clientMocks.dartConnect.mockResolvedValueOnce(failure)
+    clientMocks.dartConnectForTarget.mockResolvedValueOnce(failure)
     await expect(store.getState().connectDart({ apiToken: 'dsa_BAD' })).resolves.toEqual(failure)
     expect(store.getState().dartStatus.connected).toBe(true)
   })
@@ -103,8 +103,8 @@ describe('dart slice connection', () => {
       dartStatus: { connected: true, viewer },
       dartTaskCache: { k: { data: task('aB3dE5gH7jK9'), fetchedAt: NOW } }
     })
-    clientMocks.dartDisconnect.mockResolvedValue({ ok: true })
-    clientMocks.dartStatus.mockResolvedValue({ connected: false, viewer: null })
+    clientMocks.dartDisconnectForTarget.mockResolvedValue({ ok: true })
+    clientMocks.dartStatusForTarget.mockResolvedValue({ connected: false, viewer: null })
 
     await store.getState().disconnectDart()
 

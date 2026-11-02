@@ -9,7 +9,6 @@ import {
   dartGetTaskForTarget,
   dartListCommentsForTarget,
   dartListTasksForTarget,
-  getDartRuntimeTarget,
   type DartClientFailure,
   type DartClientResult
 } from '@/runtime/runtime-dart-client'
@@ -105,7 +104,7 @@ export function createDartReadActions(set: DartSliceSet, get: DartSliceGet): Dar
         inflightReads: inflightTaskReads,
         flightKey: `${scope.contextKey}::${cacheKey}`,
         force: options?.force,
-        read: () => dartGetTaskForTarget(getDartRuntimeTarget(scope.settings), taskId),
+        read: () => dartGetTaskForTarget(scope.target, taskId),
         store: (result) =>
           set((state) => ({
             dartTaskCache: evictStaleDartCacheEntries({
@@ -130,7 +129,7 @@ export function createDartReadActions(set: DartSliceSet, get: DartSliceGet): Dar
         inflightReads: inflightListReads,
         flightKey: `${scope.contextKey}::${cacheKey}`,
         force: options?.force,
-        read: () => dartListTasksForTarget(getDartRuntimeTarget(scope.settings), args),
+        read: () => dartListTasksForTarget(scope.target, args),
         store: (result) =>
           set((state) => ({
             dartListCache: evictStaleDartCacheEntries({
@@ -154,7 +153,7 @@ export function createDartReadActions(set: DartSliceSet, get: DartSliceGet): Dar
         inflightReads: inflightCommentReads,
         flightKey: `${scope.contextKey}::comments::${taskId}`,
         force: options?.force,
-        read: () => dartListCommentsForTarget(getDartRuntimeTarget(scope.settings), { taskId }),
+        read: () => dartListCommentsForTarget(scope.target, { taskId }),
         store: () => {}
       })
     },
@@ -173,7 +172,7 @@ export function createDartReadActions(set: DartSliceSet, get: DartSliceGet): Dar
         inflightReads: inflightConfigReads,
         flightKey: `${scope.contextKey}::${cacheKey}`,
         force: options?.force,
-        read: () => dartConfigForTarget(getDartRuntimeTarget(scope.settings)),
+        read: () => dartConfigForTarget(scope.target),
         store: (result) =>
           set((state) => ({
             dartConfigCache: evictStaleDartCacheEntries({

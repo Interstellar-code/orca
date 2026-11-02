@@ -1,14 +1,12 @@
 import { shallow } from 'zustand/shallow'
 import {
-  dartConnect,
-  dartDisconnect,
-  dartStatus,
-  dartTestConnection,
+  dartConnectForTarget,
+  dartDisconnectForTarget,
+  dartStatusForTarget,
+  dartTestConnectionForTarget,
   DartUpdateRequiredError,
   type DartClientFailure
 } from '@/runtime/runtime-dart-client'
-import { defaultScopeSource } from '@/lib/default-creation-host'
-import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
 import { translate } from '@/i18n/i18n'
 import type { DartSlice, DartSliceGet, DartSliceSet } from './dart-slice-contract'
 import {
@@ -16,6 +14,7 @@ import {
   currentDartMutationGeneration,
   dartStatusUpdate,
   EMPTY_DART_READ_CACHES,
+  getDartReadScope,
   isCurrentDartMutation,
   isCurrentDartRuntimeContext,
   isCurrentDartStatusRead,
@@ -49,7 +48,8 @@ export function createDartConnectionActions(
 ): DartConnectionActions {
   return {
     checkDartConnection: async () => {
-      const contextKey = getProviderRuntimeContextKey(get().settings)
+      const scope = getDartReadScope(get().settings)
+      const contextKey = scope.contextKey
       const statusReadGeneration = nextDartStatusReadGeneration()
       const mutationGeneration = currentDartMutationGeneration()
       if (get().dartStatusContextKey !== contextKey) {
@@ -58,9 +58,9 @@ export function createDartConnectionActions(
       const isStale = (): boolean =>
         mutationGeneration !== currentDartMutationGeneration() ||
         !isCurrentDartStatusRead(statusReadGeneration) ||
-        getProviderRuntimeContextKey(get().settings) !== contextKey
+        !isCurrentDartRuntimeContext(contextKey, get().settings)
       try {
-        const status = await dartStatus(defaultScopeSource(get().settings))
+        const status = await dartStatusForTarget(scope.target)
         if (isStale()) {
           return
         }
@@ -93,9 +93,10 @@ export function createDartConnectionActions(
 
     connectDart: async (args) => {
       const requestGeneration = beginDartMutation()
-      const contextKey = getProviderRuntimeContextKey(get().settings)
+      const scope = getDartReadScope(get().settings)
+      const contextKey = scope.contextKey
       try {
-        const result = await dartConnect(defaultScopeSource(get().settings), args)
+        const result = await dartConnectForTarget(scope.target, args)
         if (!result.ok) {
           return result
         }
@@ -130,16 +131,17 @@ export function createDartConnectionActions(
 
     testDartConnection: async () => {
       const requestGeneration = beginDartMutation()
-      const contextKey = getProviderRuntimeContextKey(get().settings)
+      const scope = getDartReadScope(get().settings)
+      const contextKey = scope.contextKey
       try {
-        const result = await dartTestConnection(defaultScopeSource(get().settings))
+        const result = await dartTestConnectionForTarget(scope.target)
         if (
           !isCurrentDartMutation(requestGeneration) ||
           !isCurrentDartRuntimeContext(contextKey, get().settings)
         ) {
           return result
         }
-        const status = await dartStatus(defaultScopeSource(get().settings))
+        const status = await dartStatusForTarget(scope.target)
         if (
           isCurrentDartMutation(requestGeneration) &&
           isCurrentDartRuntimeContext(contextKey, get().settings)
@@ -154,9 +156,10 @@ export function createDartConnectionActions(
 
     disconnectDart: async () => {
       const requestGeneration = beginDartMutation()
-      const contextKey = getProviderRuntimeContextKey(get().settings)
+      const scope = getDartReadScope(get().settings)
+      const contextKey = scope.contextKey
       try {
-        const result = await dartDisconnect(defaultScopeSource(get().settings))
+        const result = await dartDisconnectForTarget(scope.target)
         if (
           !result.ok ||
           !isCurrentDartMutation(requestGeneration) ||
@@ -164,7 +167,7 @@ export function createDartConnectionActions(
         ) {
           return result
         }
-        const status = await dartStatus(defaultScopeSource(get().settings))
+        const status = await dartStatusForTarget(scope.target)
         if (
           isCurrentDartMutation(requestGeneration) &&
           isCurrentDartRuntimeContext(contextKey, get().settings)
