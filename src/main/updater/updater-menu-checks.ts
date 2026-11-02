@@ -1,10 +1,31 @@
 import { app } from 'electron'
 import { isMacInstallRequested } from '../updater-mac-install'
+import { recordUpdaterLifecycle } from '../updater-lifecycle-diagnostics'
 import type { UpdateCheckOptions } from '../../shared/update-status-types'
 import type { ReleaseChannel } from '../../shared/release-channel'
 import { UpdaterScheduling } from './updater-scheduling'
 
+export const FORK_BUILD_UPDATE_MESSAGE = 'This is a fork build; updates come from the rebuild job'
+
+// Matches the `local.<timestamp>.<commit>` suffix from config/scripts/build-mac-local.mjs; a release version never ends this way.
+const FORK_BUILD_VERSION_PATTERN = /[-.]local\.\d+\.[0-9A-Za-z]+$/
+
 export abstract class UpdaterMenuChecks extends UpdaterScheduling {
+  /** Fork builds install from the nightly rebuild job; Stably's feed would replace them. */
+  protected isForkBuild(): boolean {
+    return FORK_BUILD_VERSION_PATTERN.test(app.getVersion())
+  }
+
+  protected sendForkBuildUpdateStatus(userInitiated = true): void {
+    recordUpdaterLifecycle('fork_build_update_skipped', { version: app.getVersion() })
+    this.sendStatus({
+      state: 'error',
+      message: FORK_BUILD_UPDATE_MESSAGE,
+      userInitiated,
+      retryable: false
+    })
+  }
+
   protected checkForUpdatesFromMenu(options?: UpdateCheckOptions): void {
     if (
       this.pendingQuitAndInstallTimer ||
@@ -15,6 +36,11 @@ export abstract class UpdaterMenuChecks extends UpdaterScheduling {
     }
     if (!app.isPackaged) {
       this.sendStatus({ state: 'not-available', userInitiated: true })
+      return
+    }
+    if (this.isForkBuild()) {
+      // A fork build must never reach Stably's feed by any route, including the local-build picker.
+      this.sendForkBuildUpdateStatus()
       return
     }
     if (options?.localBuild) {

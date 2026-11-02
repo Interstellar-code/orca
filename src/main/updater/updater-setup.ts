@@ -39,6 +39,10 @@ export type UpdaterSetupOptions = {
 
 export class UpdaterSetup extends UpdaterDownloadInstall {
   checkForUpdates(): void {
+    if (this.isForkBuild()) {
+      this.sendForkBuildUpdateStatus()
+      return
+    }
     this.checkForUpdatesInBackground()
   }
 
@@ -138,6 +142,16 @@ export class UpdaterSetup extends UpdaterDownloadInstall {
     }
 
     if (!app.isPackaged) {
+      return
+    }
+
+    if (this.isForkBuild()) {
+      // Never point a fork build at Stably's feed, desktop or headless serve; the rebuild job installs it.
+      recordUpdaterLifecycle(
+        'fork_build_auto_update_skipped',
+        { version: app.getVersion(), installMode: this.updateInstallMode },
+        { level: 'info', message: 'Fork build: automatic updates disabled' }
+      )
       return
     }
 

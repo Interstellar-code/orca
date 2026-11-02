@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Install as ~/Library/LaunchAgents/com.interstellar.orca-rebuild.plist (see config/fork/README.md). -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.interstellar.orca-rebuild</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>__REPO_ROOT__/config/fork/rebuild-and-install.sh</string>
+    <string>--mode</string>
+    <string>mac</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__REPO_ROOT__</string>
+  <!-- 03:30 local; change the hour/minute values to move the nightly rebuild. -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>3</integer>
+    <key>Minute</key>
+    <integer>30</integer>
+  </dict>
+  <!-- A missed run (Mac asleep at 03:30) fires once when the Mac wakes. -->
+  <key>RunAtLoad</key>
+  <false/>
+  <key>StandardOutPath</key>
+  <string>/Users/__USER__/Library/Logs/orca-fork-rebuild.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/__USER__/Library/Logs/orca-fork-rebuild.log</string>
+  <!-- Nightly builds need the toolchain on PATH; launchd starts with a minimal one. -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+</dict>
+</plist>
