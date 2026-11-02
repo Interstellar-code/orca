@@ -14,12 +14,14 @@ const DART_ERROR_DETAIL_MAX_CHARS = 300
 
 export type DartRequestFailureKind = 'http' | 'network' | 'timeout' | 'invalidResponse'
 
-/** Carries status and a short server detail only; request headers (the token) never enter it. */
+/** Carries status, a short server detail and a 429's wait only; headers (the token) never enter it. */
 export class DartApiError extends Error {
   constructor(
     message: string,
     readonly kind: DartRequestFailureKind,
-    readonly status: number | null = null
+    readonly status: number | null = null,
+    /** A 429's Retry-After, untrusted: callers format it and nothing retries on it. */
+    readonly retryAfter: string | null = null
   ) {
     super(message)
     this.name = 'DartApiError'
@@ -150,7 +152,8 @@ export async function dartRequest<T>(
           throw new DartApiError(
             detail ? `${summary}: ${detail}` : `${summary}.`,
             'http',
-            response.status
+            response.status,
+            response.status === 429 ? response.headers.get('retry-after') : null
           )
         }
         try {
