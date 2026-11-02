@@ -1,3 +1,5 @@
+import React from 'react'
+
 export function DartIcon({ className }: { className?: string }): React.JSX.Element {
   return (
     <svg viewBox="0 0 24 24" aria-hidden className={className} fill="none">

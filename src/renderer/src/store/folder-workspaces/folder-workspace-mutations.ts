@@ -68,7 +68,6 @@ export function createFolderWorkspaceMutationActions(
         // Why: a new folder has no row yet, so creation goes to the host the caller picked.
         const target = runtimeTargetForOwnerEnvironment(options.runtimeEnvironmentId)
         await assertWorkspaceAttachmentWriteCapability(target, args)
-        await assertLinkedTaskProviderCapabilities(target, args)
         const workspace =
           target.kind === 'local'
             ? await window.api.folderWorkspaces.create(args)

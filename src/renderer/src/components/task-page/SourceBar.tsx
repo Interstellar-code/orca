@@ -176,9 +176,7 @@ export function TaskPageSourceBar({
                   if (!selectedLinearTeamForExternalLink?.url) {
                     return
                   }
-                  openAppHttpLink(selectedLinearTeamForExternalLink.url, {
-                    event
-                  })
+                  openAppHttpLink(selectedLinearTeamForExternalLink.url, { event })
                 }}
                 disabled={!selectedLinearTeamForExternalLink}
                 aria-label={

@@ -72,18 +72,12 @@ export function useTaskPageDetailRouting(model: TaskPageGitHubIssueDraftModel) {
               Object.assign(
                 patch,
                 field === 'labels'
-                  ? {
-                      labels: publication.patch.labels,
-                      labelIds: publication.patch.labelIds
-                    }
+                  ? { labels: publication.patch.labels, labelIds: publication.patch.labelIds }
                   : { [field]: publication.patch[field] }
               )
             }
           }
-          return {
-            ...previous,
-            fallback: { ...previous.fallback, ...patch }
-          }
+          return { ...previous, fallback: { ...previous.fallback, ...patch } }
         },
         (field) => field !== undefined && publication.current(field),
         {

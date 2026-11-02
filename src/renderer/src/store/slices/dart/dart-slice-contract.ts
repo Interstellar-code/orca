@@ -30,7 +30,6 @@ export type DartSlice = {
   dartConfigCache: Record<string, CacheEntry<DartWorkspaceConfig>>
 
   checkDartConnection: () => Promise<void>
-  readDartStatus: (sourceContext: TaskSourceContext) => Promise<DartConnectionStatus>
   connectDart: (args: { apiToken: string }) => Promise<DartClientResult<{ viewer: DartUser }>>
   testDartConnection: () => Promise<DartClientResult<{ viewer: DartUser }>>
   disconnectDart: () => Promise<DartClientResult<object>>

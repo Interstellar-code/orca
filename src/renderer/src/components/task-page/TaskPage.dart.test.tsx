@@ -297,4 +297,17 @@ describe('Escape on the Tasks page', () => {
 
     expect(closeTaskPage).not.toHaveBeenCalled()
   })
+
+  it('leaves the page open while the Dart connect dialog is open', async () => {
+    seedTasksPage(['github', 'dart'], 'dart', { connected: false })
+    const closeTaskPage = vi.fn()
+    useAppStore.setState({ closeTaskPage })
+    renderTaskPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Connect Dart' }))
+    await screen.findByRole('dialog')
+
+    pressEscape()
+
+    expect(closeTaskPage).not.toHaveBeenCalled()
+  })
 })

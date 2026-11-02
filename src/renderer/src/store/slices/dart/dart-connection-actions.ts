@@ -24,7 +24,7 @@ import {
 
 type DartConnectionActions = Pick<
   DartSlice,
-  'checkDartConnection' | 'readDartStatus' | 'connectDart' | 'testDartConnection' | 'disconnectDart'
+  'checkDartConnection' | 'connectDart' | 'testDartConnection' | 'disconnectDart'
 >
 
 const DISCONNECTED = { connected: false, viewer: null } as const
@@ -88,14 +88,6 @@ export function createDartConnectionActions(
           set({ dartStatusChecked: true })
         }
         // A transient failure on an already-checked context keeps the last known status.
-      }
-    },
-
-    readDartStatus: async (sourceContext) => {
-      try {
-        return await dartStatus(sourceContext)
-      } catch {
-        return DISCONNECTED
       }
     },
 

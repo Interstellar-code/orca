@@ -6,6 +6,7 @@ import { DartConnectDialog } from '@/components/dart/dart-connect-dialog'
 import { DartIcon } from '@/components/icons/DartIcon'
 import { Button } from '@/components/ui/button'
 import { translate } from '@/i18n/i18n'
+import { taskProviderErrorText } from '@/lib/task-provider-error-copy'
 import { activateAndRevealWorktree } from '@/lib/worktree-activation'
 import { dartUpdateRequiredMessage } from '@/runtime/runtime-dart-client'
 import type { TaskPageComposerActionsModel } from '../use-task-page-composer-actions'
@@ -112,7 +113,7 @@ export function TaskPageDartContent({
           </p>
           {dartStatus.credentialError ? (
             <p role="alert" className="mt-3 max-w-sm text-sm text-destructive">
-              {dartStatus.credentialError}
+              {taskProviderErrorText(dartStatus.credentialError)}
             </p>
           ) : null}
           <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
