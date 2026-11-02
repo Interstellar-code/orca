@@ -118,25 +118,15 @@ export function scopedDartCacheKey(scope: DartReadScope, key: string): string {
   return `${scope.cachePrefix ?? scope.contextKey}::${key}`
 }
 
-function nextDartConnectionRevisions(
-  revisions: Record<string, number>,
-  contextKey: string
-): Record<string, number> {
-  return { ...revisions, [contextKey]: (revisions[contextKey] ?? 0) + 1 }
-}
-
 export function markDartConnectionLost(set: DartSliceSet, scope: DartReadScope): void {
-  set((state) => ({
-    ...(scope.explicitSource ? {} : { dartStatus: { connected: false, viewer: null } }),
-    dartConnectionRevisions: nextDartConnectionRevisions(
-      state.dartConnectionRevisions,
-      scope.contextKey
-    )
-  }))
+  if (scope.explicitSource) {
+    return
+  }
+  set({ dartStatus: { connected: false, viewer: null } })
 }
 
 export function dartStatusUpdate(
-  state: AppState,
+  _state: AppState,
   contextKey: string,
   status: DartConnectionStatus,
   extra?: Partial<DartSlice>
@@ -146,7 +136,6 @@ export function dartStatusUpdate(
     dartStatusChecked: true,
     dartStatusContextKey: contextKey,
     dartUpdateRequired: false,
-    dartConnectionRevisions: nextDartConnectionRevisions(state.dartConnectionRevisions, contextKey),
     ...extra
   }
 }

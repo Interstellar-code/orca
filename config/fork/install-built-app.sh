@@ -52,7 +52,15 @@ restore() {
 trap restore EXIT
 
 echo "Installing $version from $app"
-rm -rf "$STAGE" "$RETIRED"
+if [[ -e $RETIRED ]]; then
+  leftover="$RETIRED.$(date +%Y%m%d%H%M%S).$$"
+  mv "$RETIRED" "$leftover" || {
+    echo "Could not preserve the old app at $RETIRED; leaving it untouched." >&2
+    exit 1
+  }
+  echo "Preserved an earlier install at $leftover; inspect or restore it." >&2
+fi
+rm -rf "$STAGE"
 cp -R "$app" "$STAGE"
 mv "$TARGET" "$RETIRED"
 swapped=1
@@ -60,8 +68,11 @@ mv "$STAGE" "$TARGET"
 # The new app is in place, so a later cleanup failure must not roll it back.
 swapped=0
 # The older rollback copy goes only after the new app is fully in place.
-rm -rf "$PREVIOUS" || true
-mv "$RETIRED" "$PREVIOUS" || echo "Kept the old app at $RETIRED (could not replace $PREVIOUS)." >&2
+if ! rm -rf "$PREVIOUS"; then
+  echo "Kept the old app at $RETIRED (could not clear $PREVIOUS)." >&2
+elif ! mv "$RETIRED" "$PREVIOUS"; then
+  echo "Kept the old app at $RETIRED (could not replace $PREVIOUS)." >&2
+fi
 trap - EXIT
 
 echo "Installed. Roll back by quitting Orca and running:"

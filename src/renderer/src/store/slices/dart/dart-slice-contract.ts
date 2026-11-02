@@ -24,7 +24,6 @@ export type DartSlice = {
   dartStatusContextKey: string | null
   /** True when the selected remote host lacks `dart.provider.v1`; never falls back to local. */
   dartUpdateRequired: boolean
-  dartConnectionRevisions: Record<string, number>
   dartTaskCache: Record<string, CacheEntry<DartTask>>
   dartListCache: Record<string, CacheEntry<DartTaskPage>>
   dartConfigCache: Record<string, CacheEntry<DartWorkspaceConfig>>

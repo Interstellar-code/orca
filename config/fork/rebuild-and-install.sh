@@ -166,7 +166,7 @@ restore_server_install() {
 }
 
 swap_server_install() {
-  local source=$1 version=$2 commit=$3
+  local source=$1 version=$2 commit=$3 port=$4
   INSTALL_DIR=${ORCA_FORK_LINUX_INSTALL_DIR:-/opt/Orca}
   SYSTEMD_UNIT=${ORCA_FORK_SYSTEMD_UNIT:-orca-serve.service}
   # Stage and retire beside the target so every swap is a rename on one filesystem.
@@ -181,7 +181,14 @@ swap_server_install() {
   trap restore_server_install EXIT
 
   log "installing $version into $INSTALL_DIR"
-  sudo -n rm -rf "$SWAP_STAGE" "$SWAP_RETIRED" || fail 'could not clear the staging paths'
+  # An earlier failed cleanup may have left the only rollback copy here.
+  if sudo -n test -e "$SWAP_RETIRED"; then
+    local leftover="$SWAP_RETIRED.$(date +%Y%m%d%H%M%S).$$"
+    sudo -n mv "$SWAP_RETIRED" "$leftover" ||
+      fail "could not preserve the old install at $SWAP_RETIRED"
+    log "WARN: preserved an earlier install at $leftover; inspect or restore it"
+  fi
+  sudo -n rm -rf "$SWAP_STAGE" || fail 'could not clear the staging path'
   sudo -n cp -a "$source" "$SWAP_STAGE" || fail 'copy into the staging path failed'
   sudo -n systemctl stop "$SYSTEMD_UNIT" || fail "systemctl stop $SYSTEMD_UNIT failed"
   STOPPED=1
@@ -189,9 +196,27 @@ swap_server_install() {
   SWAPPED=1
   sudo -n mv "$SWAP_STAGE" "$INSTALL_DIR" || fail 'could not move the new install into place'
   sudo -n systemctl restart "$SYSTEMD_UNIT" || fail "systemctl restart $SYSTEMD_UNIT failed"
+
+  # Type=simple reports success as soon as the process spawns, so prove the new build
+  # stays up and serves its port before retiring the rollback tree.
+  local attempts=20 ready=0 attempt
+  for ((attempt = 1; attempt <= attempts; attempt++)); do
+    if sudo -n systemctl is-active --quiet "$SYSTEMD_UNIT"; then
+      if [[ -z $port || -n $(ss -Hltn "sport = :$port" 2>/dev/null || true) ]]; then
+        ready=1
+        break
+      fi
+    fi
+    sleep 0.5
+  done
+  [[ $ready == 1 ]] ||
+    fail "$SYSTEMD_UNIT did not stay active${port:+ and listen on port $port} within 10s"
   # The older rollback copy goes only after the new install is running.
-  sudo -n rm -rf "$SWAP_PREVIOUS" || true
-  sudo -n mv "$SWAP_RETIRED" "$SWAP_PREVIOUS" || log "WARN: could not keep $SWAP_PREVIOUS for rollback"
+  if ! sudo -n rm -rf "$SWAP_PREVIOUS"; then
+    log "WARN: could not clear $SWAP_PREVIOUS; kept the old install at $SWAP_RETIRED"
+  elif ! sudo -n mv "$SWAP_RETIRED" "$SWAP_PREVIOUS"; then
+    log "WARN: could not keep $SWAP_PREVIOUS for rollback; old install remains at $SWAP_RETIRED"
+  fi
   SWAPPED=0
   STOPPED=0
   trap - EXIT
@@ -220,7 +245,7 @@ install_server_build() {
     notify 'Fork build ready (server)' \
       "Orca $version from $commit is built; $count client connection(s) on port $port, so $unit was not restarted"
   else
-    swap_server_install "dist/$LINUX_DIR" "$version" "$commit"
+    swap_server_install "dist/$LINUX_DIR" "$version" "$commit" "$port"
   fi
 }
 

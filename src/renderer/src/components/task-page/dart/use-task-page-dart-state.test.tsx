@@ -100,6 +100,15 @@ describe('useTaskPageDartState', () => {
     expect(listDartTasks).not.toHaveBeenCalled()
   })
 
+  it('lists nothing instead of everyone when the viewer id is missing', async () => {
+    const { listDartTasks, hook } = setup({
+      dartStatus: { connected: true, viewer: null }
+    })
+    await waitFor(() => expect(hook.result.current.dartConfig).not.toBeNull())
+    expect(listDartTasks).not.toHaveBeenCalled()
+    expect(hook.result.current.dartTasks).toEqual([])
+  })
+
   it('reports a failed load with its error code', async () => {
     const { hook } = setup({
       listDartTasks: vi.fn(() =>

@@ -241,7 +241,9 @@ Unverified on the server and easy to get wrong:
   keep the old tree as `/opt/Orca.previous`. A failed copy, swap or restart restores the old
   tree and starts the unit again. All of it runs as `sudo -n`, so a nightly run fails loudly
   instead of hanging on a password prompt; grant passwordless sudo for the two `systemctl`
-  commands and the file moves, or run it by hand.
+  commands and the file moves, or run it by hand. After the restart it waits up to 10 s for the
+  unit to stay active and, when the serve port is known, for that port to listen; if either
+  check fails, the old tree is restored and the unit restarts on it.
 
 Because a server run restarts your remote Orca, run it only when you say so, and prefer a
 time when nothing is connected.

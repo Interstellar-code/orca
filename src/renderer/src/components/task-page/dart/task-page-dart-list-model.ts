@@ -19,10 +19,14 @@ export const DEFAULT_DART_LIST_FILTERS: DartListFilters = {
 }
 
 // Why: Dart ignores unknown parameters and applies hidden workspace defaults, so every filter is sent explicitly.
+// Why: without a viewer id "mine" has no assignee to filter by, and an unfiltered list would show everyone's tasks.
 export function buildDartListArgs(
   filters: DartListFilters,
   viewerId: string | null | undefined
-): NonNullable<DartListTasksArgs> {
+): NonNullable<DartListTasksArgs> | null {
+  if (filters.mine && !viewerId) {
+    return null
+  }
   const args: NonNullable<DartListTasksArgs> = {
     limit: DART_LIST_PAGE_DEFAULT
   }
