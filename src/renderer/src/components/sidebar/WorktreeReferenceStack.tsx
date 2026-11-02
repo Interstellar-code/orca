@@ -2,6 +2,7 @@ import React from 'react'
 import { CircleDot } from 'lucide-react'
 import { LinearIcon } from '@/components/icons/LinearIcon'
 import { JiraIcon } from '@/components/icons/JiraIcon'
+import { DartIcon } from '@/components/icons/DartIcon'
 import { getWorkspaceAttachmentKey } from '../../../../shared/workspace-attachment-normalization'
 import type { WorkspaceAttachment } from '../../../../shared/worktree/types'
 import { ReviewIcon } from './worktree-review-helpers'
@@ -26,6 +27,13 @@ function singleReferenceLabel(item: WorkspaceAttachment): string {
       'auto.components.sidebar.WorktreeCardMeta.linkedJira',
       'Linked Jira {{value0}}',
       { value0: item.identifier ?? item.jiraIdentifier }
+    )
+  }
+  if (item.provider === 'dart') {
+    return translate(
+      'auto.components.sidebar.WorktreeReferenceStack.linkedDart',
+      'Linked Dart {{value0}}',
+      { value0: workspaceAttachmentLabel(item) }
     )
   }
   return item.type === 'issue'
@@ -55,6 +63,9 @@ function ReferenceGlyph({
   }
   if (item.provider === 'jira') {
     return <JiraIcon className="text-muted-foreground" />
+  }
+  if (item.provider === 'dart') {
+    return <DartIcon className="text-muted-foreground" />
   }
   return <CircleDot className="text-muted-foreground" />
 }

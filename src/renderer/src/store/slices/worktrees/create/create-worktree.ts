@@ -19,13 +19,10 @@ import {
   getGeneratedWorktreeCreateRetryCandidate,
   isRetryableWorktreeCreateConflict
 } from '../../../../../../shared/new-workspace/worktree-create-retry-policy'
-import {
-  assertRuntimeEnvironmentCapability,
-  runtimeEnvironmentSupportsCapability
-} from '../../../../runtime/runtime-rpc-client'
+import { runtimeEnvironmentSupportsCapability } from '../../../../runtime/runtime-rpc-client'
+import { assertLinkedTaskProviderCapabilities } from '../../../../runtime/runtime-linked-task-provider-capabilities'
 import type { RuntimeClientTarget } from '../../../../../../shared/runtime-client-target'
 import { runtimeTargetForRepoOwner } from '@/lib/repo-runtime-owner'
-import { WORKTREE_LINKED_WORK_ITEM_CONTEXT_RUNTIME_CAPABILITY } from '../../../../../../shared/protocol-version'
 import {
   WORKTREE_OPEN_EXISTING_BRANCH_RUNTIME_CAPABILITY,
   WORKTREE_OPEN_EXISTING_BRANCH_V2_RUNTIME_CAPABILITY,
@@ -233,17 +230,10 @@ export function createCreateWorktree(
       if (parent.staleBeforeCreate) {
         warnParentDroppedOnce()
       }
-      if (
-        target.kind === 'environment' &&
-        (options?.linkedWorkItem?.provider === 'jira' ||
-          options?.linkedTaskSourceContext?.provider === 'jira')
-      ) {
-        await assertRuntimeEnvironmentCapability(
-          target.environmentId,
-          WORKTREE_LINKED_WORK_ITEM_CONTEXT_RUNTIME_CAPABILITY,
-          'Update the remote runtime to link Jira'
-        )
-      }
+      await assertLinkedTaskProviderCapabilities(target, {
+        linkedTask: options?.linkedWorkItem,
+        linkedTaskSourceContext: options?.linkedTaskSourceContext
+      })
       if (
         options?.provisionedRoot &&
         target.kind === 'environment' &&

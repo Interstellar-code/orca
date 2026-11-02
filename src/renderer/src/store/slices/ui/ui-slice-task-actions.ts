@@ -87,7 +87,14 @@ export function createUiTaskActions(set: UISliceSet, get: UISliceGet): Partial<U
                   issue: data.openJiraIssue,
                   sourceContext: data.openJiraSourceContext
                 } as const)
-              : null
+              : data.openDartTask
+                ? ({
+                    kind: 'task-detail',
+                    source: 'dart',
+                    task: data.openDartTask,
+                    sourceContext: data.openDartSourceContext
+                  } as const)
+                : null
       const currentEntry = get().worktreeNavHistory[get().worktreeNavHistoryIndex]
       const currentIsTaskStack =
         currentEntry === 'tasks' ||

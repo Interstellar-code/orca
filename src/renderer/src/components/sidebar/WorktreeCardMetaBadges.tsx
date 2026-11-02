@@ -76,9 +76,14 @@ export const WorktreeCardMetaBadges = React.forwardRef<
   const reviewItems = referenceItems?.filter((item) => item.type !== 'issue') ?? []
   const linearItems = referenceItems?.filter((item) => item.provider === 'linear') ?? []
   const jiraItems = referenceItems?.filter((item) => item.provider === 'jira') ?? []
+  const dartItems = referenceItems?.filter((item) => item.provider === 'dart') ?? []
   const issueItems =
     referenceItems?.filter(
-      (item) => item.type === 'issue' && item.provider !== 'linear' && item.provider !== 'jira'
+      (item) =>
+        item.type === 'issue' &&
+        item.provider !== 'linear' &&
+        item.provider !== 'jira' &&
+        item.provider !== 'dart'
     ) ?? []
 
   return (
@@ -168,6 +173,9 @@ export const WorktreeCardMetaBadges = React.forwardRef<
           </MetaIconBadge>
         )
       )}
+      {dartItems.length ? (
+        <WorktreeReferenceStack items={dartItems} details={referenceDetails} />
+      ) : null}
       {linearItems.length || reviewItems.length ? (
         <span
           className="inline-flex shrink-0 items-center gap-1.5"

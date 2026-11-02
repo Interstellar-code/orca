@@ -21,7 +21,9 @@ const mocks = vi.hoisted(() => ({
     checking: boolean
     onOpenIntegrations: () => void
   }[],
-  jiraSetupProps: [] as { onOpenIntegrations: () => void }[]
+  jiraSetupProps: [] as { onOpenIntegrations: () => void }[],
+  dartSetupProps: [] as { onOpenIntegrations: () => void; onConnected: () => void }[],
+  checkDartConnection: vi.fn()
 }))
 
 vi.mock('./use-task-source-provider-readiness', () => ({
@@ -40,6 +42,13 @@ vi.mock('./TaskSourceLinearSetup', () => ({
   }) => {
     mocks.linearSetupProps.push(props)
     return <div data-testid="linear-setup">Linear setup steps</div>
+  }
+}))
+
+vi.mock('./TaskSourceDartSetup', () => ({
+  DartSetupSteps: (props: { onOpenIntegrations: () => void; onConnected: () => void }) => {
+    mocks.dartSetupProps.push(props)
+    return <div data-testid="dart-setup">Dart setup</div>
   }
 }))
 
@@ -76,6 +85,8 @@ vi.mock('@/store', () => ({
       refreshPreflightStatus: () => void
       checkLinearConnection: () => void
       checkJiraConnection: () => void
+      checkDartConnection: () => void
+      dartUpdateRequired: boolean
       settingsSearchQuery: string
     }) => unknown
   ) =>
@@ -85,6 +96,8 @@ vi.mock('@/store', () => ({
       refreshPreflightStatus: mocks.refreshPreflightStatus,
       checkLinearConnection: mocks.checkLinearConnection,
       checkJiraConnection: mocks.checkJiraConnection,
+      checkDartConnection: mocks.checkDartConnection,
+      dartUpdateRequired: false,
       settingsSearchQuery: ''
     })
 }))
@@ -124,6 +137,8 @@ describe('TasksPane', () => {
   beforeEach(() => {
     mocks.linearSetupProps = []
     mocks.jiraSetupProps = []
+    mocks.dartSetupProps = []
+    mocks.checkDartConnection.mockClear()
     mocks.openSettingsPage.mockClear()
     mocks.openSettingsTarget.mockClear()
     mocks.readiness = {
@@ -384,5 +399,79 @@ describe('TasksPane', () => {
       retry?.click()
     })
     expect(mocks.refreshPreflightStatus).toHaveBeenCalledWith({ force: true, wakeWslDistro: true })
+  })
+  describe('Dart', () => {
+    async function expandDart(): Promise<void> {
+      const expand = Array.from(container?.querySelectorAll('button') ?? []).find(
+        (button) => button.getAttribute('aria-label') === 'Show Dart setup steps'
+      )
+      await act(async () => {
+        expand?.click()
+      })
+    }
+
+    it('renders its own setup steps and never the code-host (GitHub/GitLab) steps', async () => {
+      mocks.readiness.dart = { connected: false, checking: false, visible: true }
+      await renderInteractivePane()
+      await expandDart()
+
+      expect(container?.querySelector('[data-testid="dart-setup"]')).not.toBeNull()
+      expect(container?.querySelector('[data-testid="code-host-Dart"]')).toBeNull()
+    })
+
+    it('keeps a hidden Dart out of the setup banner and leaves its card collapsed', async () => {
+      // Hidden-by-default must stay quiet even when a token exists from an earlier session.
+      mocks.readiness.dart = { connected: true, checking: false, visible: false }
+      mocks.readiness.linear = {
+        connected: true,
+        checking: false,
+        skillInstalled: true,
+        skillChecking: false,
+        visible: true
+      }
+      await renderInteractivePane()
+
+      expect(container?.textContent).not.toContain(INCOMPLETE_BANNER)
+      expect(container?.querySelector('[data-testid="dart-setup"]')).toBeNull()
+      expect(container?.querySelector('[data-testid="code-host-Dart"]')).toBeNull()
+    })
+
+    it('does not auto-expand a hidden Dart even when it is the only unfinished provider', () => {
+      mocks.readiness.dart = { connected: false, checking: false, visible: false }
+      mocks.readiness.linear = {
+        connected: true,
+        checking: false,
+        skillInstalled: true,
+        skillChecking: false,
+        visible: true
+      }
+
+      expect(renderPane()).not.toContain('data-testid="dart-setup"')
+    })
+
+    it('deep-links Manage token to the Dart integration card', async () => {
+      mocks.readiness.dart = { connected: true, checking: false, visible: true }
+      await renderInteractivePane()
+      await expandDart()
+
+      mocks.dartSetupProps.at(-1)?.onOpenIntegrations()
+
+      expect(mocks.openSettingsPage).toHaveBeenCalledOnce()
+      expect(mocks.openSettingsTarget).toHaveBeenCalledWith({
+        pane: 'integrations',
+        repoId: null,
+        sectionId: 'integrations-dart'
+      })
+    })
+
+    it('re-checks the Dart connection after a token is saved from Tasks', async () => {
+      mocks.readiness.dart = { connected: false, checking: false, visible: true }
+      await renderInteractivePane()
+      await expandDart()
+
+      mocks.dartSetupProps.at(-1)?.onConnected()
+
+      expect(mocks.checkDartConnection).toHaveBeenCalledOnce()
+    })
   })
 })

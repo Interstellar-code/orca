@@ -1,6 +1,21 @@
 import { useAppStore } from '@/store'
 import type { WorktreeNavHistoryViewEntry } from '@/store/slices/worktree-nav-history'
 
+// Detail fields every replay clears so one provider's retained detail never survives another's replay.
+const CLEARED_TASK_DETAILS = {
+  openGitHubWorkItem: undefined,
+  openGitHubSourceContext: undefined,
+  openGitHubInitialTab: undefined,
+  openGitLabWorkItem: undefined,
+  openGitLabSourceContext: undefined,
+  openLinearIssue: undefined,
+  openLinearSourceContext: undefined,
+  openJiraIssue: undefined,
+  openJiraSourceContext: undefined,
+  openDartTask: undefined,
+  openDartSourceContext: undefined
+} as const
+
 // Replay via setActiveView: open*Page would mutate previousViewBefore* or duplicate history (navigateToIndex).
 export function applyWorktreeNavViewEntry(entry: WorktreeNavHistoryViewEntry): void {
   if (entry === 'automations' || entry === 'artifacts' || entry === 'skills') {
@@ -11,18 +26,7 @@ export function applyWorktreeNavViewEntry(entry: WorktreeNavHistoryViewEntry): v
     useAppStore.setState((state) => ({
       activeView: 'tasks',
       githubTaskDrawerWorkItem: null,
-      taskPageData: {
-        ...state.taskPageData,
-        openGitHubWorkItem: undefined,
-        openGitHubSourceContext: undefined,
-        openGitHubInitialTab: undefined,
-        openGitLabWorkItem: undefined,
-        openGitLabSourceContext: undefined,
-        openLinearIssue: undefined,
-        openLinearSourceContext: undefined,
-        openJiraIssue: undefined,
-        openJiraSourceContext: undefined
-      }
+      taskPageData: { ...state.taskPageData, ...CLEARED_TASK_DETAILS }
     }))
     return
   }
@@ -31,17 +35,12 @@ export function applyWorktreeNavViewEntry(entry: WorktreeNavHistoryViewEntry): v
       activeView: 'tasks',
       taskPageData: {
         ...state.taskPageData,
+        ...CLEARED_TASK_DETAILS,
         taskSource: 'github',
         preselectedRepoId: entry.workItem.repoId,
         openGitHubWorkItem: entry.workItem,
         openGitHubSourceContext: entry.sourceContext,
-        openGitHubInitialTab: entry.initialTab,
-        openGitLabWorkItem: undefined,
-        openGitLabSourceContext: undefined,
-        openLinearIssue: undefined,
-        openLinearSourceContext: undefined,
-        openJiraIssue: undefined,
-        openJiraSourceContext: undefined
+        openGitHubInitialTab: entry.initialTab
       }
     }))
     return
@@ -52,17 +51,11 @@ export function applyWorktreeNavViewEntry(entry: WorktreeNavHistoryViewEntry): v
       githubTaskDrawerWorkItem: null,
       taskPageData: {
         ...state.taskPageData,
+        ...CLEARED_TASK_DETAILS,
         taskSource: 'gitlab',
         preselectedRepoId: entry.workItem.repoId,
-        openGitHubWorkItem: undefined,
-        openGitHubSourceContext: undefined,
-        openGitHubInitialTab: undefined,
         openGitLabWorkItem: entry.workItem,
-        openGitLabSourceContext: entry.sourceContext,
-        openLinearIssue: undefined,
-        openLinearSourceContext: undefined,
-        openJiraIssue: undefined,
-        openJiraSourceContext: undefined
+        openGitLabSourceContext: entry.sourceContext
       }
     }))
     return
@@ -73,16 +66,24 @@ export function applyWorktreeNavViewEntry(entry: WorktreeNavHistoryViewEntry): v
       githubTaskDrawerWorkItem: null,
       taskPageData: {
         ...state.taskPageData,
+        ...CLEARED_TASK_DETAILS,
         taskSource: 'jira',
-        openGitHubWorkItem: undefined,
-        openGitHubSourceContext: undefined,
-        openGitHubInitialTab: undefined,
-        openGitLabWorkItem: undefined,
-        openGitLabSourceContext: undefined,
-        openLinearIssue: undefined,
-        openLinearSourceContext: undefined,
         openJiraIssue: entry.issue,
         openJiraSourceContext: entry.sourceContext
+      }
+    }))
+    return
+  }
+  if (entry.source === 'dart') {
+    useAppStore.setState((state) => ({
+      activeView: 'tasks',
+      githubTaskDrawerWorkItem: null,
+      taskPageData: {
+        ...state.taskPageData,
+        ...CLEARED_TASK_DETAILS,
+        taskSource: 'dart',
+        openDartTask: entry.task,
+        openDartSourceContext: entry.sourceContext
       }
     }))
     return
@@ -92,16 +93,10 @@ export function applyWorktreeNavViewEntry(entry: WorktreeNavHistoryViewEntry): v
     githubTaskDrawerWorkItem: null,
     taskPageData: {
       ...state.taskPageData,
+      ...CLEARED_TASK_DETAILS,
       taskSource: 'linear',
-      openGitHubWorkItem: undefined,
-      openGitHubSourceContext: undefined,
-      openGitHubInitialTab: undefined,
-      openGitLabWorkItem: undefined,
-      openGitLabSourceContext: undefined,
       openLinearIssue: entry.issue,
-      openLinearSourceContext: entry.sourceContext,
-      openJiraIssue: undefined,
-      openJiraSourceContext: undefined
+      openLinearSourceContext: entry.sourceContext
     }
   }))
 }

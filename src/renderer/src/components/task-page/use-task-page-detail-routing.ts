@@ -9,6 +9,7 @@ import type { TaskPageGitHubIssueDraftModel } from './github/use-task-page-githu
 import { useState, useMemo, useCallback, useLayoutEffect, useRef } from 'react'
 import type { LinearIssue } from '../../../../shared/linear/issue-types'
 import type { JiraIssue } from '../../../../shared/jira/jira-types'
+import { useTaskPageDartDetailRouting } from './dart/use-task-page-dart-detail-routing'
 import { useAppStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
 import { findTaskPageJiraIssue } from '@/components/task-page/jira/task-page-jira-cache-selectors'
@@ -18,6 +19,7 @@ export function useTaskPageDetailRouting(model: TaskPageGitHubIssueDraftModel) {
     openTaskPage,
     linearTaskSourceContext,
     jiraTaskSourceContext,
+    dartTaskSourceContext,
     setDialogWorkItem
   } = model
   const linearDetailSourceContext =
@@ -182,7 +184,9 @@ export function useTaskPageDetailRouting(model: TaskPageGitHubIssueDraftModel) {
         openLinearIssue: undefined,
         openLinearSourceContext: undefined,
         openJiraIssue: undefined,
-        openJiraSourceContext: undefined
+        openJiraSourceContext: undefined,
+        openDartTask: undefined,
+        openDartSourceContext: undefined
       }
     }))
   }, [clearSelectedLinearIssue, setDialogWorkItem])
@@ -245,6 +249,11 @@ export function useTaskPageDetailRouting(model: TaskPageGitHubIssueDraftModel) {
     },
     [jiraTaskSourceContext, openTaskPage]
   )
+  const dartRouting = useTaskPageDartDetailRouting({
+    pageData,
+    dartTaskSourceContext,
+    openTaskPage
+  })
 
   const nextModel = Object.assign(model, {
     linearSelectionRequest: linearSelection.request,
@@ -267,7 +276,8 @@ export function useTaskPageDetailRouting(model: TaskPageGitHubIssueDraftModel) {
     selectedJiraIssue: selectedJiraIssue,
     jiraDetailSourceContext: jiraDetailSourceContext,
     setSelectedJiraIssue: setSelectedJiraIssue,
-    openJiraDetailPage: openJiraDetailPage
+    openJiraDetailPage: openJiraDetailPage,
+    ...dartRouting
   })
   return nextModel
 }

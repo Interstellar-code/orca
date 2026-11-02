@@ -357,6 +357,88 @@ describe('worktree remote runtime mutations', () => {
     expect(runtimeEnvironmentCall).not.toHaveBeenCalled()
   })
 
+  describe('Dart links on a paired runtime', () => {
+    const linkedWorkItem = {
+      provider: 'dart' as const,
+      type: 'issue' as const,
+      number: 0,
+      title: 'Search results ignore archived projects',
+      url: 'https://app.dartai.com/t/aB3dE5gH7jK9',
+      dartIdentifier: 'aB3dE5gH7jK9'
+    }
+    const linkedTaskSourceContext = {
+      kind: 'task-source' as const,
+      provider: 'dart' as const,
+      projectId: 'project-1',
+      hostId: 'runtime:env-1' as const
+    }
+
+    function useRuntimeCapabilities(filter: (capability: string) => boolean): void {
+      const status = createCompatibleRuntimeStatusResponse('runtime-dart')
+      if (status.ok) {
+        status.result.capabilities = [
+          ...(status.result.capabilities ?? []),
+          'dart.provider.v1'
+        ].filter(filter)
+      }
+      runtimeEnvironmentTransportCall.mockImplementation((args: RuntimeEnvironmentCallRequest) =>
+        args.method === 'status.get' ? status : runtimeEnvironmentCall(args)
+      )
+    }
+
+    async function createDartLinkedWorktree(): Promise<void> {
+      const store = createRepoTestStore()
+      store.setState({
+        settings: { activeRuntimeEnvironmentId: 'env-1' } as never,
+        worktreesByRepo: { repo1: [] }
+      } as Partial<AppState>)
+      seedRepoHost(store, 'runtime:env-1')
+      const createWorktree = store.getState().createWorktree
+      const args: Parameters<typeof createWorktree> = ['repo1', 'dart-link']
+      args[25] = { linkedWorkItem, linkedTaskSourceContext }
+      await createWorktree(...args)
+    }
+
+    it('sends the Dart item and source context when the host has both capabilities', async () => {
+      useRuntimeCapabilities(() => true)
+      runtimeEnvironmentCall.mockResolvedValue({
+        id: 'rpc-create',
+        ok: true,
+        result: {
+          worktree: makeWorktree({
+            id: 'repo1::/path/dart-link',
+            repoId: 'repo1',
+            path: '/path/dart-link'
+          })
+        },
+        _meta: { runtimeId: 'runtime-remote' }
+      })
+      await createDartLinkedWorktree()
+      expect(runtimeEnvironmentCall).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: 'worktree.create',
+          params: expect.objectContaining({ linkedWorkItem, linkedTaskSourceContext })
+        })
+      )
+    })
+
+    it('shows the Dart update message and sends nothing when only the linked-context capability is present', async () => {
+      useRuntimeCapabilities((capability) => capability !== 'dart.provider.v1')
+      await expect(createDartLinkedWorktree()).rejects.toThrow(
+        'Update the remote Orca server to use Dart.'
+      )
+      expect(runtimeEnvironmentCall).not.toHaveBeenCalled()
+    })
+
+    it('asks for a runtime update when the host lacks the linked-context capability', async () => {
+      useRuntimeCapabilities((capability) => capability !== 'worktree.linked-work-item-context.v1')
+      await expect(createDartLinkedWorktree()).rejects.toThrow(
+        'Update the remote runtime to link Dart'
+      )
+      expect(runtimeEnvironmentCall).not.toHaveBeenCalled()
+    })
+  })
+
   it('passes startup commands through remote runtime worktree creation', async () => {
     const store = createRepoTestStore()
     const wt = makeWorktree({

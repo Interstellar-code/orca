@@ -4,6 +4,7 @@ import type {
 } from '@/components/task-page/task-page-localized-options'
 import type { GitHubWorkItem } from '../../../../shared/github/work-item-types'
 import type { GitLabProjectRef, GitLabWorkItem } from '../../../../shared/gitlab-types'
+import type { DartTask } from '../../../../shared/dart/dart-types'
 import type { JiraIssue } from '../../../../shared/jira/jira-types'
 import type { Repo } from '../../../../shared/repo-types'
 import { getLinkedWorkItemWorkspaceName, getLinkedWorkItemSuggestedName } from '@/lib/new-workspace'
@@ -72,6 +73,17 @@ export function getJiraIssueWorkspaceSeed(issue: JiraIssue): string {
       },
       getJiraIssueKeyCasingSeedOptions()
     )?.seedName ?? getLinkedWorkItemSuggestedName(issue)
+  )
+}
+export function getDartTaskWorkspaceSeed(task: Pick<DartTask, 'id' | 'title'>): string {
+  return (
+    getLinkedWorkItemWorkspaceName({
+      type: 'issue',
+      provider: 'dart',
+      number: 0,
+      title: task.title,
+      dartIdentifier: task.id
+    })?.seedName ?? getLinkedWorkItemSuggestedName(task)
   )
 }
 export function getTaskPageRepoSourceContext(

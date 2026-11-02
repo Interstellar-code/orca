@@ -4,6 +4,7 @@ import { translate } from '@/i18n/i18n'
 import { cn } from '@/lib/utils'
 import { LinearIcon } from '@/components/icons/LinearIcon'
 import { JiraIcon } from '@/components/icons/JiraIcon'
+import { DartIcon } from '@/components/icons/DartIcon'
 import { getReviewStateTone } from '@/components/github/review-state-presentation'
 import { workspaceAttachmentReferenceLabel } from '../../../../../shared/workspace-attachments'
 import type { RuntimeClientTarget } from '../../../../../shared/runtime-client-target'
@@ -141,6 +142,9 @@ function LinkedItemIcon({ row }: { row: WorkspaceLinkedItemRow }): React.JSX.Ele
   }
   if (item.provider === 'jira') {
     return <JiraIcon className="size-5 text-muted-foreground" />
+  }
+  if (item.provider === 'dart') {
+    return <DartIcon className="size-5 text-muted-foreground" />
   }
   if (item.type === 'mr') {
     return <GitMerge className="size-5 text-muted-foreground" />

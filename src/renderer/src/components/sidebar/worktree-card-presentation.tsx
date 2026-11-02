@@ -188,7 +188,10 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
         ? showLinearIssue
         : item.provider === 'jira'
           ? showJiraIssue
-          : showIssue
+          : item.provider === 'dart'
+            ? // Dart has no card property of its own; it follows the task toggles.
+              showIssue || showLinearIssue || showJiraIssue
+            : showIssue
   )
   const detailsAndPortsContent =
     hasDetails || hasPorts ? (

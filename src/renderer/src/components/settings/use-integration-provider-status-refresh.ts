@@ -11,7 +11,10 @@ export function useIntegrationProviderStatusRefresh(): void {
   const linearStatusContextKey = useAppStore((s) => s.linearStatusContextKey)
   const jiraStatusChecked = useAppStore((s) => s.jiraStatusChecked)
   const jiraStatusContextKey = useAppStore((s) => s.jiraStatusContextKey)
+  const dartStatusChecked = useAppStore((s) => s.dartStatusChecked)
+  const dartStatusContextKey = useAppStore((s) => s.dartStatusContextKey)
   const checkLinearConnection = useAppStore((s) => s.checkLinearConnection)
+  const checkDartConnection = useAppStore((s) => s.checkDartConnection)
   const checkJiraConnection = useAppStore((s) => s.checkJiraConnection)
   const refreshPreflightStatus = useAppStore((s) => s.refreshPreflightStatus)
   const expectedPreflightContextKey = useAppStore((s) =>
@@ -21,6 +24,7 @@ export function useIntegrationProviderStatusRefresh(): void {
   const preflightStatusCurrent = preflightStatusContextKey === expectedPreflightContextKey
   const linearStatusCurrent = linearStatusContextKey === providerRuntimeContextKey
   const jiraStatusCurrent = jiraStatusContextKey === providerRuntimeContextKey
+  const dartStatusCurrent = dartStatusContextKey === providerRuntimeContextKey
 
   useEffect(() => {
     if (!linearStatusCurrent || !linearStatusChecked) {
@@ -29,11 +33,18 @@ export function useIntegrationProviderStatusRefresh(): void {
     if (!jiraStatusCurrent || !jiraStatusChecked) {
       void checkJiraConnection()
     }
+    if (!dartStatusCurrent || !dartStatusChecked) {
+      void checkDartConnection()
+    }
     if (!preflightStatusCurrent || !preflightStatusChecked) {
       void refreshPreflightStatus()
     }
   }, [
+    checkDartConnection,
     checkJiraConnection,
+    dartStatusChecked,
+    dartStatusContextKey,
+    dartStatusCurrent,
     checkLinearConnection,
     jiraStatusChecked,
     jiraStatusCurrent,
