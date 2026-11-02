@@ -3,6 +3,7 @@ import type { RpcClient } from '../transport/rpc-client'
 import { createFakeRpcClient } from '../mobile-web-shell/bridge-host-test-fakes'
 import type { AgentLaunchResult } from '../../../src/shared/agent-launch-intent'
 import { createWorkspaceFromComposerSource } from './source-workspace-create'
+import { DeferredMobileTaskProviderError } from './mobile-task-provider-visibility'
 import type { MobileComposerCreateSelection } from './mobile-composer-source-types'
 import { WORKTREE_CREATE_DEDUPE_TTL_LEGACY_HOST_MS } from './worktree-create-idempotency-policy'
 import { readNewWorktreeRuntimeCapabilities } from './worktree-create-capability'
@@ -229,6 +230,27 @@ describe('createWorkspaceFromComposerSource', () => {
       linkedLinearIssueWorkspaceId: 'ws-1',
       linkedLinearIssueOrganizationUrlKey: 'acme'
     })
+  })
+
+  // A restored Dart item is deferred on mobile; it must fail before any Linear relink reaches the host.
+  it('refuses a Dart work item before sending anything', async () => {
+    const calls: Call[] = []
+    const client = fakeClient(() => ({ worktree: { id: 'wt-dart' } }), calls)
+    const selection: MobileComposerCreateSelection = {
+      kind: 'work-item',
+      item: {
+        provider: 'dart',
+        type: 'issue',
+        number: 0,
+        title: 'Deferred on mobile',
+        url: 'https://dart.example/task/DART-1',
+        dartIdentifier: 'DART-1'
+      }
+    }
+    await expect(
+      createWorkspaceFromComposerSource({ client, selection, ...baseArgs })
+    ).rejects.toThrow(DeferredMobileTaskProviderError)
+    expect(calls).toEqual([])
   })
 
   it('reuses an existing branch with a single attempt (no suffix retry)', async () => {

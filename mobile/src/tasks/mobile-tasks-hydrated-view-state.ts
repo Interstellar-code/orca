@@ -1,5 +1,6 @@
-import { isTaskProvider, type TaskProvider } from '../../../src/shared/task-providers'
+import type { TaskProvider } from '../../../src/shared/task-providers'
 import { resolveVisibleTaskProvider } from './mobile-tasks-dependencies'
+import { isSelectedMobileTaskProvider } from './mobile-task-provider-visibility'
 import { normalizeJiraFilter } from './mobile-jira-issue-filters'
 import {
   type RuntimeTaskSettings,
@@ -29,13 +30,17 @@ export function resolveHydratedTaskViewState(args: {
   visibleProviders: TaskProvider[]
 }): HydratedTaskViewState {
   const { settings, resume, requestedTaskSource, visibleProviders } = args
+  // A saved default or route source may name a provider this build cannot read; fall back to a supported one.
+  const requestedProvider = isSelectedMobileTaskProvider(requestedTaskSource)
+    ? requestedTaskSource
+    : undefined
+  const savedDefaultProvider = isSelectedMobileTaskProvider(settings.defaultTaskSource)
+    ? settings.defaultTaskSource
+    : undefined
   const provider =
-    requestedTaskSource && visibleProviders.includes(requestedTaskSource)
-      ? requestedTaskSource
-      : resolveVisibleTaskProvider(
-          isTaskProvider(settings.defaultTaskSource) ? settings.defaultTaskSource : undefined,
-          visibleProviders
-        )
+    requestedProvider && visibleProviders.includes(requestedProvider)
+      ? requestedProvider
+      : resolveVisibleTaskProvider(savedDefaultProvider, visibleProviders)
   // A cleared preset preserves the typed query; an absent preset uses the host default.
   const githubPreset =
     resume.githubItemsPreset === null

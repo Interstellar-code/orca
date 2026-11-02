@@ -3,6 +3,7 @@ import type { ClientSettingsActionsModel } from './use-mobile-tasks-client-setti
 import { jiraConnectionStatusProbe } from './mobile-jira-operations'
 import { readJiraConnectionProbeReply } from './jira-mobile-connection'
 import { resolveHydratedTaskViewState } from './mobile-tasks-hydrated-view-state'
+import { normalizeMobileVisibleTaskProviders } from './mobile-task-provider-visibility'
 import {
   taskLinearStatusRead,
   taskPreflightRead,
@@ -13,7 +14,6 @@ import {
   MOBILE_TASKS_CAPABILITY,
   type PersistedTrustedOrcaHooks,
   filterAvailableTaskProviders,
-  normalizeVisibleTaskProviders,
   resolveVisibleTaskProvider,
   useEffect
 } from './mobile-tasks-dependencies'
@@ -267,7 +267,7 @@ export function useMobileTasksRuntimeHydration(model: ClientSettingsActionsModel
       const preflight = preflightRead.accepted ? preflightRead.value : null
       const linearRead = taskLinearStatusRead.interpret(linearStatusReply)
       const linearStatus = linearRead.accepted ? linearRead.value : null
-      const preferredProviders = normalizeVisibleTaskProviders(settings.visibleTaskProviders)
+      const preferredProviders = normalizeMobileVisibleTaskProviders(settings.visibleTaskProviders)
       const linearIsConnected = linearStatus?.connected === true
       const availableProviders = filterAvailableTaskProviders(preferredProviders, {
         gitlabInstalled: preflight?.glab?.installed === true,

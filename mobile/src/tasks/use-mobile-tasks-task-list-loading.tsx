@@ -1,6 +1,10 @@
 import { linearIssueReadFailureMessage } from '../../../src/shared/integration-credential-errors'
 import type { ProviderLoadActionsModel } from './use-mobile-tasks-provider-load-actions'
 import { fetchJiraTaskIssues } from './mobile-jira-task-source'
+import {
+  deferredMobileTaskProviderMessage,
+  isDeferredOnMobileTaskProvider
+} from './mobile-task-provider-visibility'
 import { isHostedTaskRepo, useCallback, useEffect, useRef } from './mobile-tasks-dependencies'
 import {
   GITHUB_REPO_CONCURRENCY,
@@ -85,6 +89,13 @@ export function useMobileTasksTaskListLoading(model: ProviderLoadActionsModel) {
         }
         if (provider === 'linear' && !linearConnected) {
           setItems([])
+          return
+        }
+        // Phase 1 has no mobile Dart reader; an unknown-but-deferred source must not fall through to Linear.
+        if (isDeferredOnMobileTaskProvider(provider)) {
+          setItems([])
+          resetGitHubItemsState()
+          setError(deferredMobileTaskProviderMessage())
           return
         }
         // Jira/Linear need repos only for workspace creation, not issue reads.
@@ -228,7 +239,7 @@ export function useMobileTasksTaskListLoading(model: ProviderLoadActionsModel) {
           } else {
             setError('')
           }
-        } else {
+        } else if (provider === 'linear') {
           const normalizedQuery = appliedQuery.trim()
           const found = normalizedQuery
             ? linearIssueSearchRead.interpret(

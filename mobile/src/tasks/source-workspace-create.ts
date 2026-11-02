@@ -6,6 +6,10 @@ import type {
   MobileLinkedWorkItem
 } from './mobile-composer-source-types'
 import { resolveMobileWorkspaceCreateName } from './mobile-workspace-name'
+import {
+  DeferredMobileTaskProviderError,
+  isDeferredOnMobileTaskProvider
+} from './mobile-task-provider-visibility'
 import type { WorkspaceAgentChoice } from './workspace-agent-selection'
 import {
   startupAgentCreateFields,
@@ -58,6 +62,9 @@ function resolveComposerAgentLaunch(
 }
 
 function toTaskItem(item: MobileLinkedWorkItem, targetRepoId: string): WorkspaceCreateTaskItem {
+  if (isDeferredOnMobileTaskProvider(item.provider)) {
+    throw new DeferredMobileTaskProviderError(item.provider)
+  }
   if (item.provider === 'github') {
     return {
       provider: 'github',
