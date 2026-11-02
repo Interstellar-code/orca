@@ -198,7 +198,8 @@ swap_server_install() {
   sudo -n systemctl restart "$SYSTEMD_UNIT" || fail "systemctl restart $SYSTEMD_UNIT failed"
 
   # Type=simple reports success as soon as the process spawns, so prove the new build
-  # stays up and serves its port before retiring the rollback tree.
+  # stays up and serves its port before retiring the rollback tree. A crash loop can
+  # answer the port for a few seconds, so the second check runs after a settle delay.
   local attempts=20 ready=0 attempt
   for ((attempt = 1; attempt <= attempts; attempt++)); do
     if sudo -n systemctl is-active --quiet "$SYSTEMD_UNIT"; then
@@ -211,6 +212,11 @@ swap_server_install() {
   done
   [[ $ready == 1 ]] ||
     fail "$SYSTEMD_UNIT did not stay active${port:+ and listen on port $port} within 10s"
+  sleep 5
+  sudo -n systemctl is-active --quiet "$SYSTEMD_UNIT" ||
+    fail "$SYSTEMD_UNIT stopped within 5s of restarting, so the new build cannot start"
+  [[ -z $port || -n $(ss -Hltn "sport = :$port" 2>/dev/null || true) ]] ||
+    fail "$SYSTEMD_UNIT stopped listening on port $port within 5s of restarting"
   # The older rollback copy goes only after the new install is running.
   if ! sudo -n rm -rf "$SWAP_PREVIOUS"; then
     log "WARN: could not clear $SWAP_PREVIOUS; kept the old install at $SWAP_RETIRED"
