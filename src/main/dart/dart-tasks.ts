@@ -59,6 +59,11 @@ async function withToken<T extends object>(
   }
 }
 
+// Unmappable items (no id or title) are dropped, so the total must not count them either.
+function countAfterDrops(page: { results: unknown[]; count: number }, kept: number): number {
+  return Math.max(kept, page.count - (page.results.length - kept))
+}
+
 function invalidResponse(): DartApiError {
   return new DartApiError('Dart returned an unreadable task.', 'invalidResponse')
 }
@@ -68,11 +73,8 @@ export function listTasks(args: z.output<typeof ListTasks>): Promise<Reply<'dart
     const page = readDartPage(
       await dartRequest<unknown>(token, '/tasks/list', { query: buildTaskListQuery(args) })
     )
-    return {
-      ok: true,
-      tasks: page.results.flatMap((raw) => mapDartTask(raw) ?? []),
-      totalCount: page.count
-    }
+    const tasks = page.results.flatMap((raw) => mapDartTask(raw) ?? [])
+    return { ok: true, tasks, totalCount: countAfterDrops(page, tasks.length) }
   })
 }
 
@@ -97,11 +99,8 @@ export function listComments(
         query: { task_id: args.taskId, limit: pageLimit(args.limit), offset: args.offset ?? 0 }
       })
     )
-    return {
-      ok: true,
-      comments: page.results.flatMap((raw) => mapDartComment(raw) ?? []),
-      totalCount: page.count
-    }
+    const comments = page.results.flatMap((raw) => mapDartComment(raw) ?? [])
+    return { ok: true, comments, totalCount: countAfterDrops(page, comments.length) }
   })
 }
 

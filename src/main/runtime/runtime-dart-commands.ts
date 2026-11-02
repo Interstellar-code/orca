@@ -17,18 +17,26 @@ import {
   listTasks,
   updateTask
 } from '../dart/dart-tasks'
+import { _resetPreflightCache } from '../preflight/agent-detection'
 
 export class RuntimeDartCommands {
   dartStatus(): ReturnType<typeof getStatus> {
     return getStatus()
   }
 
-  dartConnect(args: z.output<typeof Connect>): ReturnType<typeof connect> {
-    return connect(args)
+  // Same preflight reset as the IPC handlers, so a connect from a paired client refreshes capabilities.
+  async dartConnect(args: z.output<typeof Connect>): ReturnType<typeof connect> {
+    const result = await connect(args)
+    if (result.ok) {
+      _resetPreflightCache()
+    }
+    return result
   }
 
   dartDisconnect(): ReturnType<typeof disconnect> {
-    return disconnect()
+    const result = disconnect()
+    _resetPreflightCache()
+    return result
   }
 
   dartTestConnection(): ReturnType<typeof testConnection> {

@@ -1,7 +1,7 @@
 import type { DartUser, DartWorkspaceConfig } from '../../shared/dart/dart-types'
 import type { DartFailure, DartMethodContract } from '../../shared/rpc-contract/dart-params'
 import { taskProviderFailure } from '../../shared/task-provider-failure'
-import { isDartUnauthorized, toDartFailure } from './dart-failure'
+import { isDartTokenRejected, toDartFailure } from './dart-failure'
 import { DartApiError, dartRequest } from './dart-request'
 import { mapDartConfig } from './dart-task-mapping'
 import {
@@ -20,6 +20,8 @@ let viewerLookup: Promise<DartUser | null> | null = null
 let config: DartWorkspaceConfig | null = null
 let configLoad: Promise<DartWorkspaceConfig> | null = null
 let generation = 0
+// Set by a 401 so `dart.status` reports the revoked token instead of a connected, viewer-less state.
+let authFailure: DartFailure | null = null
 
 /** Drops cached identity and `/config`; in-flight loads from before the call cannot repopulate them. */
 export function invalidate(): void {
@@ -28,6 +30,7 @@ export function invalidate(): void {
   viewerLookup = null
   config = null
   configLoad = null
+  authFailure = null
 }
 
 function notConnected(): DartFailure {
@@ -50,10 +53,9 @@ export function readToken(): TokenRead {
 
 /** Call after a failed request: a 401 means the viewer and `/config` may belong to a revoked token. */
 export function noteRequestFailure(error: unknown): void {
-  if (isDartUnauthorized(error)) {
-    viewer = null
-    config = null
-    configLoad = null
+  if (isDartTokenRejected(error)) {
+    invalidate()
+    authFailure = toDartFailure(error, 'connect')
   }
 }
 
@@ -81,6 +83,7 @@ async function lookupViewer(token: string): Promise<DartUser | null> {
     .then((user) => {
       if (started === generation) {
         viewer = user
+        authFailure = null
       }
       return user
     })
@@ -111,10 +114,12 @@ export async function getStatus(): Promise<Reply<'dart.status'>> {
       credentialProtection
     }
   }
+  const current = await lookupViewer(token.token)
   return {
     ok: true,
     connected: true,
-    viewer: await lookupViewer(token.token),
+    viewer: current,
+    ...(!current && authFailure ? { credentialError: authFailure.error } : {}),
     credentialProtection
   }
 }
@@ -163,6 +168,7 @@ export async function testConnection(): Promise<Reply<'dart.testConnection'>> {
     const user = await fetchViewer(token.token)
     if (started === generation) {
       viewer = user
+      authFailure = null
     }
     return { ok: true, viewer: user }
   } catch (error) {

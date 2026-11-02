@@ -8,7 +8,7 @@ import {
   jsonResponse,
   routeSignedIn,
   type DartHost
-} from './dart-host-fixture'
+} from './dart-host.test-fixture'
 
 vi.mock('../network/proxy-settings', () => ({
   ensureElectronProxyFromEnvironment: vi.fn().mockResolvedValue(undefined)
@@ -185,6 +185,61 @@ describe('dart connection', () => {
     await expect(client.testConnection()).resolves.toMatchObject({ errorCode: 'dart.unauthorized' })
     await client.getConfig()
     expect(configReads()).toBe(2)
-    await expect(client.getStatus()).resolves.toMatchObject({ connected: true, viewer: null })
+  })
+
+  it('reports a revoked token in dart.status instead of a viewer-less connection', async () => {
+    const { host, client } = await load()
+    routeSignedIn(host)
+    await client.connect({ apiToken: FIXTURE_TOKEN })
+
+    host.route('GET', '/me', () => jsonResponse(401, { detail: 'expired' }))
+    await client.testConnection()
+
+    const status = await client.getStatus()
+    expect(status).toMatchObject({ ok: true, connected: true, viewer: null })
+    expect(status.ok && status.credentialError).toContain('HTTP 401')
+
+    routeSignedIn(host)
+    await expect(client.testConnection()).resolves.toMatchObject({ ok: true })
+    const recovered = await client.getStatus()
+    expect(recovered).toMatchObject({ viewer: FIXTURE_USER })
+    expect(recovered.ok && 'credentialError' in recovered).toBe(false)
+  })
+
+  it('does not re-cache an in-flight /config that resolves after a 401', async () => {
+    const { host, client } = await load()
+    routeSignedIn(host)
+    await client.connect({ apiToken: FIXTURE_TOKEN })
+    // Let connect's warm-up `/config` settle so the next read is the one we hold open.
+    await client.getConfig()
+    client.invalidate()
+    const held: { release?: (response: Response) => void } = {}
+    host.route('GET', '/config', () => new Promise<Response>((resolve) => (held.release = resolve)))
+    const inFlight = client.getConfig()
+    await vi.waitFor(() => expect(held.release).toBeDefined())
+
+    host.route('GET', '/me', () => jsonResponse(401, { detail: 'revoked' }))
+    await client.testConnection()
+    held.release?.(jsonResponse(200, { tags: ['stale'] }))
+    await inFlight
+
+    host.route('GET', '/config', () => jsonResponse(200, { tags: ['fresh'] }))
+    await expect(client.getConfig()).resolves.toMatchObject({ config: { tags: ['fresh'] } })
+  })
+
+  it('maps a 403 to dart.unauthorized but keeps the viewer and /config', async () => {
+    const { host, client } = await load()
+    routeSignedIn(host, { tags: ['bug'] })
+    await client.connect({ apiToken: FIXTURE_TOKEN })
+    await client.getConfig()
+    const reads = () => host.fetch.mock.calls.length
+
+    host.route('GET', '/me', () => jsonResponse(403, { detail: 'forbidden' }))
+    await expect(client.testConnection()).resolves.toMatchObject({ errorCode: 'dart.unauthorized' })
+    const before = reads()
+
+    await expect(client.getConfig()).resolves.toMatchObject({ config: { tags: ['bug'] } })
+    await expect(client.getStatus()).resolves.toMatchObject({ viewer: FIXTURE_USER })
+    expect(reads()).toBe(before)
   })
 })

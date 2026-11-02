@@ -44,8 +44,9 @@ function codeForStatus(status: number, operation: DartOperation): TaskProviderEr
   return null
 }
 
-export function isDartUnauthorized(error: unknown): boolean {
-  return error instanceof DartApiError && (error.status === 401 || error.status === 403)
+/** Only a 401 revokes the token; a 403 is a per-call permission denial that keeps the cache. */
+export function isDartTokenRejected(error: unknown): boolean {
+  return error instanceof DartApiError && error.status === 401
 }
 
 /** Maps any thrown value to a `dart.*` failure; non-Dart errors never surface their message. */

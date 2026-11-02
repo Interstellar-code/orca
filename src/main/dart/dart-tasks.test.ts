@@ -6,7 +6,7 @@ import {
   jsonResponse,
   routeSignedIn,
   type DartHost
-} from './dart-host-fixture'
+} from './dart-host.test-fixture'
 
 vi.mock('../network/proxy-settings', () => ({
   ensureElectronProxyFromEnvironment: vi.fn().mockResolvedValue(undefined)
@@ -147,7 +147,7 @@ describe('dart task reads', () => {
     expect(defaults).toEqual({ limit: '100', offset: '0' })
   })
 
-  it('maps list items and keeps a task whose htmlUrl is untrusted, without its link', async () => {
+  it('keeps a task with an untrusted htmlUrl as an empty link and drops an unmappable one from the total', async () => {
     const { host, tasks } = await connected()
     host.route('GET', '/tasks/list', () =>
       jsonResponse(200, {
@@ -162,7 +162,7 @@ describe('dart task reads', () => {
 
     const result = await tasks.listTasks(undefined)
 
-    expect(result).toMatchObject({ ok: true, totalCount: 3 })
+    expect(result).toMatchObject({ ok: true, totalCount: 2 })
     const listed = result.ok ? result.tasks : []
     expect(listed).toHaveLength(2)
     expect(listed[0]).toEqual({

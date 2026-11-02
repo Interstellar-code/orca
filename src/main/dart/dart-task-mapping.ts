@@ -30,7 +30,7 @@ function stringList(value: unknown): string[] {
   })
 }
 
-/** Untrusted links are dropped to '' so the task stays listed; callers show `dart.invalidTaskUrl`. */
+/** An empty `htmlUrl` is the `dart.invalidTaskUrl` signal: the untrusted link is dropped, the item kept. */
 function trustedUrl(value: unknown): string {
   return isTrustedDartHtmlUrl(value) ? value : ''
 }

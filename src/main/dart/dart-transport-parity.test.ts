@@ -7,7 +7,7 @@ import {
   jsonResponse,
   routeSignedIn,
   type DartHost
-} from './dart-host-fixture'
+} from './dart-host.test-fixture'
 
 const ipcHandlers = vi.hoisted(() => new Map<string, (event: unknown, args?: unknown) => unknown>())
 vi.mock('electron', () => ({
@@ -88,6 +88,20 @@ describe('dart IPC and RPC parity', () => {
 
     await ipc('dart:disconnect')
     await expect(rpc('dart.status')).resolves.toMatchObject({ connected: false, viewer: null })
+  })
+
+  it('resets the preflight cache on an RPC connect and disconnect, like IPC', async () => {
+    const { host, rpc } = await transports()
+    routeSignedIn(host)
+    const { _resetPreflightCache } = await import('../preflight/agent-detection')
+    vi.mocked(_resetPreflightCache).mockClear()
+
+    await expect(rpc('dart.connect', { apiToken: FIXTURE_TOKEN })).resolves.toMatchObject({
+      ok: true
+    })
+    expect(_resetPreflightCache).toHaveBeenCalledTimes(1)
+    await rpc('dart.disconnect')
+    expect(_resetPreflightCache).toHaveBeenCalledTimes(2)
   })
 
   it('keeps the token out of logs and serialized connect errors on both transports', async () => {
