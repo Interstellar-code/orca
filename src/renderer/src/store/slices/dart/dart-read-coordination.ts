@@ -1,12 +1,17 @@
 import type { GlobalSettings } from '../../../../../shared/global-settings-types'
+import type { RuntimeClientTarget } from '../../../../../shared/runtime-client-target'
 import {
   getTaskSourceCacheScope,
-  getTaskSourceRuntimeSettings,
   type TaskSourceContext
 } from '../../../../../shared/task-source-context'
 import type { DartConnectionStatus } from '../../../../../shared/dart/dart-types'
-import { defaultScopeSource, type RowLessSource } from '@/lib/default-creation-host'
-import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
+import { defaultScopeHost } from '@/lib/default-creation-host'
+import {
+  getEnvironmentRuntimeContextKey,
+  getProviderRuntimeContextKey
+} from '@/lib/provider-runtime-context'
+import { taskSourceRuntimeTarget } from '@/lib/task-source-runtime-target'
+import { runtimeTargetEnvironmentId } from '@/runtime/runtime-client-target'
 import type { CacheEntry } from '../../github/cache-model'
 import type { AppState } from '../../types'
 import type { DartSlice, DartSliceSet } from './dart-slice-contract'
@@ -18,7 +23,8 @@ export type DartReadScope = {
   contextKey: string
   cachePrefix: string | null
   explicitSource: boolean
-  settings: RowLessSource
+  /** Resolved once per action so a read never resolves the host from settings again. */
+  target: RuntimeClientTarget
 }
 
 let dartStatusReadGeneration = 0
@@ -87,24 +93,27 @@ export function canWriteDartReadResult(
   )
 }
 
+/** Both branches key on the resolved target, whose host is the one the settings name. */
 export function getDartReadScope(
   settings: Pick<GlobalSettings, 'activeRuntimeEnvironmentId'> | null | undefined,
   sourceContext?: TaskSourceContext | null
 ): DartReadScope {
   if (!sourceContext) {
+    const target = defaultScopeHost(settings)
     return {
-      contextKey: getProviderRuntimeContextKey(settings),
+      contextKey: getEnvironmentRuntimeContextKey(runtimeTargetEnvironmentId(target)),
       cachePrefix: null,
       explicitSource: false,
-      settings: defaultScopeSource(settings)
+      target
     }
   }
   const cachePrefix = getTaskSourceCacheScope(sourceContext)
+  const target = taskSourceRuntimeTarget(sourceContext)
   return {
-    contextKey: `${getProviderRuntimeContextKey(getTaskSourceRuntimeSettings(sourceContext))}::${cachePrefix}`,
+    contextKey: `${getEnvironmentRuntimeContextKey(runtimeTargetEnvironmentId(target))}::${cachePrefix}`,
     cachePrefix,
     explicitSource: true,
-    settings: sourceContext
+    target
   }
 }
 
