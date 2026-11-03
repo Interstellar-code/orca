@@ -6,6 +6,7 @@ import { DartConnectDialog } from '@/components/dart/dart-connect-dialog'
 import { dartCredentialStorageCopy } from '@/components/dart/dart-credential-storage-copy'
 import { DartIcon } from '@/components/icons/DartIcon'
 import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useMountedRef } from '@/hooks/useMountedRef'
 import {
   getProviderRuntimeContextKey,
@@ -228,17 +229,27 @@ export function DartIntegrationCard(): React.JSX.Element {
                 )
               )}
             </Button>
-            <button
-              type="button"
-              onClick={() => void handleDisconnect()}
-              aria-label={translate(
-                'auto.components.settings.dart.integration.card.disconnect',
-                'Disconnect Dart'
-              )}
-              className="rounded-md p-1 text-muted-foreground/50 transition-colors hover:text-destructive"
-            >
-              <Unlink className="size-3.5" />
-            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => void handleDisconnect()}
+                  aria-label={translate(
+                    'auto.components.settings.dart.integration.card.disconnect',
+                    'Disconnect Dart'
+                  )}
+                  className="rounded-md p-1 text-muted-foreground/50 transition-colors hover:text-destructive"
+                >
+                  <Unlink className="size-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" sideOffset={4}>
+                {translate(
+                  'auto.components.settings.dart.integration.card.disconnect',
+                  'Disconnect Dart'
+                )}
+              </TooltipContent>
+            </Tooltip>
           </div>
         ) : connected ? (
           <div className="flex items-center gap-2">

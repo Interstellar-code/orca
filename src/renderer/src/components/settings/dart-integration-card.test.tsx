@@ -115,6 +115,15 @@ describe('DartIntegrationCard', () => {
     expect(state.disconnectDart).toHaveBeenCalledOnce()
   })
 
+  it('labels the icon-only Disconnect action on keyboard focus', async () => {
+    installStore({ dartStatus: CONNECTED })
+    renderCard()
+
+    fireEvent.focus(screen.getByRole('button', { name: 'Disconnect Dart' }))
+
+    expect((await screen.findByRole('tooltip')).textContent).toBe('Disconnect Dart')
+  })
+
   it('shows only the name when Dart returned no email', () => {
     installStore({ dartStatus: { connected: true, viewer: { id: 'aB3dE5gH7jK9', name: 'Alex' } } })
     renderCard()
