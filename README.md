@@ -26,6 +26,10 @@
   <img src="docs/assets/readme-hero.jpg" alt="Orca desktop app running agents in parallel worktrees, with the Orca mobile companion app in the corner" width="960" />
 </p>
 
+## Fork customizations
+
+This is the Interstellar-code fork of [stablyai/orca](https://github.com/stablyai/orca). Every change the fork makes on top of upstream is tracked in [`customization_registry.json`](customization_registry.json). Any fork change must add or update its entry there in the same commit.
+
 ## Features
 
 <table>
