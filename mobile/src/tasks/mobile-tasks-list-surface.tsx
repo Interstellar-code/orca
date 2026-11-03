@@ -1,6 +1,12 @@
 import type { ConnectionPresentationModel } from './use-mobile-tasks-connection-presentation'
 import { translate } from '../i18n/mobile-i18n'
-import { View, Text, colors, TaskProviderLogo, type MobileColorScheme } from './mobile-tasks-dependencies'
+import {
+  View,
+  Text,
+  colors,
+  TaskProviderLogo,
+  type MobileColorScheme
+} from './mobile-tasks-dependencies'
 import { styles } from './mobile-tasks-legacy-styles'
 import {
   deferredMobileTaskProviderMessage,

@@ -114,23 +114,12 @@ import { ensureStructuredAgentSessionHostUnlessRefused } from '../../runtime/age
 import { getAgentSessionAttachmentStore } from '../../native-chat/agent-session-attachments/agent-session-attachment-store-registry'
 import type { PluginService } from '../../plugins/plugin-service'
 import type { PluginMarketplaceHandlerServices } from '../plugin-marketplaces'
-import { settleWithinMs } from '../../startup/quit/quit-teardown-deadline'
+
 import { getRuntimeEnvironmentRegistryRoot } from '../runtime-environments/runtime-environment-registry-root'
 
+import { closeNotificationDismissalsBeforeRelaunch } from './relaunch-dismissal-close'
+
 let registered = false
-// Same cap as the restart path's auth preservation: bookkeeping must not hold Restart on a stalled disk.
-const RELAUNCH_DISMISSAL_CLOSE_TIMEOUT_MS = 2_000
-
-async function closeNotificationDismissalsBeforeRelaunch(runtime: OrcaRuntimeService): Promise<void> {
-  const result = await settleWithinMs(
-    runtime.closeNotificationDismissals(),
-    RELAUNCH_DISMISSAL_CLOSE_TIMEOUT_MS
-  )
-  if (result.outcome === 'timed-out') {
-    console.warn('[notifications] Relaunching before dismissal recovery state finished saving')
-  }
-}
-
 type CoreHandlerLifecycleOptions = {
   onBeforeRelaunch?: () => void | Promise<void>
   onOrcaProfileAuthMutation?: () => void
