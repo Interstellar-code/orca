@@ -1,8 +1,9 @@
 name: Fork Release
 
-# Fork-only: merge stablyai/orca into the fork's main, run the Dart gates, build macOS arm64,
+# Fork-only: merge stablyai/orca into a candidate branch, run the Dart gates, build macOS arm64,
 # Linux x64 and Windows x64 with the fork's -local. version (so Stably's updater stays off),
-# and publish a GitHub Release. See config/fork/README.md and docs/plans/fork-releases.md.
+# then fast-forward main and publish a GitHub Release. See config/fork/README.md and
+# docs/plans/fork-releases.md.
 
 on:
   schedule:
@@ -25,6 +26,9 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  CANDIDATE_BRANCH: fork-release/candidate
+
 jobs:
   prepare:
     if: github.repository == 'Interstellar-code/orca'
@@ -40,13 +44,26 @@ jobs:
       upstream_sha: ${{ steps.merge.outputs.upstream_sha }}
       should_build: ${{ steps.existing.outputs.should_build }}
     steps:
+      # Runs first so a failed merge or push still leaves only fork-* workflows enabled.
+      - name: Disable upstream workflows on the fork
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows" --paginate \
+            -q '.workflows[] | select(.state == "active") | select(.path | test("/fork-[^/]+$") | not) | .id' |
+            while read -r id; do
+              gh api -X PUT "repos/$GITHUB_REPOSITORY/actions/workflows/$id/disable" >/dev/null &&
+                echo "disabled $id" || echo "::warning::could not disable workflow $id"
+            done
+
       - name: Checkout main
         uses: actions/checkout@v6
         with:
           ref: main
           fetch-depth: 0
-          # Upstream merges often touch .github/workflows, which GITHUB_TOKEN may not push.
-          token: ${{ secrets.ORCA_FORK_PUSH_TOKEN || github.token }}
+          # Merged upstream code runs below; keep no credential in .git/config.
+          persist-credentials: false
 
       - name: Merge upstream/main
         id: merge
@@ -96,36 +113,46 @@ jobs:
           FORCE: ${{ inputs.force || false }}
         run: |
           set -euo pipefail
-          if [ "$FORCE" != true ] && gh release list --limit 50 --json tagName -q '.[].tagName' | grep -q "\.${SHORT}$"; then
+          tags=$(gh release list -R "$GITHUB_REPOSITORY" --limit 50 --json tagName -q '.[].tagName')
+          if [ "$FORCE" != true ] && grep -q "\.${SHORT}$" <<<"$tags"; then
             echo "A release for $SHORT already exists; nothing to build."
             echo "should_build=false" >> "$GITHUB_OUTPUT"
           else
             echo "should_build=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Push the merged main
+      # main moves only after every gate and build passes (release job); this branch holds the merge.
+      - name: Push the candidate branch
         if: steps.existing.outputs.should_build == 'true'
+        env:
+          PUSH_TOKEN: ${{ secrets.ORCA_FORK_PUSH_TOKEN || github.token }}
         run: |
           set -euo pipefail
-          if [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ]; then
-            echo "main is unchanged."
-            exit 0
-          fi
-          if ! git push origin HEAD:main; then
-            echo "::error::Could not push the merged main. If upstream changed .github/workflows, add an ORCA_FORK_PUSH_TOKEN secret (fine-grained PAT on this repo with Contents and Workflows write)."
+          url="https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if ! git push --force "$url" "HEAD:refs/heads/$CANDIDATE_BRANCH"; then
+            echo "::error::Could not push the merge. Upstream changed .github/workflows, which needs an ORCA_FORK_PUSH_TOKEN secret (fine-grained PAT on this repo with Contents and Workflows write)."
             exit 1
           fi
 
-      # Merged upstream workflows start enabled; only fork workflows should run here.
-      - name: Disable upstream workflows on the fork
+      # A PAT push triggers push workflows, and newly merged workflow files start enabled.
+      - name: Disable new upstream workflows and cancel their runs
+        if: steps.existing.outputs.should_build == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.identity.outputs.sha }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
           gh api "repos/$GITHUB_REPOSITORY/actions/workflows" --paginate \
             -q '.workflows[] | select(.state == "active") | select(.path | test("/fork-[^/]+$") | not) | .id' |
             while read -r id; do
-              gh api -X PUT "repos/$GITHUB_REPOSITORY/actions/workflows/$id/disable" && echo "disabled $id"
+              gh api -X PUT "repos/$GITHUB_REPOSITORY/actions/workflows/$id/disable" >/dev/null ||
+                echo "::warning::could not disable workflow $id"
+            done
+          sleep 10
+          gh run list -R "$GITHUB_REPOSITORY" --commit "$SHA" --json databaseId,workflowName,status \
+            -q '.[] | select(.workflowName != "Fork Release") | select(.status != "completed") | .databaseId' |
+            while read -r run; do
+              gh run cancel -R "$GITHUB_REPOSITORY" "$run" || echo "::warning::could not cancel run $run"
             done
 
   gates:
@@ -137,6 +164,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
       - uses: pnpm/setup@v2
         with:
           install: false
@@ -158,14 +186,26 @@ jobs:
       - name: Dart tests
         run: pnpm test src/main/dart src/shared/dart
 
+  # The packaged server template remote hosts deploy from; GitHub-hosted runners only.
+  orcad-template:
+    needs: prepare
+    if: needs.prepare.outputs.should_build == 'true'
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/qualified-orcad-template.yml
+    with:
+      ref: ${{ needs.prepare.outputs.sha }}
+      fast_runners: false
+
   build:
-    needs: [prepare, gates]
+    needs: [prepare, gates, orcad-template]
     strategy:
       fail-fast: false
       matrix:
         include:
           - platform: mac-arm64
-            os: macos-latest
+            os: macos-15
           - platform: linux-x64
             os: ubuntu-latest
           # windows-latest's VS 2026 image breaks node-gyp native installs (see release-cut.yml).
@@ -176,11 +216,13 @@ jobs:
     env:
       ORCA_BUILD_COMMIT: ${{ needs.prepare.outputs.sha }}
       ORCA_LOCAL_BUILD_VERSION: ${{ needs.prepare.outputs.version }}
+      ORCA_REQUIRE_ORCAD_TEMPLATE: '1'
       NODE_OPTIONS: --max-old-space-size=4096
     steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
       - uses: pnpm/setup@v2
         with:
           install: false
@@ -208,6 +250,22 @@ jobs:
             rustup default stable
           }
           cargo --version
+      - name: Resolve electron-builder download versions
+        id: eb-versions
+        shell: bash
+        run: node -p "const d = require('./package.json').devDependencies; 'versions=electron' + d.electron + '-builder' + d['electron-builder']" >> "$GITHUB_OUTPUT"
+      - name: Cache electron-builder downloads
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+            ~\AppData\Local\electron\Cache
+            ~\AppData\Local\electron-builder\Cache
+          key: fork-electron-builder-${{ matrix.platform }}-${{ steps.eb-versions.outputs.versions }}
+          restore-keys: fork-electron-builder-${{ matrix.platform }}-
       - name: Install dependencies
         uses: nick-fields/retry@v4
         with:
@@ -222,8 +280,15 @@ jobs:
         run: |
           set -euo pipefail
           pnpm run build:native
+          pnpm run verify:computer-native
           pnpm run build:desktop:assets
           pnpm run ensure:electron-runtime
+
+      # After the app build so nothing that cleans out/ can drop it; electron-builder ships it.
+      - uses: actions/download-artifact@v8
+        with:
+          name: orcad-template
+          path: out/orcad-template
 
       # CI=true makes electron-builder publish and demand every mac slice boot; this is a local-style build.
       - name: Package (macOS)
@@ -272,8 +337,7 @@ jobs:
               tar -C dist -czf "release/Orca-$VERSION-linux-x64.tar.gz" linux-unpacked
               ;;
             win-x64)
-              installer=$(ls dist/*.exe | head -1)
-              cp "$installer" "release/Orca-$VERSION-win-x64-setup.exe"
+              cp dist/orca-windows-setup.exe "release/Orca-$VERSION-win-x64-setup.exe"
               ;;
           esac
           ls -l release
@@ -296,6 +360,19 @@ jobs:
           pattern: release-*
           path: release
           merge-multiple: true
+      # Fast-forward only: a main that moved during the run fails here instead of being overwritten.
+      - name: Fast-forward main to the released commit
+        env:
+          GH_TOKEN: ${{ secrets.ORCA_FORK_PUSH_TOKEN || github.token }}
+          SHA: ${{ needs.prepare.outputs.sha }}
+        run: |
+          set -euo pipefail
+          current=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" -q .object.sha)
+          if [ "$current" = "$SHA" ]; then
+            echo "main is already at $SHA."
+            exit 0
+          fi
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/heads/main" -f sha="$SHA" -F force=false >/dev/null
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -311,8 +388,8 @@ jobs:
 
           - Fork commit: $SHA
           - Upstream main at build: stablyai/orca@$UPSTREAM
-          - macOS: unzip, move Orca.app to /Applications (signed with the self-signed Orca Fork Signing identity; first open may need right-click > Open).
-          - Windows: run the setup.exe (unsigned: SmartScreen > More info > Run anyway).
-          - Linux: extract and run linux-unpacked/orca-ide, or install with config/fork on a server."
+          - macOS (Apple silicon): unzip and move Orca.app to /Applications. It is signed with the self-signed Orca Fork Signing identity, so the first open of a download needs right-click > Open.
+          - Windows: run the setup.exe. It is unsigned: SmartScreen > More info > Run anyway.
+          - Linux x64: extract, then run sudo chown root:root linux-unpacked/chrome-sandbox && sudo chmod 4755 linux-unpacked/chrome-sandbox before starting linux-unpacked/orca-ide."
           gh release create "$TAG" -R "$GITHUB_REPOSITORY" --target "$SHA" \
             --title "Orca fork $VERSION" --notes "$notes" --latest ./*

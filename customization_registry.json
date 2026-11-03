@@ -384,15 +384,17 @@
       "id": "fork-release-workflow",
       "title": "GitHub Actions fork release (merge, gates, build, publish)",
       "status": "active",
-      "summary": "Nightly and on-demand workflow that merges stablyai/orca main into the fork, runs typecheck and Dart tests, builds macOS arm64 (fork-signed), Linux x64 and Windows x64 with the -local fork version, and publishes a GitHub Release. It also disables upstream workflows on the fork so only fork-* workflows run.",
+      "summary": "Nightly and on-demand workflow that disables upstream workflows on the fork, merges stablyai/orca main into the fork-release/candidate branch, runs typecheck and Dart tests, qualifies the orcad server template, builds macOS arm64 (fork-signed), Linux x64 and Windows x64 with the -local fork version, then fast-forwards main and publishes a GitHub Release.",
       "areas": ["ci", "tooling"],
       "key_paths": [".github/workflows/fork-release.yml"],
       "commits": [],
       "touches_upstream_files": [],
       "sync_notes": "Fork-only file; upstream has no fork-release.yml. Merged upstream workflows are disabled by the workflow itself.",
       "known_gaps": [
-        "Pushing a merge that changes .github/workflows needs an ORCA_FORK_PUSH_TOKEN secret (fine-grained PAT with Contents and Workflows write).",
-        "Windows installer is unsigned (SmartScreen warning); macOS app is self-signed (Gatekeeper warning on first open of a download)."
+        "Pushing a merge that changes .github/workflows needs an ORCA_FORK_PUSH_TOKEN secret (fine-grained PAT with Contents and Workflows write); the same token fast-forwards main.",
+        "Windows installer is unsigned (SmartScreen warning); macOS app is self-signed (Gatekeeper warning on first open of a download).",
+        "Linux tarball needs chrome-sandbox made setuid root after extracting.",
+        "The local config/fork/rebuild-and-install.sh still builds without the orcad template."
       ]
     }
   ]
