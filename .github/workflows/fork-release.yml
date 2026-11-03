@@ -51,7 +51,7 @@ jobs:
         run: |
           set -uo pipefail
           gh api "repos/$GITHUB_REPOSITORY/actions/workflows" --paginate \
-            -q '.workflows[] | select(.state == "active") | select(.path | test("/fork-[^/]+$") | not) | .id' |
+            -q '.workflows[] | select(.state == "active") | select(.path | test("/(fork-[^/]+|qualified-orcad-template\\.yml)$") | not) | .id' |
             while read -r id; do
               gh api -X PUT "repos/$GITHUB_REPOSITORY/actions/workflows/$id/disable" >/dev/null &&
                 echo "disabled $id" || echo "::warning::could not disable workflow $id"
@@ -143,13 +143,13 @@ jobs:
         run: |
           set -uo pipefail
           gh api "repos/$GITHUB_REPOSITORY/actions/workflows" --paginate \
-            -q '.workflows[] | select(.state == "active") | select(.path | test("/fork-[^/]+$") | not) | .id' |
+            -q '.workflows[] | select(.state == "active") | select(.path | test("/(fork-[^/]+|qualified-orcad-template\\.yml)$") | not) | .id' |
             while read -r id; do
               gh api -X PUT "repos/$GITHUB_REPOSITORY/actions/workflows/$id/disable" >/dev/null ||
                 echo "::warning::could not disable workflow $id"
             done
-          sleep 10
-          gh run list -R "$GITHUB_REPOSITORY" --commit "$SHA" --json databaseId,workflowName,status \
+          sleep 30
+          gh run list -R "$GITHUB_REPOSITORY" --commit "$SHA" --limit 100 --json databaseId,workflowName,status \
             -q '.[] | select(.workflowName != "Fork Release") | select(.status != "completed") | .databaseId' |
             while read -r run; do
               gh run cancel -R "$GITHUB_REPOSITORY" "$run" || echo "::warning::could not cancel run $run"
