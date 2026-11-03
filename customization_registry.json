@@ -358,6 +358,27 @@
       "touches_upstream_files": ["src/main/ipc/register-core-handlers/register-core-handlers.ts"],
       "sync_notes": "If upstream edits closeNotificationDismissalsBeforeRelaunch in register-core-handlers.ts, port the change into relaunch-dismissal-close.ts. Consider whether the extraction is still needed; reverting avoids the hotspot.",
       "known_gaps": []
+    },
+    {
+      "id": "fork-stable-signing",
+      "title": "Stable code-signing identity for fork Mac builds",
+      "status": "active",
+      "summary": "Every fork Mac build is signed with one self-signed certificate (Orca Fork Signing), so macOS Local Network and privacy grants for the app, its helpers and Orca Computer Use.app survive rebuilds. Unsigned local builds carry a bundle seal macOS rejects, which silently blocked the app from paired LAN servers (remote_runtime_unavailable).",
+      "areas": ["tooling"],
+      "key_paths": [
+        "config/fork/sign-fork-app.sh",
+        "config/fork/install-built-app.sh",
+        "config/fork/rebuild-and-install.sh",
+        "config/fork/README.md"
+      ],
+      "commits": [],
+      "touches_upstream_files": [],
+      "sync_notes": "No conflicts expected; config/fork/ does not exist upstream.",
+      "known_gaps": [
+        "CI builds (plan task 2) must import the ORCA_FORK_MAC_CERT secret and sign before zipping or packaging a dmg.",
+        "The certificate is self-signed: Gatekeeper still warns on a downloaded app; an Apple Developer ID would remove that.",
+        "Only the installed .app is signed; dist dmg/zip/latest-mac.yml are written before signing."
+      ]
     }
   ]
 }

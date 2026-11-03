@@ -17,8 +17,9 @@ can prove no client is connected.
 | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `rebuild-and-install.sh`              | Fast-forward from `origin/main`, merge `upstream/main`, run the Dart gates, build, push, notify. `--mode mac` (default) or `--mode server`.          |
 | `install-built-app.sh`                | The Mac install command the notification points at. Refuses while Orca runs; stages the new app and restores the old one if the swap fails.          |
+| `sign-fork-app.sh`                    | Signs an `Orca.app` with the fork identity and verifies it. The rebuild runs it after every Mac build; the installer refuses an app without it.      |
 | `com.interstellar.orca-rebuild.plist` | launchd template that runs the script nightly at 03:30 local.                                                                                        |
-| `src/main/updater.*` guard            | A `-local.` build never calls `setFeedURL`/`checkForUpdates`; "Check for Updates" answers "This is a fork build; updates come from the rebuild job". |
+| `src/main/updater/lifecycle` guard    | A `-local.` build never calls `setFeedURL`/`checkForUpdates`; "Check for Updates" answers "This is a fork build; updates come from the rebuild job". |
 
 ## One-time setup
 
@@ -40,6 +41,42 @@ uncommitted changes, on another branch, or (when pushing) whose `origin` is not 
 ### 2. The Dart token
 
 The script never reads, prints or writes the Dart token. Nothing here needs it.
+
+### 2b. The fork signing identity (Mac)
+
+Every fork build is signed with one self-signed certificate, "Orca Fork Signing"
+(`sign-fork-app.sh`). macOS binds Local Network access and other privacy grants to the bundle id
+plus that certificate, so grants for the app, its `Contents/Helpers` and `Contents/Frameworks`
+helpers, and `Orca Computer Use.app` survive rebuilds. An unsigned local build carries a bundle
+seal that no longer matches the Info.plist and resources electron-builder rewrote, which macOS
+treats as invalid: the app then silently loses Local Network access, and every Mac-app call to a
+paired server fails with `remote_runtime_unavailable` while `orca ... --environment` calls from a
+shell still work.
+
+- Certificate and key: `~/.config/orca-fork-signing/orca-fork-signing.p12` (never committed),
+  imported into the login keychain; its password is the keychain item `orca-fork-signing`.
+- GitHub secrets on the fork for CI builds: `ORCA_FORK_MAC_CERT` (base64 p12) and
+  `ORCA_FORK_MAC_CERT_PASSWORD`.
+- `ORCA_FORK_SIGN_IDENTITY` overrides the identity for both scripts. It must be the
+  certificate's common name, not a SHA-1 hash.
+- On a new Mac, import the p12 into the login keychain, then run one build by hand before
+  loading the launchd job, so the keychain-access prompt (choose Always Allow) never blocks a
+  03:30 run. `rebuild-and-install.sh` signs as part of the build:
+
+  ```sh
+  security import orca-fork-signing.p12 -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign
+  ~/.orca-fork-build/orca/config/fork/rebuild-and-install.sh --no-push
+  ```
+
+  To re-sign an existing build instead, run `config/fork/sign-fork-app.sh` on
+  `dist/mac-arm64/Orca.app` (Apple silicon) or `dist/mac/Orca.app` (Intel).
+
+- Only the installed `.app` is signed. The dmg, zip and `latest-mac.yml` in `dist/` are written
+  before signing and still carry the invalid seal; do not copy them to another Mac.
+- The first launch after switching to this identity may ask for Local Network access once.
+- Rollout: launchd runs the clone's own script, which bash reads before the run pulls this
+  change, so the first nightly run after it lands builds unsigned and the installer refuses that
+  build once. The next run signs.
 
 ### 3. Install the launchd job (your choice, not the script's)
 
@@ -251,7 +288,7 @@ time when nothing is connected.
 ## Updater guard (why a Stably release cannot land on the fork)
 
 A `pnpm build:mac` build carries version `<package version>-local.<timestamp>.<commit>`.
-`isForkBuild()` in `src/main/updater/updater-menu-checks.ts` matches that suffix, and:
+`isForkBuild()` in `src/main/updater/lifecycle/updater-menu-checks.ts` matches that suffix, and:
 
 - `setupAutoUpdater` returns before `setFeedURL`, so no Stably feed is ever configured — for
   the window, headless serve, or the supervised serve handoff.
@@ -261,7 +298,7 @@ A `pnpm build:mac` build carries version `<package version>-local.<timestamp>.<c
   cannot push a Stably Linux package onto the server either.
 - A release build (version without the suffix) takes exactly the old code path.
 
-Covered by `src/main/updater.fork-build-guard.test.ts`.
+Covered by `src/main/updater/updater.fork-build-guard.test.ts`.
 
 **Only `pnpm build:mac` and the rebuild script produce a protected fork build.** The guard
 keys on the `-local.` version suffix, which those two stamp. `pnpm build:linux` on a Mac, a

@@ -35,6 +35,16 @@ if pgrep -x Orca >/dev/null 2>&1; then
   exit 1
 fi
 
+SIGNER="$(cd "$(dirname "$0")" && pwd)/sign-fork-app.sh"
+# An unsigned or re-identified app silently loses Local Network access to paired servers.
+refuse_unsigned() {
+  echo "Refusing to install: $app is not validly signed with the fork identity." >&2
+  echo "Sign it with \"$SIGNER\" \"$app\", then run this again." >&2
+  exit 1
+}
+# Gate before touching anything, so a refused install changes nothing.
+"$SIGNER" --check "$app" || refuse_unsigned
+
 version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")
 
 swapped=0
@@ -62,6 +72,8 @@ if [[ -e $RETIRED ]]; then
 fi
 rm -rf "$STAGE"
 cp -R "$app" "$STAGE"
+# An unsigned or re-identified app silently loses Local Network access to paired servers.
+"$SIGNER" --check "$STAGE" || refuse_unsigned
 mv "$TARGET" "$RETIRED"
 swapped=1
 mv "$STAGE" "$TARGET"

@@ -268,6 +268,7 @@ build_mac() {
   local archs
   archs=$(lipo -archs "$app/Contents/MacOS/Orca") || fail 'could not read the built app architecture'
   [[ " $archs " == *" $MAC_ARCH "* ]] || fail "built app is '$archs', not $MAC_ARCH"
+  config/fork/sign-fork-app.sh "$app" || fail 'signing the built app with the fork identity failed'
   built_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist") ||
     fail 'could not read the built app version'
 }
