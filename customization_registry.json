@@ -379,6 +379,21 @@
         "The certificate is self-signed: Gatekeeper still warns on a downloaded app; an Apple Developer ID would remove that.",
         "Only the installed .app is signed; dist dmg/zip/latest-mac.yml are written before signing."
       ]
+    },
+    {
+      "id": "fork-release-workflow",
+      "title": "GitHub Actions fork release (merge, gates, build, publish)",
+      "status": "active",
+      "summary": "Nightly and on-demand workflow that merges stablyai/orca main into the fork, runs typecheck and Dart tests, builds macOS arm64 (fork-signed), Linux x64 and Windows x64 with the -local fork version, and publishes a GitHub Release. It also disables upstream workflows on the fork so only fork-* workflows run.",
+      "areas": ["ci", "tooling"],
+      "key_paths": [".github/workflows/fork-release.yml"],
+      "commits": [],
+      "touches_upstream_files": [],
+      "sync_notes": "Fork-only file; upstream has no fork-release.yml. Merged upstream workflows are disabled by the workflow itself.",
+      "known_gaps": [
+        "Pushing a merge that changes .github/workflows needs an ORCA_FORK_PUSH_TOKEN secret (fine-grained PAT with Contents and Workflows write).",
+        "Windows installer is unsigned (SmartScreen warning); macOS app is self-signed (Gatekeeper warning on first open of a download)."
+      ]
     }
   ]
 }
