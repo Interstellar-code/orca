@@ -1,6 +1,7 @@
 import type { OrcaRuntimeService } from '../../runtime/orca-runtime'
 import { settleWithinMs } from '../../startup/quit/quit-teardown-deadline'
 
+// Same cap as restart path's auth preservation: bookkeeping must not hold Restart on stalled disk.
 const RELAUNCH_DISMISSAL_CLOSE_TIMEOUT_MS = 2_000
 
 export async function closeNotificationDismissalsBeforeRelaunch(

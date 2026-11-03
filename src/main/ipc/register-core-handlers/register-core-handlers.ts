@@ -114,12 +114,12 @@ import { ensureStructuredAgentSessionHostUnlessRefused } from '../../runtime/age
 import { getAgentSessionAttachmentStore } from '../../native-chat/agent-session-attachments/agent-session-attachment-store-registry'
 import type { PluginService } from '../../plugins/plugin-service'
 import type { PluginMarketplaceHandlerServices } from '../plugin-marketplaces'
-
 import { getRuntimeEnvironmentRegistryRoot } from '../runtime-environments/runtime-environment-registry-root'
 
 import { closeNotificationDismissalsBeforeRelaunch } from './relaunch-dismissal-close'
 
 let registered = false
+
 type CoreHandlerLifecycleOptions = {
   onBeforeRelaunch?: () => void | Promise<void>
   onOrcaProfileAuthMutation?: () => void
