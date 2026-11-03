@@ -1,5 +1,5 @@
 import type { CommandHandler } from './dispatch'
-import { BROWSER_HANDLER_GROUPS } from './browser-handler-groups'
+import { BROWSER_HANDLER_GROUPS } from './browser/browser-handler-groups'
 import { DART_HANDLER_GROUP } from './dart/dart-handler-group'
 import { JIRA_HANDLER_GROUP } from './jira-handler-group'
 import { LINEAR_HANDLER_GROUP } from './linear-handler-group'
