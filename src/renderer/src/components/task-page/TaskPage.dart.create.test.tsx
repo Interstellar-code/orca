@@ -138,4 +138,24 @@ describe('Tasks page Dart new task', () => {
     await user.click(screen.getByRole('button', { name: 'New task' }))
     expect(await screen.findByLabelText('Title')).toHaveValue('Ship the fix')
   })
+
+  it('closes only the dialog when Escape lands outside a field', async () => {
+    const user = userEvent.setup()
+    const closeTaskPage = vi.fn()
+    useAppStore.setState({ closeTaskPage })
+    render(
+      <TooltipProvider>
+        <TaskPage />
+      </TooltipProvider>
+    )
+
+    await user.click(await screen.findByRole('button', { name: 'New task' }))
+    await screen.findByRole('dialog')
+    // The dialog heading is not an input, so the page's own Escape handler would close the page.
+    await user.click(screen.getByText('New Dart task'))
+    await user.keyboard('{Escape}')
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(closeTaskPage).not.toHaveBeenCalled()
+  })
 })

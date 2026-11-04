@@ -28,6 +28,12 @@ const filledDraft: DartCreateDraft = {
   assignee: 'Alex Example'
 }
 
+const filledConfig = {
+  ...fixtureConfig,
+  priorities: ['High', 'Medium', 'Low'],
+  assignees: ['Alex Example']
+}
+
 const matchTask: DartTask = {
   ...fixtureTasks[0],
   id: 'nEwTaSk12345',
@@ -73,7 +79,11 @@ export const empty = defineFixture({
 
 export const filled = defineFixture({
   width: 640,
-  render: () => <TaskPageDartCreateDialog model={model({ createDraft: filledDraft })} />
+  render: () => (
+    <TaskPageDartCreateDialog
+      model={model({ createDraft: filledDraft, dartConfig: filledConfig })}
+    />
+  )
 })
 
 export const withType = defineFixture({
@@ -82,7 +92,7 @@ export const withType = defineFixture({
     <TaskPageDartCreateDialog
       model={model({
         createDraft: { ...filledDraft, type: 'Bug' },
-        dartConfig: { ...fixtureConfig, types: ['Bug', 'Chore'] }
+        dartConfig: { ...filledConfig, types: ['Bug', 'Chore'] }
       })}
     />
   )
@@ -94,6 +104,7 @@ export const mayHaveCreated = defineFixture({
     <TaskPageDartCreateDialog
       model={model({
         createDraft: filledDraft,
+        dartConfig: filledConfig,
         createNotice: unknownNotice,
         listChecked: true,
         createMatches: [matchTask]
