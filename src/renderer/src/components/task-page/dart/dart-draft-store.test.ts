@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   clearDraft,
   dartDraftKey,
+  dartDraftKeyParts,
   dirtyDraftCount,
   dirtyDraftTexts,
   discardDirtyDrafts,
@@ -50,6 +51,11 @@ describe('dart draft store', () => {
     expect(getDraft(key(LOCAL, 'task-20'))).toBeUndefined()
     expect(dirtyDraftCount(LOCAL.hostKey)).toBe(20)
     expect(oldestDirtyDraft()).toEqual({ key: key(LOCAL, 'task-0'), value: 'text 0' })
+    expect(dartDraftKeyParts(oldestDirtyDraft()!.key)).toEqual({
+      hostKey: LOCAL.hostKey,
+      taskId: 'task-0',
+      kind: 'comment'
+    })
     // A draft that is already dirty can still be typed into, and discarding one makes room.
     expect(setDraft(key(LOCAL, 'task-5'), 'more text', { dirty: true })).toBe('ok')
     clearDraft(key(LOCAL, 'task-0'))
@@ -71,7 +77,7 @@ describe('dart draft store', () => {
     expect(getDraft(key(REMOTE, 'same-task'))).toBeUndefined()
   })
 
-  it('holds a whole description lineage as one dirty draft and copies its editor text', () => {
+  it('holds a whole description lineage as one dirty draft and copies all the user typed', () => {
     const lineage = {
       base: 'Paragraph A',
       draft: 'Paragraph B',
@@ -83,7 +89,7 @@ describe('dart draft store', () => {
 
     expect(getDraft(descriptionKey)).toEqual(lineage)
     expect(dirtyDraftCount(LOCAL.hostKey)).toBe(1)
-    expect(dirtyDraftTexts(LOCAL.hostKey)).toEqual(['Paragraph B'])
+    expect(dirtyDraftTexts(LOCAL.hostKey)).toEqual(['Paragraph B\n\nMine'])
   })
 
   it('does not count a clean entry as unsaved', () => {

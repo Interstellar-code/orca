@@ -38,9 +38,14 @@ export function dartDraftKey(
   return JSON.stringify([identity.hostKey, identity.accountKey, taskId, kind])
 }
 
-function hostKeyOf(key: string): string {
-  const parsed: unknown = JSON.parse(key)
-  return Array.isArray(parsed) && typeof parsed[0] === 'string' ? parsed[0] : ''
+/** Where a key from `dartDraftKey` belongs, so a warning can name the draft. */
+export function dartDraftKeyParts(key: string): {
+  hostKey: string
+  taskId: string
+  kind: DartDraftKind
+} {
+  const [hostKey, , taskId, kind]: [string, string, string, DartDraftKind] = JSON.parse(key)
+  return { hostKey, taskId, kind }
 }
 
 function evictCleanEntries(): void {
@@ -73,7 +78,7 @@ export function setDraft(
     return 'full'
   }
   drafts.delete(key)
-  drafts.set(key, { hostKey: hostKeyOf(key), value, dirty })
+  drafts.set(key, { hostKey: dartDraftKeyParts(key).hostKey, value, dirty })
   evictCleanEntries()
   return 'ok'
 }
@@ -91,11 +96,17 @@ export function dirtyDraftCount(hostKey: string): number {
   return dirtyEntries().filter(([, entry]) => entry.hostKey === hostKey).length
 }
 
-/** The text the user typed in each dirty draft of one host, oldest first. */
+/** The text the user typed in each dirty draft of one host, oldest first; a description also carries its unresolved hunks. */
 export function dirtyDraftTexts(hostKey: string): string[] {
   return dirtyEntries()
     .filter(([, entry]) => entry.hostKey === hostKey)
-    .map(([, { value }]) => (typeof value === 'string' ? value : value.draft))
+    .map(([, { value }]) =>
+      typeof value === 'string'
+        ? value
+        : [value.draft, ...value.unresolved.map((hunk) => hunk.userText)]
+            .filter((text) => text !== '')
+            .join('\n\n')
+    )
 }
 
 export function discardDirtyDrafts(hostKey: string): void {
