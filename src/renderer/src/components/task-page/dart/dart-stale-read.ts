@@ -31,6 +31,6 @@ export function withLocalComments(
   const unseen = localComments.filter((local) => !view.comments.some((c) => c.id === local.id))
   return {
     comments: [...view.comments, ...unseen],
-    totalCount: view.totalCount + unseen.length
+    totalCount: view.totalCount + (view.totalCount > view.comments.length ? 0 : unseen.length)
   }
 }

@@ -1,11 +1,12 @@
 import { checkDartRequestText } from '../../../../../shared/dart/dart-text-limits'
 import type { DartTask } from '../../../../../shared/dart/dart-types'
 import {
-  getExecutionHostLabel,
-  normalizeExecutionHostId
+  normalizeExecutionHostId,
+  parseExecutionHostId
 } from '../../../../../shared/execution-host'
 import { translate } from '@/i18n/i18n'
 import { getCommentBodySubmitState } from '@/lib/comment-body-submit-state'
+import { selectExecutionHostDisplayLabel } from '@/lib/execution-host-display-label'
 import { taskProviderErrorMessage } from '@/lib/task-provider-error-copy'
 import { dartTextTooLargeMessage } from '@/runtime/runtime-dart-write-client'
 import type { AppState } from '@/store/types'
@@ -32,6 +33,11 @@ export type DartCommentSendState = {
   inFlight: boolean
   /** An unknown outcome blocks Send until the user edits the text or sends again on purpose. */
   blocked: boolean
+  /** Normalized body whose delivery remains unknown, even after edits. */
+  uncertainBody: string | null
+  refusalNotice: DartWriteNotice | null
+  uncertainParentId: string | null
+  generation: number
   /** A successful list read happened after the unknown write, so Send again may appear. */
   reconciled: boolean
   notice: DartWriteNotice | null
@@ -44,6 +50,10 @@ const EMPTY_STATE: DartCommentSendState = {
   saved: true,
   inFlight: false,
   blocked: false,
+  uncertainBody: null,
+  refusalNotice: null,
+  uncertainParentId: null,
+  generation: 0,
   reconciled: false,
   notice: null,
   noticeIsSize: false
@@ -102,6 +112,24 @@ export function beginDartCommentSend(draftKey: string): boolean {
 export function endDartCommentSend(draftKey: string): void {
   inFlightKeys.delete(draftKey)
   patchDartCommentSendState(draftKey, { inFlight: false })
+}
+
+/** Discard local state without releasing an outstanding write's synchronous claim. */
+export function clearDartCommentSendState(draftKey: string): void {
+  const current = getDartCommentSendState(draftKey)
+  patchDartCommentSendState(draftKey, {
+    ...EMPTY_STATE,
+    inFlight: current.inFlight,
+    generation: current.generation + 1
+  })
+}
+
+export function clearDartCommentSendStatesForHost(hostKey: string): void {
+  for (const key of states.keys()) {
+    if (dartDraftKeyParts(key).hostKey === hostKey) {
+      clearDartCommentSendState(key)
+    }
+  }
 }
 
 export type DartCommentSubmission =
@@ -177,18 +205,24 @@ export function dartCommentRefusedNotice(failure: {
 export function dartCommentBlockedReason(): string {
   return translate(
     'auto.components.task.page.dart.DartCommentComposer.blockedReason',
-    'Dart may have posted this comment. Check the list before sending again: edit the text, or use Send again if it is not there.'
+    'Dart may have posted this comment. Check the list before sending again.'
   )
 }
 
 /** Name the drafts-full warning in words, keeping an id only where nothing is known. */
 export function dartDraftsFullWarning(
-  state: Pick<AppState, 'dartTaskCache'>,
+  state: AppState,
   oldest: { key: string; value: DartDraftValue }
 ): string {
   const { kind, hostKey, taskId } = dartDraftKeyParts(oldest.key)
   // A host key is `local` or `runtime:<id>`, exactly the ids the label helper accepts.
   const host = normalizeExecutionHostId(hostKey)
+  const parsedHost = parseExecutionHostId(host)
+  const selectedLabel = host ? selectExecutionHostDisplayLabel(state, host) : null
+  const hostLabel =
+    !selectedLabel || (parsedHost?.kind === 'runtime' && selectedLabel === parsedHost.environmentId)
+      ? translate('auto.components.task.page.dart.DartCommentComposer.unknownHost', 'unknown host')
+      : selectedLabel
   return translate(
     'auto.components.task.page.dart.DartCommentComposer.draftsFull',
     'Orca keeps a bounded number of unsaved Dart drafts, and this text is not saved yet. The oldest ({{kind}} on {{host}}, task {{task}}) has to be copied or discarded first.',
@@ -203,7 +237,7 @@ export function dartDraftsFullWarning(
               'auto.components.task.page.dart.DartCommentComposer.draftKindComment',
               'comment'
             ),
-      host: getExecutionHostLabel(host),
+      host: hostLabel,
       task: cachedDartTaskTitle(state, taskId) ?? taskId
     }
   )

@@ -343,8 +343,9 @@ describe('DartTaskDetailComments keyboard and pending state', () => {
     const textarea = await openComments()
 
     typeComment(textarea, 'nihon')
-    fireEvent.keyDown(textarea, { key: 'Enter', keyCode: 13, isComposing: true })
-    fireEvent.keyDown(textarea, { key: 'Enter', keyCode: 229 })
+    const modifier = getShortcutPlatform() === 'darwin' ? { metaKey: true } : { ctrlKey: true }
+    fireEvent.keyDown(textarea, { key: 'Enter', keyCode: 13, isComposing: true, ...modifier })
+    fireEvent.keyDown(textarea, { key: 'Enter', keyCode: 229, ...modifier })
 
     expect(page.host.count('dart.addComment')).toBe(0)
     expect(textarea.value).toBe('nihon')
@@ -444,9 +445,7 @@ describe('DartTaskDetailComments unknown outcome persistence', () => {
 
     const status = await screen.findByRole('status')
     expect(status.textContent).toContain('may have posted')
-    await waitFor(() =>
-      expect(screen.getByRole('status').textContent).toContain('Last checked')
-    )
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Last checked'))
     // The composer keeps the draft text; the list must show the comment once.
     expect(commentTexts('Possibly posted')).toHaveLength(1)
     expect(screen.getByText('Existing')).toBeTruthy()
@@ -741,4 +740,32 @@ describe('DartTaskDetailComments reply target persistence', () => {
       expect.objectContaining({ taskId: page.task.id, parentId: 'cRoot' })
     )
   })
+})
+
+it('retains another task’s reply target when a pending reply succeeds away', async () => {
+  const page = openRenderedDartDetail({ comments: [commentFixture('parent', 'Parent')] })
+  const other = page.addTask('B')
+  const textarea = await openComments()
+  const parent = (await screen.findByText('Parent')).closest('article')
+  expect(parent).not.toBeNull()
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Parent is rendered in a comment article.
+  fireEvent.click(within(parent as HTMLElement).getByRole('button', { name: 'Reply' }))
+  typeComment(textarea, 'Reply on A')
+  const release = page.host.hold('dart.addComment')
+  fireEvent.click(sendButton())
+  await waitFor(() => expect(page.host.count('dart.addComment')).toBe(1))
+  page.showTask(other)
+  const otherBox = await openComments()
+  const otherParent = (await screen.findByText('Parent')).closest('article')
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Parent is rendered in a comment article.
+  fireEvent.click(within(otherParent as HTMLElement).getByRole('button', { name: 'Reply' }))
+  typeComment(otherBox, 'Reply on B')
+  await act(async () => release())
+  expect(screen.getByText('Replying to Alex Example')).toBeTruthy()
+  expect(currentCommentText()).toBe('Reply on B')
+  fireEvent.click(sendButton())
+  await waitFor(() => expect(page.host.count('dart.addComment')).toBe(2))
+  expect(addCommentRequests(page.host)[1]).toEqual(
+    expect.objectContaining({ taskId: other.id, parentId: 'parent', text: 'Reply on B' })
+  )
 })

@@ -5,11 +5,12 @@ import { Button } from '@/components/ui/button'
 import { translate } from '@/i18n/i18n'
 import { ImeTextarea } from '@/lib/ime-text-field'
 import { hasBoundedCommentBodyText } from '@/lib/comment-body-submit-state'
-import { isImeOwnedKeyboardEvent } from '@/lib/ime-composition-keyboard-event'
+import { useDartCommentReplyEscape } from './use-dart-comment-reply-escape'
 import { getScreenSubmitShortcutLabel, isScreenSubmitShortcut } from '@/lib/screen-submit-shortcut'
 import { useAppStore } from '@/store'
 import {
   beginDartCommentSend,
+  clearDartCommentSendState,
   dartCommentBlockedReason,
   dartCommentRefusedNotice,
   dartCommentUnknownNotice,
@@ -23,12 +24,9 @@ import {
   subscribeDartCommentSendState
 } from './dart-comment-send-state'
 import { clearDraft, oldestDirtyDraft, setDraft } from './dart-draft-store'
+import { setDartReplyTarget } from './dart-reply-target-store'
 import type { DartDetailCommentsApi } from './dart-detail-contracts'
 import { DartTaskDetailNotice } from './TaskDetailNotice'
-
-// Surfaces layered above the sheet own Escape first, exactly as the Tasks page treats them.
-const ESCAPE_OWNING_OVERLAY_SELECTOR =
-  '[data-slot="dropdown-menu-content"], [data-slot="popover-content"], [data-slot="select-content"], [role="menu"], [data-slot="dialog-content"], [role="alertdialog"]'
 
 export function DartCommentComposer({
   draftKey,
@@ -45,13 +43,17 @@ export function DartCommentComposer({
   reloadComments: DartDetailCommentsApi['reloadComments']
   appendLocalComment: DartDetailCommentsApi['appendLocalComment']
 }): React.JSX.Element {
-  const dartTaskCache = useAppStore((s) => s.dartTaskCache)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
+  useDartCommentReplyEscape(rootRef, textareaRef, draftKey, replyTo, onCancelReply)
   // A write outlives its task: once this unmounts, its results belong to no screen.
   const mountedRef = useRef(true)
   const getSendState = useCallback(() => getDartCommentSendState(draftKey), [draftKey])
   const sendState = useSyncExternalStore(subscribeDartCommentSendState, getSendState, getSendState)
+  const oldest = sendState.saved ? null : oldestDirtyDraft()
+  const draftsFullWarning = useAppStore((state) =>
+    oldest ? dartDraftsFullWarning(state, oldest) : null
+  )
   const submitting = sendState.inFlight
   const text = sendState.text ?? draftCommentText(draftKey)
   useEffect(() => {
@@ -66,34 +68,6 @@ export function DartCommentComposer({
       textareaRef.current?.focus()
     }
   }, [replyTo])
-
-  // Radix dismisses the sheet from a capture listener that runs before the textarea's own keydown;
-  // this window listener runs earlier still, so vetoing cancels the reply, not the sheet.
-  useEffect(() => {
-    if (!replyTo) {
-      return
-    }
-    const onKeyDown = (event: KeyboardEvent): void => {
-      const target = event.target
-      if (
-        event.key !== 'Escape' ||
-        event.defaultPrevented ||
-        isImeOwnedKeyboardEvent(event) ||
-        document.querySelector(ESCAPE_OWNING_OVERLAY_SELECTOR) !== null ||
-        // Escape elsewhere in the sheet belongs to that field, not to this reply.
-        !(target instanceof Node) ||
-        !rootRef.current?.contains(target)
-      ) {
-        return
-      }
-      event.preventDefault()
-      event.stopPropagation()
-      onCancelReply()
-      textareaRef.current?.focus()
-    }
-    window.addEventListener('keydown', onKeyDown, { capture: true })
-    return () => window.removeEventListener('keydown', onKeyDown, { capture: true })
-  }, [onCancelReply, replyTo])
 
   const persistDraft = useCallback(
     (next: string): void => {
@@ -113,9 +87,8 @@ export function DartCommentComposer({
     (next: string): void => {
       persistDraft(next)
       patchDartCommentSendState(draftKey, (current) => ({
-        // Typing is the user taking responsibility for the text again.
-        ...(current.blocked ? { blocked: false, reconciled: false } : {}),
-        // A size notice describes text that no longer exists.
+        blocked: current.uncertainBody !== null && next.trim() === current.uncertainBody.trim(),
+        refusalNotice: null,
         ...(current.noticeIsSize && readDartCommentSubmission(next).status !== 'refused'
           ? { notice: null, noticeIsSize: false }
           : {})
@@ -127,7 +100,7 @@ export function DartCommentComposer({
   const submit = useCallback(
     async ({ resend }: { resend: boolean }): Promise<void> => {
       const before = getDartCommentSendState(draftKey)
-      if (before.inFlight || (before.blocked && !resend)) {
+      if (before.inFlight || (before.blocked && (!resend || !before.reconciled))) {
         return
       }
       const submission = readDartCommentSubmission(text)
@@ -148,12 +121,18 @@ export function DartCommentComposer({
       if (!beginDartCommentSend(draftKey)) {
         return
       }
+      let ended = false
       const sentText = text
       try {
         const result = await onAddComment({
           text: submission.body,
-          ...(replyTo ? { parentId: replyTo.id } : {})
+          ...((resend ? before.uncertainParentId : replyTo?.id)
+            ? { parentId: (resend ? before.uncertainParentId : replyTo?.id)! }
+            : {})
         })
+        if (getDartCommentSendState(draftKey).generation !== before.generation) {
+          return
+        }
         if (result.ok) {
           // Clear only the text that was sent: the box is read-only while sending.
           const latest = getDartCommentSendState(draftKey).text ?? draftCommentText(draftKey)
@@ -163,20 +142,27 @@ export function DartCommentComposer({
           }
           patchDartCommentSendState(draftKey, {
             ...(cleared ? { text: null, saved: true } : {}),
-            blocked: false,
-            reconciled: false,
-            notice: null,
-            noticeIsSize: false
+            ...(before.blocked || before.uncertainBody === null
+              ? {
+                  blocked: false,
+                  uncertainBody: null,
+                  uncertainParentId: null,
+                  refusalNotice: null,
+                  reconciled: false,
+                  notice: null,
+                  noticeIsSize: false
+                }
+              : {})
           })
-          if (!mountedRef.current) {
-            return
-          }
-          // A kept draft keeps its reply target, so it still answers the same parent.
           if (cleared) {
-            onCancelReply()
+            setDartReplyTarget(draftKey, null)
           }
-          appendLocalComment(result.comment)
-          // A failed refresh reports itself in the section; it must not reject a saved comment.
+          endDartCommentSend(draftKey)
+          ended = true
+          if (mountedRef.current) {
+            appendLocalComment(result.comment)
+          }
+          // Refresh the original task even if its composer has unmounted.
           await reloadComments().catch(() => {})
           return
         }
@@ -185,6 +171,9 @@ export function DartCommentComposer({
             notice: dartCommentUnknownNotice(),
             noticeIsSize: false,
             blocked: true,
+            uncertainBody: submission.body,
+            uncertainParentId: resend ? before.uncertainParentId : (replyTo?.id ?? null),
+            refusalNotice: null,
             reconciled: false
           })
           if (!mountedRef.current) {
@@ -206,16 +195,17 @@ export function DartCommentComposer({
           return
         }
         patchDartCommentSendState(draftKey, (current) =>
-          // A refusal says nothing about an earlier unknown attempt, so that notice is never replaced.
-          current.blocked
-            ? {}
+          current.uncertainBody !== null
+            ? { refusalNotice: dartCommentRefusedNotice(result) }
             : { notice: dartCommentRefusedNotice(result), noticeIsSize: false }
         )
       } finally {
-        endDartCommentSend(draftKey)
+        if (!ended) {
+          endDartCommentSend(draftKey)
+        }
       }
     },
-    [appendLocalComment, draftKey, onAddComment, onCancelReply, reloadComments, replyTo, text]
+    [appendLocalComment, draftKey, onAddComment, reloadComments, replyTo, text]
   )
 
   const recheck = useCallback(async (): Promise<void> => {
@@ -235,7 +225,6 @@ export function DartCommentComposer({
 
   const canSend = hasBoundedCommentBodyText(text)
   const submitShortcutLabel = getScreenSubmitShortcutLabel()
-  const oldest = sendState.saved ? null : oldestDirtyDraft()
 
   return (
     <div ref={rootRef} aria-busy={submitting || undefined} className="space-y-2">
@@ -253,7 +242,9 @@ export function DartCommentComposer({
             variant="ghost"
             size="xs"
             onClick={() => {
-              onCancelReply()
+              if (!sendState.blocked) {
+                onCancelReply()
+              }
               textareaRef.current?.focus()
             }}
           >
@@ -262,11 +253,16 @@ export function DartCommentComposer({
         </div>
       ) : null}
       <DartTaskDetailNotice
+        notice={sendState.refusalNotice}
+        dismissNotice={() => patchDartCommentSendState(draftKey, { refusalNotice: null })}
+        recheckNotice={recheck}
+      />
+      <DartTaskDetailNotice
         notice={sendState.notice}
         dismissNotice={() => patchDartCommentSendState(draftKey, { notice: null })}
         recheckNotice={recheck}
         actions={
-          sendState.notice?.kind === 'unknown' && sendState.reconciled ? (
+          sendState.notice?.kind === 'unknown' && sendState.blocked && sendState.reconciled ? (
             <Button
               type="button"
               variant="outline"
@@ -283,7 +279,7 @@ export function DartCommentComposer({
         }
       />
       {sendState.blocked && !sendState.notice ? (
-              <div
+        <div
           role="status"
           className="flex items-start justify-between gap-3 rounded-md border border-border/50 bg-muted/35 px-2.5 py-1.5 text-xs text-muted-foreground"
         >
@@ -301,7 +297,14 @@ export function DartCommentComposer({
                 'Send again'
               )}
             </Button>
-          ) : null}
+          ) : (
+            <Button type="button" variant="outline" size="xs" onClick={() => void recheck()}>
+              {translate(
+                'auto.components.task.page.dart.DartCommentComposer.checkAgain',
+                'Check again'
+              )}
+            </Button>
+          )}
         </div>
       ) : null}
       {oldest ? (
@@ -309,9 +312,7 @@ export function DartCommentComposer({
           role="alert"
           className="flex items-start justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive"
         >
-          <span className="min-w-0 break-words">
-            {dartDraftsFullWarning({ dartTaskCache }, oldest)}
-          </span>
+          <span className="min-w-0 break-words">{draftsFullWarning}</span>
           <span className="flex flex-none gap-1">
             <Button
               type="button"
@@ -330,7 +331,8 @@ export function DartCommentComposer({
               onClick={() => {
                 clearDraft(oldest.key)
                 // That draft's own state must not resurrect text the store no longer has.
-                patchDartCommentSendState(oldest.key, { text: null, saved: true })
+                clearDartCommentSendState(oldest.key)
+                setDartReplyTarget(oldest.key, null)
                 persistDraft(text)
               }}
             >

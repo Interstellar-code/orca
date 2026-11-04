@@ -1,4 +1,6 @@
 import type { DartComment } from '../../../../../shared/dart/dart-types'
+import { dartDraftKeyParts } from './dart-draft-store'
+import { getDartCommentSendState } from './dart-comment-send-state'
 
 /**
  * T5 item 9: who a draft replies to is part of the draft key, not of the mounted composer.
@@ -38,7 +40,7 @@ export function setDartReplyTarget(draftKey: string, comment: DartComment | null
     replyTargets.delete(draftKey)
     replyTargets.set(draftKey, comment)
     while (replyTargets.size > MAX_REPLY_TARGETS) {
-      const oldest = replyTargets.keys().next().value
+      const oldest = [...replyTargets.keys()].find((key) => !getDartCommentSendState(key).blocked)
       if (oldest === undefined) {
         break
       }
@@ -47,6 +49,14 @@ export function setDartReplyTarget(draftKey: string, comment: DartComment | null
   }
   for (const listener of listeners) {
     listener()
+  }
+}
+
+export function clearDartReplyTargetsForHost(hostKey: string): void {
+  for (const key of replyTargets.keys()) {
+    if (dartDraftKeyParts(key).hostKey === hostKey) {
+      setDartReplyTarget(key, null)
+    }
   }
 }
 
