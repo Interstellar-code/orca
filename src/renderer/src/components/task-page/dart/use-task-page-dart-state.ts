@@ -154,8 +154,8 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
       return
     }
     let cancelled = false
-    clearPinsOnNewList(JSON.stringify([listKey, dartHasWorkspace, dartRefreshNonce]))
-    const rowsKey = JSON.stringify([listKey, dartHasWorkspace, linkedRefsSignature])
+    clearPinsOnNewList(JSON.stringify([hostKey, listKey, dartHasWorkspace, dartRefreshNonce]))
+    const rowsKey = JSON.stringify([hostKey, listKey, dartHasWorkspace, linkedRefsSignature])
     setDartLoading(true)
     setDartError(null)
     const listArgs = dartHasWorkspace ? null : buildDartListArgs(dartFilters, viewerId)

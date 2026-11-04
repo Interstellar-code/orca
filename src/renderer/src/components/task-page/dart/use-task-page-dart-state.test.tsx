@@ -10,6 +10,7 @@ import {
   installFakeDartRuntime
 } from '@/store/slices/dart/dart-fake-runtime.test-support'
 import { getDartReadScope } from '@/store/slices/dart/dart-read-coordination'
+import { bumpDartEpochs } from '@/store/slices/dart/dart-task-identity'
 import { useDartTaskDetailData } from './use-dart-task-detail-data'
 import { useTaskPageDartState, type TaskPageDartStateInput } from './use-task-page-dart-state'
 
@@ -312,6 +313,60 @@ describe('useTaskPageDartState with the write queue', () => {
       release()
       await write
     })
+  })
+
+  /** Same viewer, another host with one task of its own. */
+  function switchToNewHost(taskId: string) {
+    const env = `list-next-host-${nextHost}`
+    const host = runtime.host(env)
+    host.addTask(dartTaskFixture(taskId))
+    const settings = { ...useAppStore.getState().settings!, activeRuntimeEnvironmentId: env }
+    return {
+      env,
+      host,
+      go: () =>
+        act(() =>
+          useAppStore.setState({
+            settings,
+            dartStatusContextKey: getDartReadScope(settings).contextKey
+          })
+        )
+    }
+  }
+
+  it('drops the pinned rows of the last host when the host changes', async () => {
+    const { hook, edit, taskId } = await openListedPage()
+    await act(async () => {
+      await edit('Done')
+    })
+    const next = switchToNewHost('taskOnNextHost')
+
+    next.go()
+
+    const ids = () => hook.result.current.list.dartTasks.map((task) => task.id)
+    await waitFor(() => expect(ids()).toEqual(['taskOnNextHost']))
+    expect(ids()).not.toContain(taskId)
+    expect(hook.result.current.list.dartTotalCount).toBe(1)
+  })
+
+  it('does not keep the last host’s rows when every read of the new host is overtaken', async () => {
+    const { hook } = await openListedPage()
+    const next = switchToNewHost('taskOnNextHost')
+    const handle = next.host.handle.bind(next.host)
+    next.host.handle = (method, params) => {
+      if (method === 'dart.listTasks') {
+        bumpDartEpochs({ hostKey: `runtime:${next.env}`, accountKey: fakeViewer.id })
+      }
+      return handle(method, params)
+    }
+
+    next.go()
+
+    await waitFor(() => expect(next.host.count('dart.listTasks')).toBe(3))
+    await waitFor(() =>
+      expect(hook.result.current.list.dartTasks.map((task) => task.id)).toEqual(['taskOnNextHost'])
+    )
+    expect(hook.result.current.list.dartTotalCount).toBe(1)
   })
 
   it('pins a created row past the refresh that follows and counts it once', async () => {
