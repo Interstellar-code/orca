@@ -9,6 +9,7 @@ import type { DartListTasksArgs } from '../../../../../shared/rpc-contract/dart-
 import type { TaskProvider } from '../../../../../shared/task-providers'
 import type { TaskSourceContext } from '../../../../../shared/task-source-context'
 import type { Worktree } from '../../../../../shared/worktree/types'
+import { translate } from '@/i18n/i18n'
 import {
   buildDartTaskWorkspaceAttachmentIndex,
   collectLinkedDartTaskRefs,
@@ -81,6 +82,7 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
   const [dartLoading, setDartLoading] = useState(false)
   const [dartError, setDartError] = useState<TaskPageDartError | null>(null)
   const [dartConfig, setDartConfig] = useState<DartWorkspaceConfig | null>(null)
+  const [dartConfigError, setDartConfigError] = useState<string | null>(null)
   const active = taskSource === 'dart' && dartConnected
   const viewerId = dartStatus.viewer?.id ?? null
   const activeRuntimeEnvironmentId = useAppStore((s) => s.settings?.activeRuntimeEnvironmentId)
@@ -128,14 +130,29 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
       return
     }
     let cancelled = false
+    setDartConfigError(null)
     void actionsRef.current
       .fetchDartConfig({ force: dartRefreshNonce > 0 })
       .then((result) => {
-        if (!cancelled && result.ok) {
+        if (cancelled) {
+          return
+        }
+        if (result.ok) {
           setDartConfig(result.config)
+        } else {
+          setDartConfigError(taskProviderErrorMessage(result))
         }
       })
-      .catch(() => {})
+      .catch(() => {
+        if (!cancelled) {
+          setDartConfigError(
+            translate(
+              'auto.components.task.page.dart.TaskCreateDialog.configFailed',
+              'Could not load Dart configuration.'
+            )
+          )
+        }
+      })
     return () => {
       cancelled = true
     }
@@ -266,6 +283,7 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
     dartLoading: typeof dartLoading
     dartError: typeof dartError
     dartConfig: typeof dartConfig
+    dartConfigError?: typeof dartConfigError
     getDartTaskWorkspaces: typeof getDartTaskWorkspaces
     noteDartTaskCreated: typeof noteDartTaskCreated
   }
@@ -282,6 +300,7 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
   nextModel.dartLoading = dartLoading
   nextModel.dartError = dartError
   nextModel.dartConfig = dartConfig
+  nextModel.dartConfigError = dartConfigError
   nextModel.getDartTaskWorkspaces = getDartTaskWorkspaces
   nextModel.noteDartTaskCreated = noteDartTaskCreated
   return nextModel

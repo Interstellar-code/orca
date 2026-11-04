@@ -27,6 +27,8 @@ import { DartCreateFields } from './TaskCreateDialogFields'
 
 export type DartCreateDialogModel = DartCreateTaskModel & {
   dartConfig: DartWorkspaceConfig | null
+  dartConfigError?: string | null
+  setDartRefreshNonce?: (updater: (nonce: number) => number) => void
   openDartDetailPage: (task: DartTask) => void
   createUnresolved?: boolean
   createLookingUp?: boolean
@@ -84,7 +86,9 @@ export function TaskPageDartCreateDialog({
     Boolean(createDraft.title.trim() && createDraft.dartboard) &&
     !titleInvalid &&
     descriptionCheck.ok &&
-    !blocked
+    !blocked &&
+    Boolean(dartConfig) &&
+    !model.dartConfigError
   const submit = (): void => {
     if (canSubmit) {
       void createTask(dartCreateArgs(createDraft, createSupportsWritesV2))
@@ -100,6 +104,7 @@ export function TaskPageDartCreateDialog({
       }}
     >
       <DialogContent
+        aria-modal="true"
         ref={contentRef}
         onFocusCapture={() => {
           focusWasInContentRef.current = true
@@ -205,6 +210,8 @@ export function TaskPageDartCreateDialog({
             createDraft={createDraft}
             setCreateDraft={setCreateDraft}
             dartConfig={dartConfig}
+            dartConfigError={model.dartConfigError}
+            retryConfig={() => model.setDartRefreshNonce?.((nonce) => nonce + 1)}
             createSupportsWritesV2={createSupportsWritesV2}
             blocked={blocked}
           />

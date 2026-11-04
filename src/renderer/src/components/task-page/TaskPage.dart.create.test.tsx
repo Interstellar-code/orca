@@ -113,6 +113,48 @@ afterEach(() => {
 })
 
 describe('Tasks page Dart new task', () => {
+  it('keeps the draft editable while config is loading', async () => {
+    const user = userEvent.setup()
+    const fetchConfig = useAppStore.getState().fetchDartConfig
+    const pending = Promise.withResolvers<void>()
+    useAppStore.setState({ fetchDartConfig: () => pending.promise.then(() => fetchConfig()) })
+    render(
+      <TooltipProvider>
+        <TaskPage />
+      </TooltipProvider>
+    )
+    await user.click(await screen.findByRole('button', { name: 'New task' }))
+    expect(screen.getByRole('status').textContent).toContain('Loading dartboards')
+    await user.type(screen.getByLabelText('Title'), 'Keep this draft')
+    expect(screen.getByRole('button', { name: 'Create task' })).toBeDisabled()
+    pending.resolve()
+    await waitFor(() => expect(screen.queryByText('Loading dartboards…')).toBeNull())
+    expect(screen.getByLabelText('Title')).toHaveValue('Keep this draft')
+  })
+
+  it('shows config failure and retries a fresh read without losing the draft', async () => {
+    const user = userEvent.setup()
+    const fetchConfig = useAppStore.getState().fetchDartConfig
+    const fetchDartConfig = vi
+      .fn(fetchConfig)
+      .mockResolvedValueOnce({ ok: false, error: 'Config unavailable' })
+    useAppStore.setState({ fetchDartConfig })
+    render(
+      <TooltipProvider>
+        <TaskPage />
+      </TooltipProvider>
+    )
+    await user.click(await screen.findByRole('button', { name: 'New task' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Config unavailable')
+    expect(screen.queryByText('Loading dartboards…')).toBeNull()
+    await user.type(screen.getByLabelText('Title'), 'Keep this draft')
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+    expect(fetchDartConfig).toHaveBeenLastCalledWith({ force: true })
+    expect(screen.getByLabelText('Title')).toHaveValue('Keep this draft')
+    expect(screen.getByRole('button', { name: 'Create task' })).toBeEnabled()
+  })
+
   it('opens the create dialog from the New task button in the filters row', async () => {
     const user = userEvent.setup()
     render(

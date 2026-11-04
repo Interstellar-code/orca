@@ -135,3 +135,17 @@ export const createAnyway = defineFixture({
     />
   )
 })
+
+export const failedConfig = defineFixture({
+  width: 640,
+  render: () => (
+    <TaskPageDartCreateDialog
+      model={model({
+        createDraft: filledDraft,
+        dartConfig: null,
+        dartConfigError: 'Could not load Dart configuration.',
+        setDartRefreshNonce: noop
+      })}
+    />
+  )
+})

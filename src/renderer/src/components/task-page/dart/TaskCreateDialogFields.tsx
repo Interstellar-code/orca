@@ -13,6 +13,7 @@ import {
 import { translate } from '@/i18n/i18n'
 import { cn } from '@/lib/utils'
 import type { DartCreateDraft } from './dart-detail-contracts'
+import { InlineError } from './TaskDetailLoadStates'
 
 type CreateFieldKey = 'dartboard' | 'type' | 'status' | 'priority' | 'assignee'
 
@@ -20,6 +21,8 @@ export type DartCreateFieldsProps = {
   createDraft: DartCreateDraft
   setCreateDraft: (patch: Partial<DartCreateDraft>) => void
   dartConfig: DartWorkspaceConfig | null
+  dartConfigError?: string | null
+  retryConfig: () => void
   createSupportsWritesV2: boolean
   blocked: boolean
 }
@@ -29,9 +32,14 @@ export function DartCreateFields({
   createDraft,
   setCreateDraft,
   dartConfig,
+  dartConfigError,
+  retryConfig,
   createSupportsWritesV2,
   blocked
 }: DartCreateFieldsProps): React.JSX.Element {
+  if (dartConfigError) {
+    return <InlineError message={dartConfigError} onRetry={retryConfig} />
+  }
   if (!dartConfig) {
     return (
       <p role="status" className="text-xs text-muted-foreground">
