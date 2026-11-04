@@ -21,6 +21,7 @@ import {
 import type { DartListFilters } from './task-page-dart-list-model'
 
 export type TaskPageDartCreationInput = {
+  taskSource?: string
   dartConnected: boolean
   dartUpdateRequired: boolean
   dartConfig: DartWorkspaceConfig | null
@@ -68,6 +69,9 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
 
   // A date-only value needs `dart.writes.v2`; an old host would refuse it, so the field stays hidden.
   useEffect(() => {
+    if (model.taskSource !== 'dart' || !dartConnected) {
+      return
+    }
     let cancelled = false
     const scope = getDartReadScope(settings, null)
     void dartSupportsWritesV2ForTarget(scope.target).then((supported) => {
@@ -78,7 +82,7 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
     return () => {
       cancelled = true
     }
-  }, [settings])
+  }, [dartConnected, model.taskSource, settings])
 
   const setCreateDraft = useCallback((patch: Partial<DartCreateDraft>) => {
     setCreateDraftState((current) => ({ ...current, ...patch }))

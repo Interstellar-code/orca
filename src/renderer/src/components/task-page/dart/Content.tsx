@@ -127,6 +127,7 @@ export function TaskPageDartContent({
           </div>
         </CenteredState>
         {connectDialog}
+        <TaskPageDartCreateDialog model={model} />
       </>
     )
   }
