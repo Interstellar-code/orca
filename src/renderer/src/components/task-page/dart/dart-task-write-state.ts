@@ -104,7 +104,11 @@ export function guardDartQueueCallback(callback: () => void): void {
   try {
     callback()
   } catch (error) {
-    console.error('Dart task write callback failed:', error)
+    // Name only: an error's message or stack can carry task text.
+    console.error(
+      'Dart task write callback failed:',
+      error instanceof Error ? error.name : 'unknown'
+    )
   }
 }
 
