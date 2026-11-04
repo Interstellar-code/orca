@@ -112,3 +112,18 @@ export const mayHaveCreated = defineFixture({
     />
   )
 })
+
+export const createAnyway = defineFixture({
+  width: 640,
+  render: () => (
+    <TaskPageDartCreateDialog
+      model={model({
+        createDraft: filledDraft,
+        dartConfig: filledConfig,
+        createNotice: unknownNotice,
+        listChecked: true,
+        canCreateAnyway: true
+      })}
+    />
+  )
+})
