@@ -30,6 +30,9 @@ export function DartTagsPicker({
   // A tag on the task that the config no longer lists stays visible and removable.
   const choices = [...tags.filter((tag) => !options.includes(tag)), ...options]
   const toggle = (tag: string): void => {
+    if (state.disabled) {
+      return
+    }
     onChange(tags.includes(tag) ? tags.filter((current) => current !== tag) : [...tags, tag])
   }
   return (
@@ -43,13 +46,14 @@ export function DartTagsPicker({
         </span>
       ))}
       <DartChipRow state={state}>
-        <Popover open={open} onOpenChange={setOpen}>
+        <Popover open={open} onOpenChange={(next) => setOpen(next && !state.disabled)}>
           <PopoverTrigger asChild>
             <button
               type="button"
               aria-label={translate('auto.components.task.page.dart.DartTagsPicker.label', 'Tags')}
               aria-expanded={open}
-              disabled={state.disabled || disabled}
+              aria-disabled={state.disabled || undefined}
+              disabled={disabled}
               className={LINEAR_EDIT_CHIP_CLASS}
             >
               <span className="truncate">
@@ -76,7 +80,12 @@ export function DartTagsPicker({
                   )}
                 </CommandEmpty>
                 {choices.map((tag) => (
-                  <CommandItem key={tag} value={tag} onSelect={() => toggle(tag)}>
+                  <CommandItem
+                    key={tag}
+                    value={tag}
+                    disabled={state.disabled}
+                    onSelect={() => toggle(tag)}
+                  >
                     <span className="min-w-0 flex-1 truncate">{tag}</span>
                     {tags.includes(tag) ? <Check className="size-4" /> : null}
                   </CommandItem>

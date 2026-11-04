@@ -28,8 +28,10 @@ const CONFIG: DartWorkspaceConfig = {
   assignees: [dartDetailViewer.name, 'Sam Example']
 }
 
+let runtime: ReturnType<typeof setUpRenderedDartDetail>
+
 beforeEach(() => {
-  setUpRenderedDartDetail()
+  runtime = setUpRenderedDartDetail()
   vi.mocked(toast.error).mockClear()
 })
 
@@ -37,13 +39,6 @@ afterEach(tearDownRenderedDartDetail)
 
 function lastUpdate(host: FakeDartHost): { taskId?: string; updates?: Record<string, unknown> } {
   return host.requests.findLast((request) => request.method === 'dart.updateTask')!.params
-}
-
-function button(element: HTMLElement): HTMLButtonElement {
-  if (!(element instanceof HTMLButtonElement)) {
-    throw new Error('Expected a button')
-  }
-  return element
 }
 
 function textarea(element: HTMLElement): HTMLTextAreaElement {
@@ -145,7 +140,7 @@ describe('detail property editors', () => {
     await user.click(await screen.findByRole('option', { name: 'Sam Example' }))
     await waitFor(() => expect(lastUpdate(host).updates).toEqual({ assignee: 'Sam Example' }))
     await waitFor(() =>
-      expect(screen.getByRole('combobox', { name: 'Assignee' }).hasAttribute('disabled')).toBe(
+      expect(screen.getByRole('combobox', { name: 'Assignee' }).hasAttribute('aria-disabled')).toBe(
         false
       )
     )
@@ -155,7 +150,7 @@ describe('detail property editors', () => {
     await waitFor(() => expect(lastUpdate(host).updates).toEqual({ assignee: null }))
   })
 
-  it('assigns to the viewer and hides that entry when the viewer is not in the config', async () => {
+  it('assigns to the viewer', async () => {
     const user = userEvent.setup()
     const { host } = openDetail()
 
@@ -164,6 +159,15 @@ describe('detail property editors', () => {
     await waitFor(() =>
       expect(lastUpdate(host).updates).toEqual({ assignee: dartDetailViewer.name })
     )
+  })
+
+  it('omits Assign to me when the detail has no viewer name', async () => {
+    const user = userEvent.setup()
+    openDetail({ detailEnv: `other-host-${Date.now()}` })
+
+    await user.click(await screen.findByRole('combobox', { name: 'Assignee' }))
+    await screen.findByRole('option', { name: 'Unassigned' })
+    expect(screen.queryByRole('option', { name: 'Assign to me' })).toBeNull()
   })
 
   it('omits Assign to me when the viewer is not a listed assignee', async () => {
@@ -187,20 +191,46 @@ describe('detail property editors', () => {
     await waitFor(() => expect(lastUpdate(host).updates).toEqual({ tags: ['search', 'backend'] }))
   })
 
-  it('sends a changed date as YYYY-MM-DD and clears it with null', async () => {
+  it('sends a typed date once, on blur, and clears it with null', async () => {
     const user = userEvent.setup()
     const { host } = openDetail()
+    const due = await screen.findByLabelText('Due')
 
-    fireEvent.change(await screen.findByLabelText('Due'), { target: { value: '2026-12-24' } })
+    // Each step is what a native date input reports while the user types or presses ArrowUp.
+    for (const step of ['2026-11-20', '2026-11-21', '2026-11-22', '2026-12-22', '2026-12-24']) {
+      fireEvent.change(due, { target: { value: step } })
+    }
+    expect(host.count('dart.updateTask')).toBe(0)
+    fireEvent.blur(due)
     await waitFor(() => expect(lastUpdate(host).updates).toEqual({ dueAt: '2026-12-24' }))
+    expect(host.count('dart.updateTask')).toBe(1)
 
     await user.click(await screen.findByRole('button', { name: 'Clear Due' }))
     await waitFor(() => expect(lastUpdate(host).updates).toEqual({ dueAt: null }))
   })
 
+  it('saves a date on Enter and drops the draft on Escape', async () => {
+    const user = userEvent.setup()
+    const { host } = openDetail()
+    const start = await screen.findByLabelText('Start')
+
+    await user.click(start)
+    fireEvent.change(start, { target: { value: '2026-12-01' } })
+    await user.keyboard('{Escape}')
+    expect(host.count('dart.updateTask')).toBe(0)
+
+    await user.click(start)
+    fireEvent.change(start, { target: { value: '2026-12-02' } })
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(lastUpdate(host).updates).toEqual({ startAt: '2026-12-02' }))
+    expect(host.count('dart.updateTask')).toBe(1)
+  })
+
   it('does not send a half-typed year', async () => {
     const { host } = openDetail()
-    fireEvent.change(await screen.findByLabelText('Start'), { target: { value: '0002-11-04' } })
+    const start = await screen.findByLabelText('Start')
+    fireEvent.change(start, { target: { value: '0002-11-04' } })
+    fireEvent.blur(start)
     await act(async () => {})
     expect(host.count('dart.updateTask')).toBe(0)
   })
@@ -208,19 +238,24 @@ describe('detail property editors', () => {
   it('shows size and dates as text on a host without writes v2', async () => {
     const detailEnv = `old-host-${Date.now()}`
     withoutWritesV2(detailEnv)
+    const early = runtime.host(detailEnv)
+    const handle = early.handle.bind(early)
+    early.handle = async (method, params) => {
+      const reply = await handle(method, params)
+      return method === 'dart.getTask' && 'task' in reply && typeof reply.task === 'object'
+        ? { ...reply, task: { ...reply.task, size: '3', dueAt: '2026-11-20T00:00:00.000Z' } }
+        : reply
+    }
     const { host } = openDetail({ detailEnv })
-    host.addTask({
-      ...host.tasks.values().next().value!,
-      size: '3',
-      dueAt: '2026-11-20T00:00:00.000Z'
-    })
     await waitFor(() => expect(host.count('dart.config')).toBeGreaterThan(0))
     await screen.findByRole('combobox', { name: 'Status' })
     await act(async () => {
       await dartSupportsWritesV2ForTarget({ kind: 'environment', environmentId: detailEnv })
     })
 
-    await waitFor(() => expect(screen.queryByLabelText('Due')).toBeNull())
+    await screen.findByText('11/20/2026')
+    expect(screen.getByText('3')).toBeTruthy()
+    expect(screen.queryByLabelText('Due')).toBeNull()
     expect(screen.queryByRole('combobox', { name: 'Size' })).toBeNull()
     expect(screen.queryByLabelText('Start')).toBeNull()
   })
@@ -278,6 +313,7 @@ describe('detail title editor', () => {
     fireEvent.change(title, { target: { value: 'x'.repeat(501) } })
     fireEvent.blur(title)
     expect(toast.error).toHaveBeenCalledTimes(2)
+    expect(title.value).toBe('x'.repeat(501))
     expect(host.count('dart.updateTask')).toBe(0)
   })
 
@@ -312,10 +348,10 @@ describe('detail editor states', () => {
 
     await waitFor(() => expect(row.querySelector('.animate-spin')).not.toBeNull())
     expect(row.querySelectorAll('span.size-3').length).toBe(slotsBefore)
-    expect(button(status).disabled).toBe(true)
+    expect(status.getAttribute('aria-disabled')).toBe('true')
     await act(async () => release())
     await waitFor(() => expect(row.querySelector('.animate-spin')).toBeNull())
-    expect(button(status).disabled).toBe(false)
+    expect(status.hasAttribute('aria-disabled')).toBe(false)
   })
 
   it('shows the spinner without moving the control for dates, assignee and title too', async () => {
@@ -329,6 +365,7 @@ describe('detail editor states', () => {
     const release = host.hold('dart.updateTask')
 
     fireEvent.change(due, { target: { value: '2026-12-24' } })
+    fireEvent.blur(due)
     await waitFor(() => expect(rows[0].querySelector('.animate-spin')).not.toBeNull())
     release()
     await waitFor(() => expect(rows[0].querySelector('.animate-spin')).toBeNull())
@@ -363,11 +400,110 @@ describe('detail editor states', () => {
 
     const status = await screen.findByRole('combobox', { name: 'Status' })
     await screen.findByRole('status')
-    await waitFor(() => expect(button(status).disabled).toBe(true))
+    await waitFor(() => expect(status.getAttribute('aria-disabled')).toBe('true'))
     expect(status.parentElement?.getAttribute('title')).toContain('notice above')
-    expect(button(screen.getByRole('combobox', { name: 'Priority' })).disabled).toBe(false)
+    expect(screen.getByRole('combobox', { name: 'Priority' }).hasAttribute('aria-disabled')).toBe(
+      false
+    )
     await user.click(within(screen.getByRole('status')).getByRole('button', { name: 'Dismiss' }))
-    await waitFor(() => expect(button(status).disabled).toBe(false))
+    await waitFor(() => expect(status.hasAttribute('aria-disabled')).toBe(false))
+  })
+})
+
+describe('detail focus and escape while saving', () => {
+  it('keeps focus on the trigger while a save runs and refuses to open it', async () => {
+    const user = userEvent.setup()
+    const { host } = openDetail()
+    const release = host.hold('dart.updateTask')
+    const status = await screen.findByRole('combobox', { name: 'Status' })
+
+    await chooseOption(user, 'Status', 'Done')
+    await waitFor(() => expect(status.getAttribute('aria-disabled')).toBe('true'))
+    expect(document.activeElement).toBe(status)
+
+    await user.keyboard('{Enter}')
+    await user.click(status)
+    expect(screen.queryByRole('option')).toBeNull()
+    expect(document.activeElement).toBe(status)
+    release()
+    await waitFor(() => expect(status.hasAttribute('aria-disabled')).toBe(false))
+    expect(document.activeElement).toBe(status)
+  })
+
+  it('keeps focus on a picker trigger while its save runs', async () => {
+    const user = userEvent.setup()
+    const { host } = openDetail()
+    const release = host.hold('dart.updateTask')
+    const assignee = await screen.findByRole('combobox', { name: 'Assignee' })
+
+    await user.click(assignee)
+    await user.click(await screen.findByRole('option', { name: 'Sam Example' }))
+    await waitFor(() => expect(assignee.getAttribute('aria-disabled')).toBe('true'))
+    expect(document.activeElement).toBe(assignee)
+    await user.keyboard('{Enter}')
+    expect(screen.queryByRole('option')).toBeNull()
+    release()
+  })
+
+  it('freezes the tag items while tags are pending', async () => {
+    const user = userEvent.setup()
+    const { host } = openDetail()
+    const release = host.hold('dart.updateTask')
+
+    await user.click(await screen.findByRole('button', { name: 'Tags' }))
+    await user.click(await screen.findByRole('option', { name: 'search' }))
+    await waitFor(() =>
+      expect(screen.getByRole('option', { name: 'backend' }).getAttribute('aria-disabled')).toBe(
+        'true'
+      )
+    )
+    await user.click(screen.getByRole('option', { name: 'backend' }))
+    expect(host.count('dart.updateTask')).toBe(1)
+    release()
+    await waitFor(() =>
+      expect(screen.getByRole('option', { name: 'backend' }).getAttribute('aria-disabled')).toBe(
+        'false'
+      )
+    )
+  })
+
+  it('reverts the title on Escape without closing the sheet', async () => {
+    const user = userEvent.setup()
+    const { onClose, host } = openDetail()
+    const title = textarea(await screen.findByRole('textbox', { name: 'Title' }))
+
+    await user.clear(title)
+    await user.type(title, 'Typing…{Escape}')
+
+    expect(title.value).toBe('Example task')
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    expect(host.count('dart.updateTask')).toBe(0)
+
+    await user.click(screen.getByRole('button', { name: 'Close Dart task preview' }))
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+  })
+
+  it('keeps the sheet open when Escape ends a date edit', async () => {
+    const user = userEvent.setup()
+    const { onClose } = openDetail()
+    const due = await screen.findByLabelText('Due')
+
+    await user.click(due)
+    fireEvent.change(due, { target: { value: '2026-12-24' } })
+    await user.keyboard('{Escape}')
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('collapses pasted newlines in the title', async () => {
+    const { host } = openDetail()
+    const title = textarea(await screen.findByRole('textbox', { name: 'Title' }))
+
+    fireEvent.change(title, { target: { value: 'First line\n  second line\r\nthird' } })
+    fireEvent.blur(title)
+    await waitFor(() =>
+      expect(lastUpdate(host).updates).toEqual({ title: 'First line second line third' })
+    )
   })
 })
 
@@ -384,6 +520,21 @@ describe('detail picker keyboard', () => {
     await user.keyboard('{Escape}')
     await waitFor(() => expect(screen.queryByRole('option', { name: 'Unassigned' })).toBeNull())
     expect(document.activeElement).toBe(trigger)
+  })
+
+  it('opens a select with Space and Enter and closes it with Escape, focus back on the trigger', async () => {
+    const user = userEvent.setup()
+    openDetail()
+    const status = await screen.findByRole('combobox', { name: 'Status' })
+
+    for (const key of [' ', '{Enter}']) {
+      status.focus()
+      await user.keyboard(key)
+      await screen.findByRole('option', { name: 'Done' })
+      await user.keyboard('{Escape}')
+      await waitFor(() => expect(screen.queryByRole('option', { name: 'Done' })).toBeNull())
+      expect(document.activeElement).toBe(status)
+    }
   })
 
   it('tabs through the controls in reading order', async () => {

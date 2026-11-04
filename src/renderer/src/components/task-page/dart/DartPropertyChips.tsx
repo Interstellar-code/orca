@@ -89,14 +89,23 @@ export function DartSelectChip({
 }): React.JSX.Element {
   // An applied value missing from the config stays selectable.
   const choices = value && !options.includes(value) ? [value, ...options] : options
+  const [open, setOpen] = useState(false)
   return (
     <DartChipRow state={state}>
       <Select
         value={value ?? NONE_VALUE}
         onValueChange={(next) => onChange(next === NONE_VALUE ? null : next)}
-        disabled={state.disabled || disabled}
+        open={open}
+        // A busy field stays focusable (aria-disabled) so a save never takes the keyboard away; it only refuses to open.
+        onOpenChange={(next) => setOpen(next && !state.disabled)}
+        disabled={disabled}
       >
-        <SelectTrigger size="sm" density="compact" aria-label={label}>
+        <SelectTrigger
+          size="sm"
+          density="compact"
+          aria-label={label}
+          aria-disabled={state.disabled || undefined}
+        >
           <SelectValue>
             <span className={toneClass}>{value ?? noneLabel ?? '—'}</span>
           </SelectValue>
@@ -152,14 +161,15 @@ export function DartSearchChip({
   }
   return (
     <DartChipRow state={state}>
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={(next) => setOpen(next && !state.disabled)}>
         <PopoverTrigger asChild>
           <button
             type="button"
             role="combobox"
             aria-label={label}
             aria-expanded={open}
-            disabled={state.disabled || disabled}
+            aria-disabled={state.disabled || undefined}
+            disabled={disabled}
             className={LINEAR_EDIT_CHIP_CLASS}
           >
             <span className="truncate">{valueLabel}</span>

@@ -20,7 +20,11 @@ describe('dart date format', () => {
       expect(formatDartDate('2026-11-04', 'en-US')).toBe('11/4/2026')
       expect(formatDartDate('2026-11-04T00:00:00Z', 'en-US')).toBe('11/4/2026')
     } finally {
-      process.env.TZ = zone
+      if (zone === undefined) {
+        delete process.env.TZ
+      } else {
+        process.env.TZ = zone
+      }
     }
   })
 

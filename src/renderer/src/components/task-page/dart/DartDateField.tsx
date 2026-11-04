@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ImeInput } from '@/lib/ime-text-field'
@@ -20,26 +21,50 @@ export function DartDateField({
   onChange: (value: string | null) => void
 }): React.JSX.Element {
   const date = dartCalendarDate(value)
+  const [draft, setDraft] = useState<string | null>(null)
+  const reverting = useRef(false)
   if (!editable) {
     return <span>{formatDartDate(value, getIntlLocale()) ?? '—'}</span>
+  }
+  // A date input reports '' while only part of it is typed (`badInput`), so that is not a clear.
+  const commit = (partial: boolean): void => {
+    if (reverting.current) {
+      reverting.current = false
+      return
+    }
+    if (draft === null || state.disabled) {
+      return
+    }
+    setDraft(null)
+    if (draft === '' && !partial && date) {
+      onChange(null)
+    } else if (isFinishedDateInput(draft) && draft !== date) {
+      onChange(draft)
+    }
   }
   return (
     <DartChipRow state={state}>
       <ImeInput
         type="date"
         aria-label={label}
-        value={date ?? ''}
-        disabled={state.disabled}
-        onChange={(event) => {
-          const next = event.target.value
-          if (next === '') {
-            return
-          }
-          if (isFinishedDateInput(next) && next !== date) {
-            onChange(next)
+        value={draft ?? date ?? ''}
+        readOnly={state.disabled}
+        aria-disabled={state.disabled || undefined}
+        data-dart-escape-local
+        onChange={(event) => !state.disabled && setDraft(event.target.value)}
+        onBlur={(event) => commit(event.currentTarget.validity.badInput)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault()
+            event.currentTarget.blur()
+          } else if (event.key === 'Escape') {
+            event.preventDefault()
+            reverting.current = true
+            setDraft(null)
+            event.currentTarget.blur()
           }
         }}
-        className="h-6 min-w-0 rounded-md border border-border/70 bg-background/70 px-1.5 text-2xs text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-80"
+        className="h-6 min-w-0 rounded-md border border-border/70 bg-background/70 px-1.5 text-2xs text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 read-only:opacity-80"
       />
       <Button
         type="button"

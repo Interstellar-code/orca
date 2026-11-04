@@ -23,27 +23,30 @@ export function DartTitleField({
       reverting.current = false
       return
     }
-    if (draft === null) {
+    if (draft === null || state.disabled) {
       return
     }
-    setDraft(null)
-    const next = draft.trim()
+    const next = draft.replace(/\s*[\r\n]+\s*/g, ' ').trim()
     if (next === title) {
+      setDraft(null)
       return
     }
     if (!next) {
+      setDraft(null)
       toast.error(
         translate('auto.components.task.page.dart.DartTitleField.required', 'Title is required')
       )
       return
     }
     const check = checkDartRequestText('title', next)
+    // An over-long title stays in the field so the user can shorten it.
     if (!check.ok) {
       toast.error(
         dartTextTooLargeMessage({ amount: check.size, limit: check.limit, unit: check.unit })
       )
       return
     }
+    setDraft(null)
     onSave(next)
   }
   return (
@@ -54,9 +57,11 @@ export function DartTitleField({
       <ImeTextarea
         rows={1}
         value={draft ?? title}
-        disabled={state.disabled}
+        readOnly={state.disabled}
+        aria-disabled={state.disabled || undefined}
+        data-dart-escape-local
         aria-label={translate('auto.components.task.page.dart.DartTitleField.label', 'Title')}
-        onChange={(event) => setDraft(event.target.value)}
+        onChange={(event) => !state.disabled && setDraft(event.target.value)}
         onBlur={commit}
         onKeyDown={(event) => {
           if (event.key === 'Enter') {
@@ -69,7 +74,7 @@ export function DartTitleField({
             event.currentTarget.blur()
           }
         }}
-        className="block min-w-0 flex-1 resize-none overflow-hidden rounded-md border border-transparent bg-transparent px-1 py-0 text-xl font-semibold leading-tight text-foreground outline-none transition [field-sizing:content] hover:border-border/50 hover:bg-accent/40 focus-visible:border-border focus-visible:bg-background focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-80"
+        className="block min-w-0 flex-1 resize-none overflow-hidden rounded-md border border-transparent bg-transparent px-0 py-0 text-xl font-semibold leading-tight text-foreground outline-none transition [field-sizing:content] hover:border-border/50 hover:bg-accent/40 focus-visible:border-border focus-visible:bg-background focus-visible:ring-1 focus-visible:ring-ring read-only:opacity-80"
       />
       <span className="mt-1.5">
         <DartPendingSlot pending={state.pending} />
