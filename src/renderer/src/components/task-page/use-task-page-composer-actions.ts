@@ -16,6 +16,7 @@ import type { LinkedWorkItemSummary } from '@/lib/new-workspace'
 import { shouldHideTaskPageListChrome } from './task-page-list-chrome-visibility'
 import { getDartTaskWorkspaceSeed, getJiraIssueWorkspaceSeed } from './task-page-source-context'
 import { useTaskPageDartState } from './dart/use-task-page-dart-state'
+import { useTaskPageDartCreation } from './dart/use-task-page-dart-creation'
 import { findJiraIssueDefaultRepo } from '../../../../shared/jira/jira-project-reference'
 import { getRepoWorkspaceCreationTargetHint } from '@/lib/project-host-workspace-target'
 export function useTaskPageComposerActions(model: TaskPageJiraListEffectsModel) {
@@ -289,6 +290,6 @@ export function useTaskPageComposerActions(model: TaskPageJiraListEffectsModel) 
   nextModel.openComposerForDartItem = openComposerForDartItem
   nextModel.handleUseDartItem = handleUseDartItem
   nextModel.taskPageListChromeHidden = taskPageListChromeHidden
-  return useTaskPageDartState(nextModel)
+  return useTaskPageDartCreation(useTaskPageDartState(nextModel))
 }
 export type TaskPageComposerActionsModel = ReturnType<typeof useTaskPageComposerActions>

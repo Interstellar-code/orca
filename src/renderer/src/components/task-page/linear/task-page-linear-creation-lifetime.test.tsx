@@ -175,6 +175,33 @@ it.each([
         dartConfig: null,
         getDartTaskWorkspaces: () => [],
         noteDartTaskCreated: vi.fn<LinearDialogModel['noteDartTaskCreated']>(),
+        createOpen: false,
+        createSupportsWritesV2: false,
+        createSubmitting: false,
+        openCreate: vi.fn(),
+        closeCreate: vi.fn(),
+        createTask: vi.fn<LinearDialogModel['createTask']>(),
+        createDraft: {
+          title: '',
+          dartboard: '',
+          description: '',
+          type: '',
+          status: '',
+          priority: '',
+          assignee: '',
+          tags: [],
+          dueAt: ''
+        },
+        setCreateDraft: vi.fn(),
+        createNotice: null,
+        listChecked: false,
+        createMatches: [],
+        createMatchesTruncated: false,
+        canCreateAnyway: false,
+        dismissCreateNotice: vi.fn(),
+        checkAgain: vi.fn<LinearDialogModel['checkAgain']>(),
+        dismissMatches: vi.fn(),
+        createAnyway: vi.fn<LinearDialogModel['createAnyway']>(),
         taskPageListChromeHidden: false
       } satisfies LinearDialogModel
       useLayoutEffect(() => {

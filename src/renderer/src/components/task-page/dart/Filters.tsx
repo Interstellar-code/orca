@@ -30,6 +30,8 @@ export type TaskPageDartFiltersProps = {
   onSearchInputChange: (value: string) => void
   onSearchApply: (value: string) => void
   onRefresh: () => void
+  onNewTask: () => void
+  newTaskDisabled: boolean
 }
 
 function FilterSelect({
@@ -81,7 +83,9 @@ export function TaskPageDartFiltersView({
   onHasWorkspaceChange,
   onSearchInputChange,
   onSearchApply,
-  onRefresh
+  onRefresh,
+  onNewTask,
+  newTaskDisabled
 }: TaskPageDartFiltersProps): React.JSX.Element {
   const mineActive = filters.mine && viewerAvailable && !hasWorkspace
   const allActive = (!filters.mine || !viewerAvailable) && !hasWorkspace
@@ -148,30 +152,41 @@ export function TaskPageDartFiltersView({
             {translate('auto.components.task.page.dart.Filters.hasWorkspace', 'Has Workspace')}
           </Button>
         </div>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              onClick={onRefresh}
-              disabled={loading}
-              aria-label={translate(
-                'auto.components.task.page.dart.Filters.refresh',
-                'Refresh Dart tasks'
-              )}
-            >
-              {loading ? (
-                <LoaderCircle className="size-4 animate-spin" />
-              ) : (
-                <RefreshCw className="size-4" />
-              )}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom" sideOffset={6}>
-            {translate('auto.components.task.page.dart.Filters.refresh', 'Refresh Dart tasks')}
-          </TooltipContent>
-        </Tooltip>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            data-dart-new-task
+            variant="outline"
+            disabled={newTaskDisabled}
+            onClick={onNewTask}
+          >
+            {translate('auto.components.task.page.dart.Filters.newTask', 'New task')}
+          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={onRefresh}
+                disabled={loading}
+                aria-label={translate(
+                  'auto.components.task.page.dart.Filters.refresh',
+                  'Refresh Dart tasks'
+                )}
+              >
+                {loading ? (
+                  <LoaderCircle className="size-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="size-4" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" sideOffset={6}>
+              {translate('auto.components.task.page.dart.Filters.refresh', 'Refresh Dart tasks')}
+            </TooltipContent>
+          </Tooltip>
+        </div>
       </div>
       <div className="mt-3 flex items-center gap-2">
         <Input
@@ -245,6 +260,8 @@ export function TaskPageDartFilters({
       onSearchInputChange={model.setDartSearchInput}
       onSearchApply={model.applyDartSearch}
       onRefresh={() => model.setDartRefreshNonce((n) => n + 1)}
+      onNewTask={model.openCreate}
+      newTaskDisabled={!model.dartConnected || model.dartUpdateRequired}
     />
   )
 }

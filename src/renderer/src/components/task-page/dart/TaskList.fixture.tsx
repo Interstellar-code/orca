@@ -27,6 +27,8 @@ function ListShell({ truncated }: { truncated: boolean }): React.JSX.Element {
         onSearchInputChange={() => {}}
         onSearchApply={() => {}}
         onRefresh={() => {}}
+        onNewTask={() => {}}
+        newTaskDisabled={false}
       />
       <div className="@container overflow-hidden rounded-md rounded-t-none border border-t-0 border-border/50 bg-background shadow-sm">
         {truncated ? (
