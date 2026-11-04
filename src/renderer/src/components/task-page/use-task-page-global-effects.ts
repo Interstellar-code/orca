@@ -67,8 +67,8 @@ export function useTaskPageGlobalEffects(model: TaskPageJiraSummaryGenerationMod
         return
       }
 
-      // Why: an open dialog owns Esc; the page must not close behind it.
-      if (target.closest('[role="dialog"], [role="alertdialog"]')) {
+      // Any open dialog owns Esc, including when focus fell to body after a field disabled.
+      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) {
         return
       }
 
