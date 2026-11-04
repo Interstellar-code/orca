@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Copy } from 'lucide-react'
 import CommentMarkdown from '@/components/sidebar/CommentMarkdown'
 import { Button } from '@/components/ui/button'
@@ -18,9 +18,20 @@ export function DartDescriptionEditorActions({
   editor: DartDescriptionEditorState
 }): React.JSX.Element {
   const pending = editor.savePending
+  const [slow, setSlow] = useState(false)
+  // A quick save stays clean; only a slow one gets the label swap.
+  useEffect(() => {
+    if (!pending) {
+      setSlow(false)
+      return
+    }
+    const timer = setTimeout(() => setSlow(true), 200)
+    return () => clearTimeout(timer)
+  }, [pending])
+  const showSaving = pending && slow
   return (
     <>
-      <Button type="button" variant="ghost" size="xs" onClick={editor.cancel}>
+      <Button type="button" variant="ghost" size="xs" disabled={pending} onClick={editor.cancel}>
         {translate('auto.components.task.page.dart.DartDescription.cancel', 'Cancel')}
       </Button>
       <Button
@@ -33,14 +44,14 @@ export function DartDescriptionEditorActions({
         {/* Both labels share one grid cell, so the width never moves between them. */}
         <span className="grid justify-items-center">
           <span
-            aria-hidden={pending}
-            className={cn('col-start-1 row-start-1', pending && 'invisible')}
+            aria-hidden={showSaving}
+            className={cn('col-start-1 row-start-1', showSaving && 'invisible')}
           >
             {translate('auto.components.task.page.dart.DartDescription.save', 'Save')}
           </span>
           <span
-            aria-hidden={!pending}
-            className={cn('col-start-1 row-start-1', !pending && 'invisible')}
+            aria-hidden={!showSaving}
+            className={cn('col-start-1 row-start-1', !showSaving && 'invisible')}
           >
             {translate('auto.components.task.page.dart.DartDescription.saving', 'Saving…')}
           </span>
@@ -112,6 +123,7 @@ function UnresolvedHunks({
                 type="button"
                 variant="outline"
                 size="xs"
+                disabled={editor.savePending}
                 onClick={() => editor.removeHunk(hunk.id)}
               >
                 {translate(
@@ -123,6 +135,7 @@ function UnresolvedHunks({
                 type="button"
                 variant="ghost"
                 size="xs"
+                disabled={editor.savePending}
                 onClick={() => editor.removeHunk(hunk.id)}
               >
                 {translate(
@@ -145,7 +158,7 @@ export function DartDescriptionEditor({
   lineage: DartDescriptionDraft
   editor: DartDescriptionEditorState
 }): React.JSX.Element {
-  const [preview, setPreview] = useState(false)
+  const { preview } = editor
   const isMac = getShortcutPlatform() === 'darwin'
   return (
     <div className="space-y-2">
@@ -181,7 +194,7 @@ export function DartDescriptionEditor({
           variant="ghost"
           size="xs"
           aria-pressed={preview}
-          onClick={() => setPreview((shown) => !shown)}
+          onClick={editor.togglePreview}
         >
           {translate('auto.components.task.page.dart.DartDescription.preview', 'Preview')}
         </Button>

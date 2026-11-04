@@ -7,6 +7,7 @@ import {
   isDescriptionLineageDirty,
   loadDescriptionLineage,
   runDescriptionSave,
+  type DartDescriptionLineage,
   type DartDescriptionSaveOutcome
 } from './dart-description-save-flow'
 import {
@@ -14,45 +15,47 @@ import {
   getDraft,
   oldestDirtyDraft,
   setDraft,
-  type DartDescriptionDraft,
   type DartDraftValue
 } from './dart-draft-store'
 import { useDartDescriptionDiscardPrompt } from './use-dart-description-discard-prompt'
+import { useDartDescriptionFocus } from './use-dart-description-focus'
 import { useDartDescriptionUnknownNotice } from './use-dart-description-unknown-notice'
 
 export type DartDescriptionConflict = {
   latest: string
   editorText: string
-  rebased: DartDescriptionDraft
+  rebased: DartDescriptionLineage
+  writeMayHaveLanded: boolean
 }
 
 export function useDartDescriptionEditor(api: DartDetailDescriptionApi) {
   const { draftKey: key, description, notice, onSavePatch, readLatestTask } = api
-  const { pendingFields, blockedFields, registerCloseGuard } = api
+  const { pendingFields, blockedFields, registerCloseGuard, supportsWritesV2 } = api
   const [lineage, setLineageState] = useState(() => loadDescriptionLineage(key))
   const [saving, setSaving] = useState(() => descriptionSaveInFlight(key) !== undefined)
   const [conflict, setConflict] = useState<DartDescriptionConflict | null>(null)
   const [localNotice, setLocalNotice] = useState<DartWriteNotice | null>(null)
   const [fullDraft, setFullDraft] = useState<{ key: string; value: DartDraftValue } | null>(null)
+  const [preview, setPreview] = useState(false)
   const discardPrompt = useDartDescriptionDiscardPrompt()
   const lineageRef = useRef(lineage)
   const savingRef = useRef(saving)
   const mountedRef = useRef(true)
-  const editButtonRef = useRef<HTMLButtonElement | null>(null)
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
-  const focusNextRef = useRef<'edit' | 'textarea' | null>(null)
+  const editing = lineage !== null && supportsWritesV2
+  const { editButtonRef, textareaRef, focusNextRef, restoreFocus } =
+    useDartDescriptionFocus(editing)
   const latestRef = useRef({ notice, pendingFields, blockedFields })
   useEffect(() => {
     latestRef.current = { notice, pendingFields, blockedFields }
   })
 
-  const showLineage = useCallback((next: DartDescriptionDraft | null) => {
+  const showLineage = useCallback((next: DartDescriptionLineage | null) => {
     lineageRef.current = next
     setLineageState(next)
   }, [])
 
   const commitLineage = useCallback(
-    (next: DartDescriptionDraft): boolean => {
+    (next: DartDescriptionLineage): boolean => {
       if (setDraft(key, next, { dirty: isDescriptionLineageDirty(next) }) === 'full') {
         setFullDraft(oldestDirtyDraft())
         return false
@@ -73,7 +76,8 @@ export function useDartDescriptionEditor(api: DartDetailDescriptionApi) {
           : {
               latest,
               editorText: current.draft,
-              rebased: rebaseDescriptionLineage(current, latest)
+              rebased: rebaseDescriptionLineage(current, latest),
+              writeMayHaveLanded: current.intended !== undefined
             }
       )
     }
@@ -87,7 +91,7 @@ export function useDartDescriptionEditor(api: DartDetailDescriptionApi) {
         return
       }
       // The user accepted that Dart holds this text, so it is the new starting point.
-      const next = { ...current, base: intended }
+      const next = { base: intended, draft: current.draft, unresolved: current.unresolved }
       if (isDescriptionLineageDirty(next)) {
         commitLineage(next)
       } else {
@@ -98,10 +102,11 @@ export function useDartDescriptionEditor(api: DartDetailDescriptionApi) {
   )
 
   const shownText = description.status === 'ready' ? description.value : null
-  const { sectionNotice, setIntended } = useDartDescriptionUnknownNotice({
+  const sectionNotice = useDartDescriptionUnknownNotice({
     notice,
     shownText,
     base: lineage?.base ?? null,
+    intended: lineage?.intended ?? null,
     onConflict: openConflict,
     onAcceptedIntended
   })
@@ -110,10 +115,9 @@ export function useDartDescriptionEditor(api: DartDetailDescriptionApi) {
     focusNextRef.current = 'edit'
     clearDraft(key)
     setLocalNotice(null)
-    setIntended(null)
     setFullDraft(null)
     showLineage(null)
-  }, [key, setIntended, showLineage])
+  }, [focusNextRef, key, showLineage])
   useEffect(() => {
     leaveEditingRef.current = leaveEditing
   }, [leaveEditing])
@@ -134,25 +138,25 @@ export function useDartDescriptionEditor(api: DartDetailDescriptionApi) {
       }
       setSaving(false)
       const current = lineageRef.current
+      // The store holds what a write decided: gone when saved, moved on when hunks remain, marked when unknown.
+      const stored = getDraft(key)
+      const next = stored && typeof stored !== 'string' ? stored : null
       if (outcome.kind === 'message') {
         setLocalNotice({ kind: 'refused', message: outcome.message })
       } else if (outcome.kind === 'conflict') {
         clearOwnRefusal()
         openConflict(outcome.latest)
       } else if (outcome.kind === 'unknown') {
-        setIntended(outcome.intended)
+        showLineage(next)
         if (
-          current &&
+          next &&
           outcome.latest !== null &&
-          outcome.latest !== current.base &&
+          outcome.latest !== next.base &&
           outcome.latest !== outcome.intended
         ) {
           openConflict(outcome.latest)
         }
       } else {
-        // The store holds the outcome: gone when saved, moved on when hunks remain, untouched otherwise.
-        const stored = getDraft(key)
-        const next = stored && typeof stored !== 'string' ? stored : null
         if (!next && current) {
           focusNextRef.current = 'edit'
         }
@@ -161,7 +165,7 @@ export function useDartDescriptionEditor(api: DartDetailDescriptionApi) {
         }
       }
     },
-    [clearOwnRefusal, key, openConflict, setIntended, showLineage]
+    [clearOwnRefusal, focusNextRef, key, openConflict, showLineage]
   )
 
   const save = useCallback(async () => {
@@ -192,20 +196,30 @@ export function useDartDescriptionEditor(api: DartDetailDescriptionApi) {
   }, [applyOutcome, clearOwnRefusal, key, onSavePatch, readLatestTask])
 
   const { ask: askDiscard, settle: settleDiscard } = discardPrompt
+  const saveInFlight = useCallback(
+    () => savingRef.current || latestRef.current.pendingFields.has('description'),
+    []
+  )
   const confirmDiscard = useCallback(() => {
+    if (saveInFlight()) {
+      return
+    }
     setConflict(null)
     leaveEditing()
     settleDiscard(true)
-  }, [leaveEditing, settleDiscard])
+  }, [leaveEditing, saveInFlight, settleDiscard])
 
   const cancel = useCallback(() => {
+    if (saveInFlight()) {
+      return
+    }
     const current = lineageRef.current
     if (current && isDescriptionLineageDirty(current)) {
       void askDiscard()
     } else {
       leaveEditing()
     }
-  }, [askDiscard, leaveEditing])
+  }, [askDiscard, leaveEditing, saveInFlight])
 
   const dirty = lineage !== null && isDescriptionLineageDirty(lineage)
   useEffect(
@@ -225,22 +239,11 @@ export function useDartDescriptionEditor(api: DartDetailDescriptionApi) {
     }
   }, [applyOutcome, key])
 
-  const editing = lineage !== null
-  const restoreFocus = useCallback((): boolean => {
-    const target = focusNextRef.current === 'edit' ? editButtonRef : textareaRef
-    if (focusNextRef.current && target.current) {
-      focusNextRef.current = null
-      target.current.focus()
-      return true
-    }
-    return false
-  }, [])
-  useEffect(() => {
-    restoreFocus()
-  }, [editing, restoreFocus])
-
   return {
     lineage,
+    editing,
+    preview,
+    togglePreview: () => setPreview((shown) => !shown),
     saving,
     conflict,
     localNotice,
@@ -259,6 +262,7 @@ export function useDartDescriptionEditor(api: DartDetailDescriptionApi) {
     saveBlocked: blockedFields.has('description'),
     startEditing: (text: string): void => {
       focusNextRef.current = 'textarea'
+      setPreview(false)
       commitLineage({ base: text, draft: text, unresolved: [] })
     },
     changeDraft: (text: string): void => {
@@ -269,7 +273,7 @@ export function useDartDescriptionEditor(api: DartDetailDescriptionApi) {
     },
     removeHunk: (id: string): void => {
       const current = lineageRef.current
-      if (current) {
+      if (current && !saveInFlight()) {
         commitLineage({
           ...current,
           unresolved: current.unresolved.filter((hunk) => hunk.id !== id)
@@ -296,6 +300,7 @@ export function useDartDescriptionEditor(api: DartDetailDescriptionApi) {
     backToEditing: (): void => {
       if (conflict) {
         focusNextRef.current = 'textarea'
+        setPreview(false)
         commitLineage(conflict.rebased)
         setConflict(null)
       }

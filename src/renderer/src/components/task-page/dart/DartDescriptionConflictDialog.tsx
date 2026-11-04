@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { AlertTriangle, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -21,6 +22,7 @@ export function DartDescriptionConflictDialog({
   latest,
   editorText,
   unresolved,
+  writeMayHaveLanded,
   onBackToEditing,
   onDiscard,
   onCloseAutoFocus
@@ -28,10 +30,13 @@ export function DartDescriptionConflictDialog({
   latest: string
   editorText: string
   unresolved: readonly DartDescriptionDraftHunk[]
+  /** A save of this edit has an unknown outcome (D3), so "nothing was saved" would be a guess. */
+  writeMayHaveLanded: boolean
   onBackToEditing: () => void
   onDiscard: () => void
   onCloseAutoFocus?: (event: Event) => void
 }): React.JSX.Element {
+  const backToEditingRef = useRef<HTMLButtonElement | null>(null)
   return (
     <Dialog open onOpenChange={(open) => !open && onBackToEditing()}>
       <DialogContent
@@ -39,6 +44,10 @@ export function DartDescriptionConflictDialog({
         scrollable
         className="sm:max-w-2xl"
         onInteractOutside={(event) => event.preventDefault()}
+        onOpenAutoFocus={(event) => {
+          event.preventDefault()
+          backToEditingRef.current?.focus()
+        }}
         onCloseAutoFocus={onCloseAutoFocus}
       >
         <DialogHeader>
@@ -52,10 +61,15 @@ export function DartDescriptionConflictDialog({
             </DialogTitle>
           </div>
           <DialogDescription size="compact">
-            {translate(
-              'auto.components.task.page.dart.DartDescriptionConflictDialog.body',
-              'Nothing was saved and nothing was overwritten. Your text is below so you can copy it.'
-            )}
+            {writeMayHaveLanded
+              ? translate(
+                  'auto.components.task.page.dart.DartDescriptionConflictDialog.bodyUnknown',
+                  'Dart may have saved part of this change. Compare the texts below before continuing.'
+                )
+              : translate(
+                  'auto.components.task.page.dart.DartDescriptionConflictDialog.body',
+                  'Nothing was saved and nothing was overwritten. Your text is below so you can copy it.'
+                )}
           </DialogDescription>
         </DialogHeader>
         <div className="min-w-0 space-y-1">
@@ -113,7 +127,7 @@ export function DartDescriptionConflictDialog({
               'Discard my changes'
             )}
           </Button>
-          <Button type="button" size="sm" onClick={onBackToEditing}>
+          <Button ref={backToEditingRef} type="button" size="sm" onClick={onBackToEditing}>
             {translate(
               'auto.components.task.page.dart.DartDescriptionConflictDialog.backToEditing',
               'Back to editing'

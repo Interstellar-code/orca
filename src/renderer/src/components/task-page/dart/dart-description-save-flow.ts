@@ -8,6 +8,9 @@ import {
 } from './dart-description-patch'
 import { clearDraft, getDraft, setDraft, type DartDescriptionDraft } from './dart-draft-store'
 
+/** `intended` is the text of a save whose outcome is unknown (D3); it travels with the lineage until a save or the user settles it, so a task switch or reopen keeps it. */
+export type DartDescriptionLineage = DartDescriptionDraft & { intended?: string }
+
 export type DartDescriptionSaveOutcome =
   /** Nothing for the editor to open; it reloads the lineage from the draft store. */
   | { kind: 'settled' }
@@ -30,7 +33,7 @@ export function isDescriptionLineageDirty(lineage: DartDescriptionDraft): boolea
   return lineage.draft !== lineage.base || lineage.unresolved.length > 0
 }
 
-export function loadDescriptionLineage(key: string): DartDescriptionDraft | null {
+export function loadDescriptionLineage(key: string): DartDescriptionLineage | null {
   const stored = getDraft(key)
   return stored && typeof stored !== 'string' && isDescriptionLineageDirty(stored) ? stored : null
 }
@@ -73,7 +76,7 @@ function settleSavedLineage(key: string, sent: DartDescriptionDraft, saved: stri
 
 async function sendPatch(args: {
   key: string
-  lineage: DartDescriptionDraft
+  lineage: DartDescriptionLineage
   updates: DartDescriptionUpdate[]
   api: SaveApi
   isCurrent: () => boolean
@@ -88,6 +91,10 @@ async function sendPatch(args: {
   if (result.outcome !== 'unknown' && !isRefusal) {
     return { kind: 'settled' }
   }
+  if (result.outcome === 'unknown' && getDraft(key) === lineage) {
+    const unconfirmed: DartDescriptionLineage = { ...lineage, intended: lineage.draft }
+    setDraft(key, unconfirmed, { dirty: true })
+  }
   // Once the task changed, this read would land on the task now on screen.
   const latest = isCurrent() ? await readFreshDescription(api.readLatestTask) : null
   if (result.outcome === 'unknown') {
@@ -101,7 +108,7 @@ async function sendPatch(args: {
 /** The single save path: a forced read, then the patch only if Dart still holds `base`. Null means the task changed during the read and nothing was sent. */
 export async function runDescriptionSave(args: {
   key: string
-  lineage: DartDescriptionDraft
+  lineage: DartDescriptionLineage
   api: SaveApi
   isCurrent: () => boolean
 }): Promise<DartDescriptionSaveOutcome | null> {

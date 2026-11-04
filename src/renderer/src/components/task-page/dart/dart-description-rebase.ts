@@ -1,5 +1,6 @@
-import type { DartDescriptionDraft, DartDescriptionDraftHunk } from './dart-draft-store'
+import type { DartDescriptionDraftHunk } from './dart-draft-store'
 import { describeChangedRegions, type DartDescriptionRegion } from './dart-description-patch'
+import type { DartDescriptionLineage } from './dart-description-save-flow'
 
 export type DartDescriptionRebase = {
   merged: string
@@ -101,9 +102,14 @@ export function rebaseDraft(base: string, draft: string, latest: string): DartDe
 
 /** "Back to editing": `latest` becomes the base; stored hunks are carried, never retried. */
 export function rebaseDescriptionLineage(
-  lineage: DartDescriptionDraft,
+  lineage: DartDescriptionLineage,
   latest: string
-): DartDescriptionDraft {
+): DartDescriptionLineage {
   const { merged, unresolved } = rebaseDraft(lineage.base, lineage.draft, latest)
-  return { base: latest, draft: merged, unresolved: [...lineage.unresolved, ...unresolved] }
+  return {
+    ...lineage,
+    base: latest,
+    draft: merged,
+    unresolved: [...lineage.unresolved, ...unresolved]
+  }
 }

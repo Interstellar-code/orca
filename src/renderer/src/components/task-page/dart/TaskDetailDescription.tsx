@@ -24,11 +24,13 @@ import { useDartDescriptionEditor } from './use-dart-description-editor'
 
 function DiscardPrompt({
   open,
+  discardDisabled,
   onConfirm,
   onDecline,
   onCloseAutoFocus
 }: {
   open: boolean
+  discardDisabled: boolean
   onConfirm: () => void
   onDecline: () => void
   onCloseAutoFocus: (event: Event) => void
@@ -48,7 +50,13 @@ function DiscardPrompt({
           <Button type="button" variant="ghost" size="sm" onClick={onDecline}>
             {translate('auto.components.task.page.dart.DartDescription.cancel', 'Cancel')}
           </Button>
-          <Button type="button" variant="destructive" size="sm" onClick={onConfirm}>
+          <Button
+            type="button"
+            variant="destructive"
+            size="sm"
+            disabled={discardDisabled}
+            onClick={onConfirm}
+          >
             {translate('auto.components.task.page.dart.DartDescription.discard', 'Discard')}
           </Button>
         </DialogFooter>
@@ -63,8 +71,7 @@ function DescriptionSection({
 }: DartDetailDescriptionApi & { onRetry: () => void }): React.JSX.Element {
   const { description, openUrl, supportsWritesV2 } = api
   const editor = useDartDescriptionEditor(api)
-  const { lineage, conflict } = editor
-  const editing = lineage !== null && supportsWritesV2
+  const { lineage, conflict, editing } = editor
   const text = description.status === 'ready' ? description.value : null
   const canEdit = text !== null && text.trim() !== '' && supportsWritesV2
   const placeFocus = (event: Event): void => {
@@ -122,7 +129,7 @@ function DescriptionSection({
           actions={noticeActions}
         />
       ) : null}
-      {editing ? <DartDescriptionEditor lineage={lineage} editor={editor} /> : null}
+      {lineage && editing ? <DartDescriptionEditor lineage={lineage} editor={editor} /> : null}
       {!editing && description.status === 'loading' ? <SkeletonLines /> : null}
       {!editing && description.status === 'error' ? (
         <InlineError message={description.message} onRetry={onRetry} />
@@ -140,6 +147,7 @@ function DescriptionSection({
           latest={conflict.latest}
           editorText={conflict.editorText}
           unresolved={conflict.rebased.unresolved}
+          writeMayHaveLanded={conflict.writeMayHaveLanded}
           onBackToEditing={editor.backToEditing}
           onDiscard={editor.discardFromConflict}
           onCloseAutoFocus={placeFocus}
@@ -147,6 +155,7 @@ function DescriptionSection({
       ) : null}
       <DiscardPrompt
         open={editor.discardPromptOpen}
+        discardDisabled={editor.savePending}
         onConfirm={editor.confirmDiscard}
         onDecline={editor.declineDiscard}
         onCloseAutoFocus={placeFocus}

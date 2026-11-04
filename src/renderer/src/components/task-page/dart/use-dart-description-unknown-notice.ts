@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect } from 'react'
 import { translate } from '@/i18n/i18n'
 import type { DartNoticeApi } from './dart-detail-contracts'
 
@@ -7,11 +7,11 @@ export function useDartDescriptionUnknownNotice(args: {
   notice: DartNoticeApi
   shownText: string | null
   base: string | null
+  intended: string | null
   onConflict: (latest: string) => void
   onAcceptedIntended: (intended: string) => void
 }) {
-  const { notice, shownText, base, onConflict, onAcceptedIntended } = args
-  const [intended, setIntended] = useState<string | null>(null)
+  const { notice, shownText, base, intended, onConflict, onAcceptedIntended } = args
   const unknown =
     notice.notice?.field === 'description' && notice.notice.kind === 'unknown'
       ? notice.notice
@@ -33,13 +33,10 @@ export function useDartDescriptionUnknownNotice(args: {
 
   const dismissNotice = useCallback<DartNoticeApi['dismissNotice']>(() => {
     notice.dismissNotice()
-    if (intended !== null) {
-      setIntended(null)
-      if (shownText === intended) {
-        onAcceptedIntended(intended)
-      }
+    if (unknown && intended !== null && shownText === intended) {
+      onAcceptedIntended(intended)
     }
-  }, [intended, notice, onAcceptedIntended, shownText])
+  }, [intended, notice, onAcceptedIntended, shownText, unknown])
 
   const sectionNotice: DartNoticeApi | null =
     notice.notice?.field === 'description'
@@ -59,5 +56,5 @@ export function useDartDescriptionUnknownNotice(args: {
         }
       : null
 
-  return { sectionNotice, setIntended }
+  return sectionNotice
 }

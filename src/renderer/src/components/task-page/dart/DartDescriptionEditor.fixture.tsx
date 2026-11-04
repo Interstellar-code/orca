@@ -88,7 +88,9 @@ export const preview = defineFixture({
 export const saving = defineFixture({
   width: 780,
   setup: seed('saving', { base: BASE, draft: edited, unresolved: [] }),
-  render: () => <DescriptionFixture name="saving" pending />
+  render: () => <DescriptionFixture name="saving" pending />,
+  // The Saving label waits out a quick save.
+  interact: () => new Promise((resolve) => setTimeout(resolve, 300))
 })
 
 export const unresolvedHunks = defineFixture({
