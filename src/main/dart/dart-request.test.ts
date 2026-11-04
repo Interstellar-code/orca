@@ -6,6 +6,27 @@ import {
   type DartHost
 } from './dart-host.test-fixture'
 
+const traced = vi.hoisted(() => ({ calls: [] as unknown[][], failed: [] as unknown[] }))
+vi.mock('../observability/tracer', () => ({
+  withSpan: async (_name: string, fn: (span: unknown) => unknown) => {
+    const span = new Proxy(
+      {},
+      {
+        get:
+          (_target, method) =>
+          (...args: unknown[]) => {
+            traced.calls.push([method, ...args])
+          }
+      }
+    )
+    try {
+      return await fn(span)
+    } catch (error) {
+      traced.failed.push(error)
+      throw error
+    }
+  }
+}))
 vi.mock('../network/proxy-settings', () => ({
   ensureElectronProxyFromEnvironment: vi.fn().mockResolvedValue(undefined)
 }))
@@ -56,5 +77,31 @@ describe('dartRequest', () => {
 
     await settled
     expect(signal?.aborted).toBe(true)
+  })
+
+  it('keeps Dart response detail out of the error and trace for update-description only', async () => {
+    const { host, request } = await load()
+    traced.calls.length = 0
+    traced.failed.length = 0
+    const body = { errors: ['oldText "SECRET PARAGRAPH" was not found'] }
+    host.route('POST', '/tasks/abcDEF123456/update-description', () => jsonResponse(400, body))
+    host.route('PUT', '/tasks/abcDEF123456', () => jsonResponse(400, body))
+
+    const patchError = await request
+      .dartRequest(FIXTURE_TOKEN, '/tasks/abcDEF123456/update-description', {
+        method: 'POST',
+        body: {}
+      })
+      .catch((error: unknown) => error)
+
+    expect(patchError).toMatchObject({ kind: 'http', status: 400 })
+    expect(
+      JSON.stringify([traced.calls, traced.failed.map(String), String(patchError)])
+    ).not.toContain('SECRET')
+
+    const updateError = await request
+      .dartRequest(FIXTURE_TOKEN, '/tasks/abcDEF123456', { method: 'PUT', body: {} })
+      .catch((error: unknown) => error)
+    expect(String(updateError)).toContain('SECRET PARAGRAPH')
   })
 })
