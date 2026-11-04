@@ -39,6 +39,10 @@ function commentFixture(id: string, text: string): DartComment {
   }
 }
 
+function isCommentReply(reply: object): reply is { comment: DartComment } {
+  return 'comment' in reply
+}
+
 /** The shared fake has no comments or config, so this file answers those two methods itself. */
 function withCommentsAndConfig(host: FakeDartHost, boardName: string) {
   const comments: DartComment[] = []
@@ -56,9 +60,8 @@ function withCommentsAndConfig(host: FakeDartHost, boardName: string) {
       return reply
     }
     const reply = await handle(method, params)
-    if (method === 'dart.addComment' && 'comment' in reply) {
-      const { comment } = reply as { comment: DartComment }
-      comments.push(comment)
+    if (method === 'dart.addComment' && isCommentReply(reply)) {
+      comments.push(reply.comment)
     }
     return reply
   }

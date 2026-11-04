@@ -21,24 +21,13 @@ import {
 } from '@/store/slices/dart/dart-task-identity'
 import { dartDraftKey } from './dart-draft-store'
 import type { DartDetailCommentsApi, DartDetailDescriptionApi } from './dart-detail-contracts'
-import { readPastDartWrites } from './dart-stale-read'
+import { readPastDartWrites, withLocalComments } from './dart-stale-read'
 import { pendingDartPatches, subscribeDartTaskWrites } from './dart-task-write-queue'
 import { getDartTaskOpenUrl } from './task-page-dart-list-model'
 import type { DartCommentsView, DartDetailLoadState } from './TaskDetailView'
 import { noOpenDartTaskFailure, useDartTaskDetailWrites } from './use-dart-task-detail-writes'
 
 const LOADING_STATE = { status: 'loading' } as const
-
-function withLocalComments(
-  view: DartCommentsView,
-  localComments: readonly DartComment[]
-): DartCommentsView {
-  const unseen = localComments.filter((local) => !view.comments.some((c) => c.id === local.id))
-  return {
-    comments: [...view.comments, ...unseen],
-    totalCount: view.totalCount + unseen.length
-  }
-}
 
 export function useDartTaskDetailData(
   task: DartTask | null,
@@ -55,7 +44,10 @@ export function useDartTaskDetailData(
   const [full, setFull] = useState<DartDetailLoadState<DartTask>>(LOADING_STATE)
   const [comments, setComments] = useState<DartDetailLoadState<DartCommentsView>>(LOADING_STATE)
   // Patches published while no read is on screen, so an edit shows over the opened row meanwhile.
-  const [rowPatch, setRowPatch] = useState<Partial<DartTask>>({})
+  const [rowPatch, setRowPatch] = useState<{ taskId: string | null; patch: Partial<DartTask> }>({
+    taskId: null,
+    patch: {}
+  })
   const rowPatchRef = useRef<Partial<DartTask>>({})
   const [config, setConfig] = useState<DartWorkspaceConfig | null>(null)
   const [supportsWritesV2, setSupportsWritesV2] = useState(false)
@@ -89,14 +81,13 @@ export function useDartTaskDetailData(
 
   useEffect(() => {
     rowPatchRef.current = {}
-    setRowPatch({})
     localCommentsRef.current = []
     if (!identity) {
       return
     }
     const apply = (patch: Partial<DartTask>): void => {
       rowPatchRef.current = { ...rowPatchRef.current, ...patch }
-      setRowPatch(rowPatchRef.current)
+      setRowPatch({ taskId: identity.taskId, patch: rowPatchRef.current })
       setFull((current) =>
         current.status === 'ready'
           ? { status: 'ready', value: { ...current.value, ...patch } }
@@ -161,6 +152,7 @@ export function useDartTaskDetailData(
     []
   )
 
+  // oxlint-disable-next-line react-doctor/no-derived-state-effect -- Why: this effect starts the reads; `loadedFor` records which task they answer.
   useEffect(() => {
     if (!taskId || !identity) {
       return
@@ -244,7 +236,12 @@ export function useDartTaskDetailData(
   const shownFull = isCurrent ? full : LOADING_STATE
   const shownComments = isCurrent ? comments : LOADING_STATE
   const displayed = useMemo(
-    () => (shownFull.status === 'ready' ? shownFull.value : task ? { ...task, ...rowPatch } : null),
+    () =>
+      shownFull.status === 'ready'
+        ? shownFull.value
+        : task
+          ? { ...task, ...(rowPatch.taskId === task.id ? rowPatch.patch : {}) }
+          : null,
     [shownFull, task, rowPatch]
   )
   const displayedRef = useRef(displayed)

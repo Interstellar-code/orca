@@ -251,7 +251,7 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
     [setDartFilter]
   )
 
-  // SAFETY: the fields added below are assigned right after this cast, before the model is returned.
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the fields added below are assigned right after this cast, before the model is returned.
   const nextModel = model as TModel & {
     dartFilters: typeof dartFilters
     setDartFilter: typeof setDartFilter

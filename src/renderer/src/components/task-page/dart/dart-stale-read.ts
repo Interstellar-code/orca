@@ -1,4 +1,6 @@
+import type { DartComment } from '../../../../../shared/dart/dart-types'
 import { isDartEpochCurrent, type DartEpochSnapshot } from '@/store/slices/dart/dart-task-identity'
+import type { DartCommentsView } from './TaskDetailView'
 
 const MAX_STALE_REREADS = 2
 
@@ -19,4 +21,16 @@ export async function readPastDartWrites<T>(args: {
     result = await args.read(true)
   }
   return { result, current: isDartEpochCurrent(captured) }
+}
+
+/** A comment just added must not vanish because a read does not list it yet. */
+export function withLocalComments(
+  view: DartCommentsView,
+  localComments: readonly DartComment[]
+): DartCommentsView {
+  const unseen = localComments.filter((local) => !view.comments.some((c) => c.id === local.id))
+  return {
+    comments: [...view.comments, ...unseen],
+    totalCount: view.totalCount + unseen.length
+  }
 }
