@@ -102,9 +102,7 @@ describe('dart write actions', () => {
 
   it('reports a thrown transport error as unknown, not as a refusal', async () => {
     const store = createTestStore()
-    vi.mocked(window.api.dart).updateTask = async () => {
-      throw new Error('socket closed')
-    }
+    runtime.host(null).transportError = new Error('socket closed')
 
     await expect(store.getState().updateDartTask(TASK_ID, { status: 'Done' })).resolves.toEqual({
       ok: false,

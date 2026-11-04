@@ -21,6 +21,8 @@ export class FakeDartHost {
   /** Applies the next writes, then loses the reply. */
   lostReplies: Failure[] = []
   failReads = false
+  /** The next write dies in transport after leaving the client. */
+  transportError: Error | null = null
   private gates: { method: string; release: Promise<void> }[] = []
 
   addTask(task: DartTask): void {
@@ -39,6 +41,11 @@ export class FakeDartHost {
   }
 
   private write(apply: () => object): object {
+    if (this.transportError) {
+      const error = this.transportError
+      this.transportError = null
+      throw error
+    }
     const refusal = this.refusals.shift()
     if (refusal) {
       return refusal
