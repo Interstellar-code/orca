@@ -56,6 +56,7 @@ export function useDartTaskDetailData(
   const taskId = task?.id ?? null
   const localCommentsRef = useRef<DartComment[]>([])
   const commentReadRef = useRef(0)
+  const latestTaskReadRef = useRef(0)
 
   // The context key is a dep because its session generation decides whose status the default scope trusts.
   const scope = useMemo(
@@ -154,6 +155,8 @@ export function useDartTaskDetailData(
 
   // oxlint-disable-next-line react-doctor/no-derived-state-effect -- Why: this effect starts the reads; `loadedFor` records which task they answer.
   useEffect(() => {
+    // The hook outlives a task switch, so a slow read of the last task must not land on this one.
+    latestTaskReadRef.current += 1
     if (!taskId || !identity) {
       return
     }
@@ -281,12 +284,13 @@ export function useDartTaskDetailData(
     if (!identity) {
       return noOpenDartTaskFailure()
     }
+    const latestTaskRead = ++latestTaskReadRef.current
     const { result, current } = await readPastDartWrites({
       captureEpoch: () => captureDartEpoch(identity),
       force: true,
       read: () => fetchDartTask(identity.taskId, { sourceContext, force: true })
     })
-    if (result.ok && current) {
+    if (result.ok && current && latestTaskRead === latestTaskReadRef.current) {
       const latest = { ...result.task, ...pendingDartPatches(identity) }
       setFull((shown) => (shown.status === 'ready' ? { status: 'ready', value: latest } : shown))
     }

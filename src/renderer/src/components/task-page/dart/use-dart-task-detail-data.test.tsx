@@ -4,6 +4,9 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DartComment } from '../../../../../shared/dart/dart-types'
 import type { TaskSourceContext } from '../../../../../shared/task-source-context'
+import { DART_WRITES_V2_RUNTIME_CAPABILITY } from '../../../../../shared/dart/dart-capabilities'
+import { createCompatibleRuntimeStatusResponse } from '@/runtime/runtime-compatibility-test-fixture'
+import { dartSupportsWritesV2ForTarget } from '@/runtime/runtime-dart-write-client'
 import { useAppStore } from '@/store'
 import {
   dartTaskFixture,
@@ -66,6 +69,28 @@ function withCommentsAndConfig(host: FakeDartHost, boardName: string) {
     return reply
   }
   return comments
+}
+
+/** The fake's hosts all advertise every capability; this one answers as a server without `dart.writes.v2`. */
+function withoutWritesV2(environmentId: string): void {
+  const { call } = window.api.runtimeEnvironments
+  Object.assign(window.api.runtimeEnvironments, {
+    call: (args: Parameters<typeof call>[0]) => {
+      if (args.method !== 'status.get' || args.selector !== environmentId) {
+        return call(args)
+      }
+      const reply = createCompatibleRuntimeStatusResponse(environmentId)
+      return Promise.resolve({
+        ...reply,
+        result: {
+          ...reply.result,
+          capabilities: reply.result.capabilities.filter(
+            (capability) => capability !== DART_WRITES_V2_RUNTIME_CAPABILITY
+          )
+        }
+      })
+    }
+  })
 }
 
 function sourceContext(env: string, userId: string | null = viewer.id): TaskSourceContext {
@@ -142,6 +167,24 @@ describe('useDartTaskDetailData', () => {
     expect(runtime.host(env).count('dart.updateTask')).toBe(0)
     expect(runtime.host(env).count('dart.config')).toBe(0)
     expect(hook.result.current.viewerName).toBeNull()
+  })
+
+  it('probes dart.writes.v2 on the detail’s host, whatever the page’s host has', async () => {
+    const onDetailHost = openDetail({ detailEnv: `probe-has-${nextHost}` })
+    withoutWritesV2(onDetailHost.env)
+    const supported = onDetailHost.mount()
+    await waitFor(() => expect(supported.result.current.supportsWritesV2).toBe(true))
+    cleanup()
+
+    const detailEnv = `probe-lacks-${nextHost}`
+    const onPageHost = openDetail({ detailEnv })
+    withoutWritesV2(detailEnv)
+    const unsupported = onPageHost.mount()
+    await waitFor(() => expect(unsupported.result.current.config).not.toBeNull())
+    await act(async () => {
+      await dartSupportsWritesV2ForTarget({ kind: 'environment', environmentId: detailEnv })
+    })
+    expect(unsupported.result.current.supportsWritesV2).toBe(false)
   })
 
   it('names the viewer only for the page’s own environment and account', async () => {
@@ -247,20 +290,74 @@ describe('useDartTaskDetailData', () => {
     expect(host.tasks.get(taskId)?.status).toBe('Done')
   })
 
-  it('re-reads at most twice when writes keep overtaking the read', async () => {
+  it('re-reads at most twice, then shows the last read with the edit over it', async () => {
     const { host, env, taskId, mount } = openDetail()
+    let reads = 0
     const handle = host.handle.bind(host)
     host.handle = (method, params) => {
       if (method === 'dart.getTask') {
+        reads += 1
+        host.addTask({ ...host.tasks.get(taskId)!, title: `Read ${reads}` })
         bumpDartEpochs({ hostKey: `runtime:${env}`, accountKey: viewer.id, taskId })
       }
       return handle(method, params)
     }
-
+    const releaseRead = host.hold('dart.getTask')
+    const releaseWrite = host.hold('dart.updateTask')
     const hook = mount()
+    await waitFor(() => expect(reads).toBe(1))
+    let write: Promise<unknown> = Promise.resolve()
+    act(() => {
+      write = hook.result.current.onUpdate({ status: 'Done' }, { status: 'Done' })
+    })
+
+    await act(async () => {
+      releaseRead()
+    })
 
     await waitFor(() => expect(hook.result.current.full.status).toBe('ready'))
-    expect(host.count('dart.getTask')).toBe(3)
+    expect(reads).toBe(3)
+    expect(hook.result.current.task?.title).toBe('Read 3')
+    expect(hook.result.current.task?.status).toBe('Done')
+
+    await act(async () => {
+      releaseWrite()
+      await write
+    })
+  })
+
+  it('does not show a slow latest read of the last task on the task opened since', async () => {
+    const { host, taskId, row, context } = openDetail()
+    const nextTaskId = `${taskId}Next`
+    host.addTask(dartTaskFixture(nextTaskId, { description: 'Next task description' }))
+    const hook = renderHook(({ task }) => useDartTaskDetailData(task, context), {
+      initialProps: { task: row }
+    })
+    await waitFor(() => expect(hook.result.current.full.status).toBe('ready'))
+    host.addTask({ ...host.tasks.get(taskId)!, description: 'Changed in Dart' })
+    const release = host.hold('dart.getTask')
+    let slowRead: ReturnType<typeof hook.result.current.readLatestTask> | undefined
+    act(() => {
+      slowRead = hook.result.current.readLatestTask()
+    })
+
+    hook.rerender({ task: dartTaskFixture(nextTaskId) })
+    await waitFor(() =>
+      expect(hook.result.current.description).toEqual({
+        status: 'ready',
+        value: 'Next task description'
+      })
+    )
+    await act(async () => {
+      release()
+      await slowRead
+    })
+
+    expect(hook.result.current.task?.id).toBe(nextTaskId)
+    expect(hook.result.current.description).toEqual({
+      status: 'ready',
+      value: 'Next task description'
+    })
   })
 
   it('shows Dart’s value for field B while field A keeps its pending edit', async () => {
