@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { TaskSourceContext } from '../../../../../shared/task-source-context'
+import { bumpProviderRuntimeSessionGeneration } from '@/lib/provider-runtime-context'
 import { getDartReadScope } from './dart-read-coordination'
 import {
   aliasPrefixesFor,
   bumpDartEpochs,
   captureDartEpoch,
   dartAccountIdentity,
+  dartScopeHostKey,
   dartScopeViewerId,
   dartTaskIdentity,
   dartTaskIdentityKey,
@@ -77,6 +79,18 @@ describe('dart task identity', () => {
     expect(aliasPrefixesFor(dartTaskIdentity(explicitScope, TASK_ID, 'user-a')).sort()).toEqual(
       [defaultScope.contextKey, explicitScope.cachePrefix].sort()
     )
+  })
+
+  it('keeps the same identity across a session generation bump', () => {
+    const settings = { activeRuntimeEnvironmentId: 'identity-generation' }
+    const context = explicitContext('identity-generation', 'user-a')
+    const before = dartTaskIdentity(getDartReadScope(settings, context), TASK_ID, 'user-a')
+
+    bumpProviderRuntimeSessionGeneration()
+
+    expect(dartTaskIdentity(getDartReadScope(settings, context), TASK_ID, 'user-a')).toEqual(before)
+    expect(before.hostKey).toBe('runtime:identity-generation')
+    expect(dartScopeHostKey(getDartReadScope(null))).toBe('local')
   })
 
   it('moves a default prefix when the same host later reads as a known account', () => {

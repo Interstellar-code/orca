@@ -7,6 +7,7 @@ import {
   dartTaskFixture,
   installFakeDartRuntime
 } from '@/store/slices/dart/dart-fake-runtime.test-support'
+import { bumpProviderRuntimeSessionGeneration } from '@/lib/provider-runtime-context'
 import { getDartReadScope } from '@/store/slices/dart/dart-read-coordination'
 import {
   dartAccountIdentity,
@@ -621,6 +622,27 @@ describe('dart task write queue: unknown outcome', () => {
 
     expect(afterWrite).toBeGreaterThan(updates)
     expect(page.detailShown.updates.length).toBe(afterWrite)
+  })
+
+  it('keeps the notice and the field block after switching host and back', async () => {
+    const page = await openPage()
+    page.host.lostReplies.push(LOST_REPLY)
+    await page.edit({ status: 'Doing' })
+    const writes = page.host.count('dart.updateTask')
+
+    bumpProviderRuntimeSessionGeneration()
+    bumpProviderRuntimeSessionGeneration()
+    const settings = page.store.getState().settings
+    const reopened = dartTaskIdentity(
+      getDartReadScope(settings, page.detailContext),
+      page.taskId,
+      viewer.id
+    )
+
+    expect(dartTaskWriteState(reopened).notice?.kind).toBe('unknown')
+    expect(dartTaskWriteState(reopened).pendingFields.has('status')).toBe(true)
+    await expect(page.edit({ status: 'Done' })).resolves.toMatchObject({ ok: false })
+    expect(page.host.count('dart.updateTask')).toBe(writes)
   })
 
   it('lifts the block only when the user dismisses the notice', async () => {

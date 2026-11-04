@@ -19,6 +19,13 @@ const remoteContext: TaskSourceContext = {
   providerIdentity: { provider: 'dart', userId: viewer.id }
 }
 
+const UNAUTHORIZED = {
+  ok: false,
+  error: 'Dart rejected the API token.',
+  errorCode: 'dart.unauthorized',
+  outcome: 'notApplied'
+} as const
+
 let runtime: ReturnType<typeof installFakeDartRuntime>
 
 beforeEach(() => {
@@ -112,15 +119,9 @@ describe('dart write actions', () => {
   })
 
   it('marks the connection lost on a 401 of the current host only', async () => {
-    const unauthorized = {
-      ok: false as const,
-      error: 'Dart rejected the API token.',
-      errorCode: 'dart.unauthorized' as const,
-      outcome: 'notApplied' as const
-    }
     const store = createTestStore()
     store.setState({ dartStatus: { connected: true, viewer } })
-    runtime.host(null).refusals.push(unauthorized)
+    runtime.host(null).refusals.push(UNAUTHORIZED)
     await store.getState().updateDartTask(TASK_ID, { status: 'Done' })
     expect(store.getState().dartStatus.connected).toBe(false)
 
@@ -130,7 +131,7 @@ describe('dart write actions', () => {
       settings: { ...switched.getState().settings!, activeRuntimeEnvironmentId: REMOTE }
     })
     const release = runtime.host(REMOTE).hold('dart.updateTask')
-    runtime.host(REMOTE).refusals.push(unauthorized)
+    runtime.host(REMOTE).refusals.push(UNAUTHORIZED)
     const pending = switched.getState().updateDartTask(TASK_ID, { status: 'Done' })
     await vi.waitFor(() => expect(runtime.host(REMOTE).count('dart.updateTask')).toBe(1))
     switched.setState({
@@ -139,6 +140,33 @@ describe('dart write actions', () => {
     release()
     await pending
     expect(switched.getState().dartStatus.connected).toBe(true)
+  })
+
+  it('marks the page disconnected on a 401 of an explicit scope on the page host', async () => {
+    const store = createTestStore()
+    store.setState({
+      dartStatus: { connected: true, viewer },
+      settings: { ...store.getState().settings!, activeRuntimeEnvironmentId: REMOTE }
+    })
+    runtime.host(REMOTE).refusals.push(UNAUTHORIZED)
+
+    await store
+      .getState()
+      .updateDartTask(TASK_ID, { status: 'Done' }, { sourceContext: remoteContext })
+
+    expect(store.getState().dartStatus).toEqual({ connected: false, viewer: null })
+  })
+
+  it('keeps the page connected on a 401 of an explicit scope on another host', async () => {
+    const store = createTestStore()
+    store.setState({ dartStatus: { connected: true, viewer } })
+    runtime.host(REMOTE).refusals.push(UNAUTHORIZED)
+
+    await store
+      .getState()
+      .updateDartTask(TASK_ID, { status: 'Done' }, { sourceContext: remoteContext })
+
+    expect(store.getState().dartStatus).toEqual({ connected: true, viewer })
   })
 
   it('drops a comments read that started before the comment was added', async () => {

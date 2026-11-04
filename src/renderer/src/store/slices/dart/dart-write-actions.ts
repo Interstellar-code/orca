@@ -10,9 +10,8 @@ import type { TaskSourceContext } from '../../../../../shared/task-source-contex
 import {
   beginDartMutation,
   getDartReadScope,
-  isCurrentDartRuntimeContext,
   isDartAuthLostFailure,
-  markDartConnectionLost,
+  isDartScopeOnPageHost,
   type DartReadScope
 } from './dart-read-coordination'
 import {
@@ -28,7 +27,7 @@ type DartWriteActions = Pick<
   'updateDartTask' | 'updateDartTaskDescription' | 'addDartComment' | 'createDartTask'
 >
 
-// Resolves the scope once, so a host switch mid-write cannot redirect it, and flags a lost connection only on the current host.
+// Resolves the scope once, so a host switch mid-write cannot redirect it, and flags a lost connection only on the page's host.
 async function runDartWrite<T extends object>(args: {
   set: DartSliceSet
   get: DartSliceGet
@@ -53,9 +52,9 @@ async function runDartWrite<T extends object>(args: {
   if (
     !result.ok &&
     isDartAuthLostFailure(result.errorCode) &&
-    isCurrentDartRuntimeContext(scope.contextKey, get().settings)
+    isDartScopeOnPageHost(scope, get().settings)
   ) {
-    markDartConnectionLost(set, scope)
+    set({ dartStatus: { connected: false, viewer: null } })
   }
   return result
 }

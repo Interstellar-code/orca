@@ -11,7 +11,7 @@ import {
   getProviderRuntimeContextKey
 } from '@/lib/provider-runtime-context'
 import { taskSourceRuntimeTarget } from '@/lib/task-source-runtime-target'
-import { runtimeTargetEnvironmentId } from '@/runtime/runtime-client-target'
+import { getRuntimeTargetHostId, runtimeTargetEnvironmentId } from '@/runtime/runtime-client-target'
 import type { CacheEntry } from '../../github/cache-model'
 import type { AppState } from '../../types'
 import type { DartSlice, DartSliceSet } from './dart-slice-contract'
@@ -132,6 +132,14 @@ export function markDartConnectionLost(set: DartSliceSet, scope: DartReadScope):
     return
   }
   set({ dartStatus: { connected: false, viewer: null } })
+}
+
+/** The page's status belongs to its host's token, so any scope on that host can prove it lost. */
+export function isDartScopeOnPageHost(
+  scope: Pick<DartReadScope, 'target'>,
+  settings: Pick<GlobalSettings, 'activeRuntimeEnvironmentId'> | null | undefined
+): boolean {
+  return getRuntimeTargetHostId(scope.target) === getRuntimeTargetHostId(defaultScopeHost(settings))
 }
 
 export function dartStatusUpdate(

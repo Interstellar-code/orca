@@ -1,5 +1,4 @@
-import { getEnvironmentRuntimeContextKey } from '@/lib/provider-runtime-context'
-import { runtimeTargetEnvironmentId } from '@/runtime/runtime-client-target'
+import { getRuntimeTargetHostId } from '@/runtime/runtime-client-target'
 import type { TaskSourceContext } from '../../../../../shared/task-source-context'
 import type { AppState } from '../../types'
 import type { DartReadScope } from './dart-read-coordination'
@@ -25,8 +24,9 @@ export type DartEpochSnapshot = {
 const aliasGroups = new Map<string, DartAccountIdentity>()
 const epochs = new Map<string, number>()
 
-function scopeHostKey(scope: DartReadScope): string {
-  return getEnvironmentRuntimeContextKey(runtimeTargetEnvironmentId(scope.target))
+/** `runtime:<id>` or `local`, with no session generation: notices, blocks and drafts must outlive a host switch and back. */
+export function dartScopeHostKey(scope: Pick<DartReadScope, 'target'>): string {
+  return getRuntimeTargetHostId(scope.target)
 }
 
 // Not `haveConflictingTaskSourceAccounts`: its "missing id never conflicts" rule would join A and B through an unknown alias.
@@ -53,7 +53,7 @@ export function dartAccountIdentity(
   scope: DartReadScope,
   viewerId: string | null | undefined
 ): DartAccountIdentity {
-  return { hostKey: scopeHostKey(scope), accountKey: dartAccountKey(viewerId) }
+  return { hostKey: dartScopeHostKey(scope), accountKey: dartAccountKey(viewerId) }
 }
 
 export function dartTaskIdentity(
