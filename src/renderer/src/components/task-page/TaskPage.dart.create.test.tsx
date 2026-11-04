@@ -55,7 +55,7 @@ function setUpFakeRuntime(): void {
   Object.assign(realWindow, { api })
   host = runtime.host(null)
   // The shared fake exposes no config method; this page test needs the page to load config for real.
-  Object.assign((realWindow.api as { dart: object }).dart, {
+  Object.assign(fakeApi.dart, {
     config: (params: Record<string, unknown> = {}) => host.handle('dart.config', params)
   })
   const originalHandle = host.handle.bind(host)

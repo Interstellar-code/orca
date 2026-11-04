@@ -7,15 +7,14 @@ import type {
 } from '../../../../../shared/dart/dart-types'
 import type { DartCreateTaskArgs } from '../../../../../shared/rpc-contract/dart-params'
 import { translate } from '@/i18n/i18n'
-import { taskProviderErrorMessage } from '@/lib/task-provider-error-copy'
 import { dartSupportsWritesV2ForTarget } from '@/runtime/runtime-dart-write-client'
 import { useAppStore } from '@/store'
 import { getDartReadScope } from '@/store/slices/dart/dart-read-coordination'
 import type { DartCreateDraft, DartCreateTaskModel, DartWriteNotice } from './dart-detail-contracts'
 import { dartCreateArgs, dartCreateRefusal, EMPTY_DART_CREATE_DRAFT } from './dart-create-request'
 import { lookupDartCreateMatches } from './dart-create-lookup'
+import { submitDartCreate } from './dart-create-submit'
 import type { DartListFilters } from './task-page-dart-list-model'
-
 export type TaskPageDartCreationInput = {
   taskSource?: string
   dartConnected: boolean
@@ -38,7 +37,7 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
   const settings = useAppStore((s) => s.settings)
 
   const [createOpen, setCreateOpen] = useState(false)
-  const [createDraft, setCreateDraftState] = useState<DartCreateDraft>(EMPTY_DART_CREATE_DRAFT)
+  const [createDraftState, setCreateDraftState] = useState<DartCreateDraft>(EMPTY_DART_CREATE_DRAFT)
   const [createSubmitting, setCreateSubmitting] = useState(false)
   const [createNotice, setCreateNotice] = useState<DartWriteNotice | null>(null)
   const [listChecked, setListChecked] = useState(false)
@@ -70,15 +69,15 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
     }
   }, [dartConnected, model.taskSource, settings])
 
+  const createDraft = useMemo(() => {
+    const board = dartFilters.dartboard ?? dartConfig?.dartboards[0] ?? ''
+    return createDraftState.dartboard || !board
+      ? createDraftState
+      : { ...createDraftState, dartboard: board }
+  }, [createDraftState, dartConfig?.dartboards, dartFilters.dartboard])
   const setCreateDraft = useCallback((patch: Partial<DartCreateDraft>) => {
     setCreateDraftState((current) => ({ ...current, ...patch }))
   }, [])
-  useEffect(() => {
-    const board = dartFilters.dartboard ?? dartConfig?.dartboards[0]
-    if (createOpen && !createDraft.dartboard && board) {
-      setCreateDraftState((current) => ({ ...current, dartboard: board }))
-    }
-  }, [createDraft.dartboard, createOpen, dartConfig?.dartboards, dartFilters.dartboard])
 
   const openCreate = useCallback(() => {
     if (!dartConnected || dartUpdateRequired) {
@@ -249,17 +248,13 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
       if (!dartConfig?.types.length) {
         delete args.type
       }
-      const result = await useAppStore.getState().createDartTask(args)
-      if (result.ok) {
-        finishCreate(result.task, contextKey)
-        return result
-      }
-      if (result.outcome === 'unknown') {
-        await reportUnknownOutcome()
-        return result
-      }
-      refuseCreate(taskProviderErrorMessage(result))
-      return result
+      return submitDartCreate(args, {
+        create: (createArgs) => useAppStore.getState().createDartTask(createArgs),
+        contextKey,
+        finishCreate,
+        refuseCreate,
+        reportUnknownOutcome
+      })
     },
     [dartConfig, finishCreate, refuseCreate, reportUnknownOutcome]
   )
@@ -289,17 +284,13 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
     if (!dartConfig?.types.length) {
       delete args.type
     }
-    const result = await useAppStore.getState().createDartTask(args)
-    if (result.ok) {
-      finishCreate(result.task, contextKey)
-      return result
-    }
-    if (result.outcome === 'unknown') {
-      await reportUnknownOutcome()
-      return result
-    }
-    refuseCreate(taskProviderErrorMessage(result))
-    return result
+    return submitDartCreate(args, {
+      create: (createArgs) => useAppStore.getState().createDartTask(createArgs),
+      contextKey,
+      finishCreate,
+      refuseCreate,
+      reportUnknownOutcome
+    })
   }, [
     canCreateAnyway,
     createDraft,
