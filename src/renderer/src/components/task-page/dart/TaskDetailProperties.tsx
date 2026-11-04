@@ -138,6 +138,7 @@ export function DartTaskDetailProperties({
         </MetadataItem>
         <MetadataItem label={translate('auto.components.task.page.dart.TaskDetail.start', 'Start')}>
           <DartDateField
+            key={task.id}
             label={translate('auto.components.task.page.dart.TaskDetail.start', 'Start')}
             value={task.startAt}
             editable={supportsWritesV2}
@@ -147,6 +148,7 @@ export function DartTaskDetailProperties({
         </MetadataItem>
         <MetadataItem label={translate('auto.components.task.page.dart.TaskDetail.due', 'Due')}>
           <DartDateField
+            key={task.id}
             label={translate('auto.components.task.page.dart.TaskDetail.due', 'Due')}
             value={task.dueAt}
             editable={supportsWritesV2}

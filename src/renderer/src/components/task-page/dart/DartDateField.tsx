@@ -23,6 +23,7 @@ export function DartDateField({
   const date = dartCalendarDate(value)
   const [draft, setDraft] = useState<string | null>(null)
   const reverting = useRef(false)
+  const input = useRef<HTMLInputElement>(null)
   if (!editable) {
     return <span>{formatDartDate(value, getIntlLocale()) ?? '—'}</span>
   }
@@ -45,6 +46,7 @@ export function DartDateField({
   return (
     <DartChipRow state={state}>
       <ImeInput
+        ref={input}
         type="date"
         aria-label={label}
         value={draft ?? date ?? ''}
@@ -56,7 +58,7 @@ export function DartDateField({
         onKeyDown={(event) => {
           if (event.key === 'Enter') {
             event.preventDefault()
-            event.currentTarget.blur()
+            commit(event.currentTarget.validity.badInput)
           } else if (event.key === 'Escape') {
             event.preventDefault()
             reverting.current = true
@@ -71,13 +73,23 @@ export function DartDateField({
         variant="ghost"
         size="icon-xs"
         className={date ? undefined : 'invisible'}
-        disabled={state.disabled || !date}
+        disabled={!date}
+        aria-disabled={state.disabled || undefined}
+        // Keeps the input focused, so pressing Clear does not blur and commit a draft first.
+        onMouseDown={(event) => event.preventDefault()}
         aria-label={translate(
           'auto.components.task.page.dart.DartDateField.clear',
           'Clear {{label}}',
           { label }
         )}
-        onClick={() => onChange(null)}
+        onClick={() => {
+          if (state.disabled) {
+            return
+          }
+          setDraft(null)
+          input.current?.focus()
+          onChange(null)
+        }}
       >
         <X className="size-3" />
       </Button>

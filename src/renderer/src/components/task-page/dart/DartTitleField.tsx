@@ -1,12 +1,13 @@
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { translate } from '@/i18n/i18n'
+import { cn } from '@/lib/utils'
 import { ImeTextarea } from '@/lib/ime-text-field'
 import { dartTextTooLargeMessage } from '@/runtime/runtime-dart-write-client'
 import { checkDartRequestText } from '../../../../../shared/dart/dart-text-limits'
 import { blockedFieldHint, DartPendingSlot, type DartFieldState } from './DartPropertyChips'
 
-/** Blur or Enter saves, Escape puts the saved title back. */
+/** Blur or Enter saves (Enter keeps focus), Escape puts the saved title back. */
 export function DartTitleField({
   title,
   state,
@@ -51,7 +52,10 @@ export function DartTitleField({
   }
   return (
     <div
-      className="flex items-start gap-1.5"
+      className={cn(
+        'flex items-start gap-1.5',
+        state.disabled && 'cursor-not-allowed opacity-60 [&_textarea]:pointer-events-none'
+      )}
       title={state.blocked ? blockedFieldHint() : undefined}
     >
       <ImeTextarea
@@ -66,7 +70,7 @@ export function DartTitleField({
         onKeyDown={(event) => {
           if (event.key === 'Enter') {
             event.preventDefault()
-            event.currentTarget.blur()
+            commit()
           } else if (event.key === 'Escape') {
             event.preventDefault()
             reverting.current = true

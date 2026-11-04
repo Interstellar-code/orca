@@ -507,6 +507,80 @@ describe('detail focus and escape while saving', () => {
   })
 })
 
+describe('detail fix round 2', () => {
+  it('ignores typeahead on a busy status select', async () => {
+    const user = userEvent.setup()
+    const { host } = openDetail()
+    const release = host.hold('dart.updateTask')
+    const status = await screen.findByRole('combobox', { name: 'Status' })
+    await chooseOption(user, 'Status', 'Done')
+    await waitFor(() => expect(status.getAttribute('aria-disabled')).toBe('true'))
+
+    status.focus()
+    await user.keyboard('t')
+    expect(host.count('dart.updateTask')).toBe(1)
+    release()
+  })
+
+  it('clears a dirty date draft with exactly one null write and keeps focus on the input', async () => {
+    const user = userEvent.setup()
+    const { host } = openDetail()
+    const due = await screen.findByLabelText('Due')
+    fireEvent.change(due, { target: { value: '2026-11-20' } })
+    fireEvent.blur(due)
+    await waitFor(() => expect(lastUpdate(host).updates).toEqual({ dueAt: '2026-11-20' }))
+    await waitFor(() => expect(due.hasAttribute('aria-disabled')).toBe(false))
+    const release = host.hold('dart.updateTask')
+
+    await user.click(due)
+    fireEvent.change(due, { target: { value: '2026-12-24' } })
+    const clear = screen.getByRole('button', { name: 'Clear Due' })
+    expect(fireEvent.mouseDown(clear)).toBe(false)
+    fireEvent.click(clear)
+
+    await waitFor(() => expect(lastUpdate(host).updates).toEqual({ dueAt: null }))
+    expect(host.count('dart.updateTask')).toBe(2)
+    expect(document.activeElement).toBe(due)
+    release()
+  })
+
+  it('keeps focus on the date and title after Enter while saving', async () => {
+    const user = userEvent.setup()
+    const { host } = openDetail()
+    const release = host.hold('dart.updateTask')
+    const start = await screen.findByLabelText('Start')
+
+    await user.click(start)
+    fireEvent.change(start, { target: { value: '2026-12-02' } })
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(lastUpdate(host).updates).toEqual({ startAt: '2026-12-02' }))
+    expect(document.activeElement).toBe(start)
+    release()
+    await waitFor(() => expect(start.hasAttribute('aria-disabled')).toBe(false))
+
+    const title = textarea(await screen.findByRole('textbox', { name: 'Title' }))
+    const releaseTitle = host.hold('dart.updateTask')
+    await user.clear(title)
+    await user.type(title, 'Renamed{Enter}')
+    await waitFor(() => expect(lastUpdate(host).updates).toEqual({ title: 'Renamed' }))
+    expect(document.activeElement).toBe(title)
+    releaseTitle()
+  })
+
+  it('dims a busy row and refuses pointer events on its controls', async () => {
+    const user = userEvent.setup()
+    const { host } = openDetail()
+    const release = host.hold('dart.updateTask')
+    const status = await screen.findByRole('combobox', { name: 'Status' })
+    expect(status.parentElement!.className).not.toContain('opacity-60')
+
+    await chooseOption(user, 'Status', 'Done')
+    await waitFor(() => expect(status.parentElement!.className).toContain('opacity-60'))
+    expect(status.parentElement!.className).toContain('cursor-not-allowed')
+    release()
+  })
+})
+
 describe('detail picker keyboard', () => {
   it('opens a picker with Enter, closes it with Escape and returns focus to its trigger', async () => {
     const user = userEvent.setup()

@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/select'
 import { LINEAR_EDIT_CHIP_CLASS } from '@/components/linear-item-drawer-edit-controls'
 import { translate } from '@/i18n/i18n'
+import { cn } from '@/lib/utils'
 
 const NONE_VALUE = '__dart-none__'
 
@@ -58,7 +59,11 @@ export function DartChipRow({
 }): React.JSX.Element {
   return (
     <div
-      className="flex min-w-0 items-center gap-1.5"
+      className={cn(
+        'flex min-w-0 items-center gap-1.5',
+        state.disabled &&
+          'cursor-not-allowed opacity-60 [&_button]:pointer-events-none [&_input]:pointer-events-none'
+      )}
       title={state.blocked ? blockedFieldHint() : undefined}
     >
       {children}
@@ -94,7 +99,8 @@ export function DartSelectChip({
     <DartChipRow state={state}>
       <Select
         value={value ?? NONE_VALUE}
-        onValueChange={(next) => onChange(next === NONE_VALUE ? null : next)}
+        // Typeahead on the closed trigger reaches here without opening, so the guard lives on the value path.
+        onValueChange={(next) => !state.disabled && onChange(next === NONE_VALUE ? null : next)}
         open={open}
         // A busy field stays focusable (aria-disabled) so a save never takes the keyboard away; it only refuses to open.
         onOpenChange={(next) => setOpen(next && !state.disabled)}
