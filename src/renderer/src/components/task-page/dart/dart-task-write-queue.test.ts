@@ -784,6 +784,41 @@ describe('dart task write queue: unknown outcome', () => {
     expect(page.state().notice?.kind).toBe('unknown')
   })
 
+  it('reports a description patch as pending until it settles, with nothing shown early', async () => {
+    const page = await openPage()
+    const release = page.host.hold('dart.updateTaskDescription')
+
+    const save = enqueueDartTaskWrite({
+      identity: page.identity,
+      previous: page.detailShown.task,
+      optimistic: {},
+      fields: ['description'],
+      write: () =>
+        page.store.getState().updateDartTaskDescription(
+          {
+            taskId: page.taskId,
+            updates: [{ type: 'replace', oldText: 'Original', newText: 'New' }]
+          },
+          { sourceContext: page.detailContext }
+        ),
+      refresh: () =>
+        page.store.getState().fetchDartTask(page.taskId, {
+          sourceContext: page.detailContext,
+          force: true
+        }),
+      patch: (patch) => page.store.getState().patchDartTask(page.identity, patch),
+      invalidateLists: () => page.store.getState().invalidateDartLists(page.identity)
+    })
+
+    expect(page.state().pendingFields.has('description')).toBe(true)
+    expect(page.detailShown.task.description).toBe('Original description')
+
+    release()
+    await save
+    expect(page.state().pendingFields.has('description')).toBe(false)
+    expect(page.detailShown.task.description).toBe('patched description')
+  })
+
   it('blocks a description write through the fields it names', async () => {
     const page = await openPage()
     page.host.lostReplies.push(LOST_REPLY)

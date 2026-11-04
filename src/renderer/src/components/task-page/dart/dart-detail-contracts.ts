@@ -61,6 +61,8 @@ export type DartDetailDescriptionApi = {
     updates: DartUpdateTaskDescriptionArgs['updates']
   ): Promise<DartWriteResult<{ task: DartTask }>>
   registerCloseGuard(guard: () => boolean | Promise<boolean>): () => void
+  /** Writes queued or in flight: Save stays disabled, or a second patch could insert text twice. */
+  pendingFields: ReadonlySet<string>
   blockedFields: ReadonlySet<string>
   /** Task-wide: act on it only when `notice.notice?.field === 'description'`. */
   notice: DartNoticeApi
