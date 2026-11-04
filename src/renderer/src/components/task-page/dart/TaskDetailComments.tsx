@@ -1,18 +1,35 @@
+import { useState } from 'react'
 import CommentMarkdown from '@/components/sidebar/CommentMarkdown'
+import { Button } from '@/components/ui/button'
 import { formatUiRelativeTimeFromDate } from '@/i18n/relative-time-format'
 import { translate } from '@/i18n/i18n'
+import type { DartComment } from '../../../../../shared/dart/dart-types'
+import { DartCommentComposer } from './DartCommentComposer'
+import { buildDartCommentThread } from './dart-comment-thread'
+import type { DartDetailCommentsApi } from './dart-detail-contracts'
 import { InlineError, SkeletonLines } from './TaskDetailLoadStates'
 import { SectionHeading } from './TaskDetailSectionHeading'
-import type { DartDetailCommentsApi } from './dart-detail-contracts'
 
-export function DartTaskDetailComments({
+// Replies step in by one avatar width; deeper threads stay readable on a narrow sheet.
+const REPLY_INDENT = 16
+const MAX_INDENT_DEPTH = 6
+
+export function DartTaskDetailComments(
+  props: DartDetailCommentsApi & { onRetry: () => void }
+): React.JSX.Element {
+  return <DartTaskDetailCommentsForTask key={props.draftKey} {...props} />
+}
+
+function DartTaskDetailCommentsForTask({
   comments,
-  onAddComment: _onAddComment,
-  reloadComments: _reloadComments,
-  appendLocalComment: _appendLocalComment,
-  draftKey: _draftKey,
+  onAddComment,
+  reloadComments,
+  appendLocalComment,
+  draftKey,
   onRetry
 }: DartDetailCommentsApi & { onRetry: () => void }): React.JSX.Element {
+  const [replyTo, setReplyTo] = useState<DartComment | null>(null)
+
   return (
     <section className="space-y-3 border-t border-border/60 px-4 py-4">
       <SectionHeading>
@@ -34,8 +51,13 @@ export function DartTaskDetailComments({
         </p>
       ) : null}
       {comments.status === 'ready'
-        ? comments.value.comments.map((comment) => (
-            <article key={comment.id} className="flex gap-2.5">
+        ? buildDartCommentThread(comments.value.comments).map(({ comment, depth }) => (
+            <article
+              key={comment.id}
+              data-depth={depth}
+              className="flex gap-2.5"
+              style={{ paddingLeft: Math.min(depth, MAX_INDENT_DEPTH) * REPLY_INDENT }}
+            >
               <span
                 aria-hidden
                 className="flex size-6 flex-none items-center justify-center rounded-full bg-muted text-2xs font-medium text-muted-foreground"
@@ -43,11 +65,25 @@ export function DartTaskDetailComments({
                 {comment.author.trim().charAt(0).toUpperCase() || '?'}
               </span>
               <div className="min-w-0 flex-1">
-                <div className="text-2xs text-muted-foreground">
-                  <span className="font-medium text-foreground">{comment.author}</span>
-                  {comment.createdAt
-                    ? ` · ${formatUiRelativeTimeFromDate(comment.createdAt)}`
-                    : null}
+                <div className="flex items-baseline gap-2 text-2xs text-muted-foreground">
+                  <span className="min-w-0 truncate">
+                    <span className="font-medium text-foreground">{comment.author}</span>
+                    {comment.createdAt
+                      ? ` · ${formatUiRelativeTimeFromDate(comment.createdAt)}`
+                      : null}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    className="ms-auto"
+                    onClick={() => setReplyTo(comment)}
+                  >
+                    {translate(
+                      'auto.components.right.sidebar.checks.panel.content.c1f6fc006a',
+                      'Reply'
+                    )}
+                  </Button>
                 </div>
                 <CommentMarkdown
                   content={comment.text}
@@ -70,6 +106,14 @@ export function DartTaskDetailComments({
           )}
         </p>
       ) : null}
+      <DartCommentComposer
+        draftKey={draftKey}
+        replyTo={replyTo}
+        onCancelReply={() => setReplyTo(null)}
+        onAddComment={onAddComment}
+        reloadComments={reloadComments}
+        appendLocalComment={appendLocalComment}
+      />
     </section>
   )
 }
