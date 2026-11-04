@@ -28,8 +28,8 @@ export function DartTaskDetailProperties({
   task,
   openUrl: _openUrl,
   onUpdate: _onUpdate,
-  pendingFields,
-  blockedFields,
+  pendingFields: _pendingFields,
+  blockedFields: _blockedFields,
   config: _config,
   supportsWritesV2: _supportsWritesV2,
   viewerName: _viewerName
@@ -37,10 +37,7 @@ export function DartTaskDetailProperties({
   const due = formatDueDate(task.dueAt)
   return (
     <>
-      <dl
-        aria-busy={pendingFields.size > 0 || blockedFields.size > 0}
-        className="grid grid-cols-2 gap-x-4 gap-y-3 border-b border-border/60 px-4 py-3 sm:grid-cols-4"
-      >
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-3 border-b border-border/60 px-4 py-3 sm:grid-cols-4">
         <MetadataItem
           label={translate('auto.components.task.page.dart.TaskDetail.status', 'Status')}
         >

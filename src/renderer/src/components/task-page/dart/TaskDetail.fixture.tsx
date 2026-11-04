@@ -9,6 +9,7 @@ import type {
   DartWriteNotice
 } from './dart-detail-contracts'
 import { fixtureComments, fixtureDetailTask } from './dart-task.mock'
+import { getDartTaskOpenUrl } from './task-page-dart-list-model'
 import { DartTaskDetailView, type DartTaskDetailViewProps } from './TaskDetailView'
 
 const linkedWorkspace = {
@@ -33,7 +34,7 @@ function fixtureProps(
     notice?: DartWriteNotice | null
   } = {}
 ): DartTaskDetailViewProps {
-  const openUrl = task.htmlUrl || null
+  const openUrl = getDartTaskOpenUrl(task)
   const notice = fixtureNotice(options.notice ?? null)
   const edit: DartDetailEditApi = {
     task,
@@ -133,7 +134,7 @@ export const refusedNotice = defineFixture({
           notice: {
             kind: 'refused',
             field: 'priority',
-            message: 'Dart did not accept this change. The priority was put back.'
+            message: 'Dart did not accept this change.'
           }
         })}
         workspaces={[linkedWorkspace]}

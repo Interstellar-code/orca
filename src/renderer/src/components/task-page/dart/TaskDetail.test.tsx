@@ -1,28 +1,32 @@
 // @vitest-environment happy-dom
 
 import { useEffect } from 'react'
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { TaskSourceContext } from '../../../../../shared/task-source-context'
-import { TooltipProvider } from '@/components/ui/tooltip'
-import { useAppStore } from '@/store'
-import {
-  dartTaskFixture,
-  installFakeDartRuntime,
-  type FakeDartHost
-} from '@/store/slices/dart/dart-fake-runtime.test-support'
-import { getDartReadScope } from '@/store/slices/dart/dart-read-coordination'
 import type { DartDetailDescriptionApi, DartDetailEditApi } from './dart-detail-contracts'
-import { TaskPageDartTaskDetail } from './TaskDetail'
+import {
+  openRenderedDartDetail,
+  setUpRenderedDartDetail,
+  tearDownRenderedDartDetail
+} from './dart-task-detail.test-support'
 
 // The editors arrive in later tasks; these probes stand in for them to drive the wiring they will use.
-const probe = vi.hoisted(() => ({ guard: (): boolean => true }))
+const probe = vi.hoisted(() => ({
+  guard: (): boolean | Promise<boolean> => true
+}))
 
 vi.mock('./TaskDetailDescription', () => ({
-  DartTaskDetailDescription: ({ registerCloseGuard }: DartDetailDescriptionApi) => {
+  DartTaskDetailDescription: ({ registerCloseGuard, onSavePatch }: DartDetailDescriptionApi) => {
     useEffect(() => registerCloseGuard(() => probe.guard()), [registerCloseGuard])
-    return null
+    return (
+      <button
+        type="button"
+        onClick={() => void onSavePatch([{ type: 'replace', oldText: 'Original', newText: 'New' }])}
+      >
+        save patch
+      </button>
+    )
   }
 }))
 
@@ -42,93 +46,15 @@ vi.mock('./TaskDetailProperties', () => ({
   )
 }))
 
-const viewer = { id: 'user-a', name: 'Alex Example' }
-const realWindow = window
-let runtime: ReturnType<typeof installFakeDartRuntime>
-let nextHost = 0
-
-function sourceContext(env: string): TaskSourceContext {
-  return {
-    kind: 'task-source',
-    provider: 'dart',
-    projectId: 'project-1',
-    hostId: `runtime:${env}`,
-    providerIdentity: { provider: 'dart', userId: viewer.id }
-  }
-}
-
-/** The shared fake answers neither comments nor config. */
-function answerCommentsAndConfig(host: FakeDartHost, boardName: string): void {
-  const handle = host.handle.bind(host)
-  host.handle = async (method, params) => {
-    if (method === 'dart.config') {
-      host.requests.push({ method, params })
-      return {
-        ok: true,
-        config: {
-          dartboards: [boardName],
-          statuses: ['To-do', 'Done'],
-          types: [],
-          tags: [],
-          priorities: [],
-          sizes: [],
-          assignees: []
-        }
-      }
-    }
-    if (method === 'dart.listComments') {
-      host.requests.push({ method, params })
-      return { ok: true, comments: [], totalCount: 0 }
-    }
-    return handle(method, params)
-  }
-}
-
-function openDetail(options: { detailEnv?: string; onClose?: () => void } = {}) {
-  nextHost += 1
-  const pageEnv = `page-host-${nextHost}`
-  const detailEnv = options.detailEnv ?? pageEnv
-  const taskId = `taskSheet${String(nextHost).padStart(3, '0')}`
-  const host = runtime.host(detailEnv)
-  answerCommentsAndConfig(host, `Board of ${detailEnv}`)
-  const task = dartTaskFixture(taskId, { description: 'Original description' })
-  host.addTask(task)
-  const settings = { ...useAppStore.getState().settings!, activeRuntimeEnvironmentId: pageEnv }
-  useAppStore.setState({
-    settings,
-    dartStatus: { connected: true, viewer },
-    dartStatusChecked: true,
-    dartStatusContextKey: getDartReadScope(settings).contextKey
-  })
-  const onClose = options.onClose ?? vi.fn()
-  render(
-    <TooltipProvider>
-      <TaskPageDartTaskDetail
-        task={task}
-        sourceContext={sourceContext(detailEnv)}
-        workspaces={[]}
-        onUse={vi.fn()}
-        onClose={onClose}
-        onOpenWorkspace={vi.fn()}
-      />
-    </TooltipProvider>
-  )
-  return { pageEnv, detailEnv, host, onClose }
-}
+let runtime: ReturnType<typeof setUpRenderedDartDetail>
+const openDetail = openRenderedDartDetail
 
 beforeEach(() => {
   probe.guard = () => true
-  runtime = installFakeDartRuntime()
-  // The fake stubs a bare `window`, which React DOM cannot render into, so its API moves onto the real one.
-  const api = window.api
-  vi.stubGlobal('window', realWindow)
-  Object.assign(realWindow, { api })
+  runtime = setUpRenderedDartDetail()
 })
 
-afterEach(() => {
-  cleanup()
-  vi.unstubAllGlobals()
-})
+afterEach(tearDownRenderedDartDetail)
 
 describe('TaskPageDartTaskDetail close guard', () => {
   it('stays open while a guard refuses and closes once it allows', async () => {
@@ -149,6 +75,54 @@ describe('TaskPageDartTaskDetail close guard', () => {
   })
 })
 
+describe('TaskPageDartTaskDetail pending close guard', () => {
+  it('runs one guard pass for a double close', async () => {
+    const user = userEvent.setup()
+    const { onClose } = openDetail()
+    let settle: (allowed: boolean) => void = () => {}
+    let runs = 0
+    probe.guard = () => {
+      runs += 1
+      return new Promise<boolean>((resolve) => (settle = resolve))
+    }
+    const close = await screen.findByRole('button', { name: 'Close Dart task preview' })
+
+    await user.click(close)
+    await user.click(close)
+    expect(runs).toBe(1)
+
+    settle(true)
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+  })
+
+  it('drops an allowed close when the task changed while the guard was pending', async () => {
+    const user = userEvent.setup()
+    const { onClose, addTask, showTask } = openDetail()
+    let settle: (allowed: boolean) => void = () => {}
+    probe.guard = () => new Promise<boolean>((resolve) => (settle = resolve))
+    await user.click(await screen.findByRole('button', { name: 'Close Dart task preview' }))
+
+    showTask(addTask('b'))
+    settle(true)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('stays open when a guard rejects', async () => {
+    const user = userEvent.setup()
+    const { onClose } = openDetail()
+    probe.guard = () => Promise.reject(new Error('guard failed'))
+
+    await user.click(await screen.findByRole('button', { name: 'Close Dart task preview' }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(onClose).not.toHaveBeenCalled()
+
+    probe.guard = () => true
+    await user.click(screen.getByRole('button', { name: 'Close Dart task preview' }))
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+  })
+})
+
 describe('TaskPageDartTaskDetail write notice', () => {
   it('shows a refused write as an alert that stays through other edits until dismissed', async () => {
     const user = userEvent.setup()
@@ -162,6 +136,7 @@ describe('TaskPageDartTaskDetail write notice', () => {
 
     await user.click(await screen.findByRole('button', { name: 'set status' }))
     const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain("Status wasn't saved:")
     expect(alert.textContent).toContain('rate limiting')
 
     await user.click(screen.getByRole('button', { name: 'set priority' }))
@@ -184,10 +159,14 @@ describe('TaskPageDartTaskDetail write notice', () => {
 
     await user.click(await screen.findByRole('button', { name: 'set status' }))
     const status = await screen.findByRole('status')
-    expect(status.textContent).toContain('Dart may have applied this change')
+    expect(status.textContent).toContain('Status: Dart may have applied this change')
     expect(screen.queryByRole('alert')).toBeNull()
 
+    const releaseRead = host.hold('dart.getTask')
     await user.click(within(status).getByRole('button', { name: 'Check again' }))
+    const checking = await screen.findByRole('button', { name: 'Checking…' })
+    expect(checking.hasAttribute('disabled')).toBe(true)
+    releaseRead()
     await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Last checked'))
 
     await user.click(screen.getByRole('button', { name: 'set priority' }))
@@ -199,9 +178,26 @@ describe('TaskPageDartTaskDetail write notice', () => {
   })
 })
 
+describe('TaskPageDartTaskDetail description notice', () => {
+  it('leaves a description notice to the description section', async () => {
+    const user = userEvent.setup()
+    const { host } = openDetail()
+    host.refusals.push({
+      ok: false,
+      error: 'Dart did not accept this change.',
+      errorCode: 'dart.descriptionPatchRefused',
+      outcome: 'notApplied'
+    })
+
+    await user.click(await screen.findByRole('button', { name: 'save patch' }))
+    await waitFor(() => expect(host.count('dart.updateTaskDescription')).toBe(1))
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+})
+
 describe('TaskPageDartTaskDetail scope', () => {
   it('reads the task, comments and config in its own scope, not the page’s', async () => {
-    const { host, pageEnv } = openDetail({ detailEnv: `detail-only-${nextHost + 1}` })
+    const { host, pageEnv } = openDetail({ detailEnv: `detail-only-${Date.now()}` })
 
     await waitFor(() => expect(host.count('dart.config')).toBeGreaterThan(0))
     await waitFor(() => expect(host.count('dart.listComments')).toBeGreaterThan(0))
