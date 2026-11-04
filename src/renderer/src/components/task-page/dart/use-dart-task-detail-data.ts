@@ -21,6 +21,7 @@ import {
 } from '@/store/slices/dart/dart-task-identity'
 import { dartDraftKey } from './dart-draft-store'
 import type { DartDetailCommentsApi, DartDetailDescriptionApi } from './dart-detail-contracts'
+/* eslint-disable max-lines -- Why: task-detail read coordination and stale-read reconciliation must stay together to preserve task-switch ordering. */
 import { readPastDartWrites, withLocalComments } from './dart-stale-read'
 import { pendingDartPatches, subscribeDartTaskWrites } from './dart-task-write-queue'
 import { getDartTaskOpenUrl } from './task-page-dart-list-model'

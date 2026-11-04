@@ -46,7 +46,7 @@ const EMPTY_STATE: DartCommentSendState = {
   blocked: false,
   reconciled: false,
   notice: null,
-  noticeIsSize: false,
+  noticeIsSize: false
 }
 
 const states = new Map<string, DartCommentSendState>()
@@ -73,7 +73,9 @@ export function patchDartCommentSendState(
 ): void {
   const current = getDartCommentSendState(draftKey)
   const merged = { ...current, ...(typeof next === 'function' ? next(current) : next) }
-  const keys = Object.keys(merged) as (keyof DartCommentSendState)[]
+  const keys: (keyof DartCommentSendState)[] = Object.keys(merged).filter(
+    (key): key is keyof DartCommentSendState => key in EMPTY_STATE
+  )
   if (keys.every((key) => merged[key] === current[key])) {
     return
   }
