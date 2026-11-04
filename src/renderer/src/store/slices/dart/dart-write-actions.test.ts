@@ -170,6 +170,24 @@ describe('dart write actions', () => {
     expect(store.getState().dartStatus).toEqual({ connected: true, viewer })
   })
 
+  it('keeps a connection made while a write was in flight when the write comes back 401', async () => {
+    const store = createTestStore()
+    store.setState({ dartStatus: { connected: true, viewer } })
+    runtime.host(null).refusals.push(UNAUTHORIZED)
+    const release = runtime.host(null).hold('dart.updateTask')
+
+    const write = store.getState().updateDartTask(TASK_ID, { status: 'Done' })
+    await vi.waitFor(() => expect(runtime.host(null).count('dart.updateTask')).toBe(1))
+    const newViewer = { id: 'user-new', name: 'New Example' }
+    runtime.host(null).connection = { connected: true, viewer: newViewer }
+    await store.getState().connectDart({ apiToken: 'dsa_FAKE' })
+    release()
+
+    await expect(write).resolves.toMatchObject({ errorCode: 'dart.unauthorized' })
+    expect(store.getState().dartStatus.connected).toBe(true)
+    expect(store.getState().dartStatus.viewer).toMatchObject(newViewer)
+  })
+
   it('applies a status check that a task write settled during, after a host switch', async () => {
     const store = createTestStore()
     store.setState({ dartStatus: { connected: true, viewer }, dartStatusChecked: true })

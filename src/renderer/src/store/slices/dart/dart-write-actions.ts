@@ -9,6 +9,7 @@ import type { DartSlice, DartSliceGet, DartSliceSet } from './dart-slice-contrac
 import type { TaskSourceContext } from '../../../../../shared/task-source-context'
 import {
   beginDartMutation,
+  currentDartConnectionGeneration,
   getDartReadScope,
   isDartAuthLostFailure,
   isDartScopeOnPageHost,
@@ -38,6 +39,7 @@ async function runDartWrite<T extends object>(args: {
   const scope = getDartReadScope(get().settings, sourceContext)
   const viewerId = dartScopeViewerId(get(), scope, sourceContext)
   registerDartCacheAlias(scope, viewerId)
+  const connectionGeneration = currentDartConnectionGeneration()
   let result: DartWriteResult<T>
   try {
     result = await send(scope, viewerId)
@@ -52,7 +54,9 @@ async function runDartWrite<T extends object>(args: {
   if (
     !result.ok &&
     isDartAuthLostFailure(result.errorCode) &&
-    isDartScopeOnPageHost(scope, get().settings)
+    isDartScopeOnPageHost(scope, get().settings) &&
+    // A 401 for the old token says nothing about a connection made while the write was in flight.
+    connectionGeneration === currentDartConnectionGeneration()
   ) {
     set({ dartStatus: { connected: false, viewer: null } })
   }
