@@ -1,6 +1,10 @@
 import { cleanup, render } from '@testing-library/react'
 import { vi } from 'vitest'
-import type { DartTask } from '../../../../../shared/dart/dart-types'
+import type {
+  DartComment,
+  DartTask,
+  DartWorkspaceConfig
+} from '../../../../../shared/dart/dart-types'
 import type { TaskSourceContext } from '../../../../../shared/task-source-context'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useAppStore } from '@/store'
@@ -29,27 +33,20 @@ export function dartDetailSourceContext(env: string): TaskSourceContext {
 }
 
 /** The shared fake answers neither comments nor config. */
-function answerCommentsAndConfig(host: FakeDartHost, boardName: string): void {
+function answerCommentsAndConfig(
+  host: FakeDartHost,
+  config: DartWorkspaceConfig,
+  comments: readonly DartComment[]
+): void {
   const handle = host.handle.bind(host)
   host.handle = async (method, params) => {
     if (method === 'dart.config') {
       host.requests.push({ method, params })
-      return {
-        ok: true,
-        config: {
-          dartboards: [boardName],
-          statuses: ['To-do', 'Done'],
-          types: [],
-          tags: [],
-          priorities: [],
-          sizes: [],
-          assignees: []
-        }
-      }
+      return { ok: true, config }
     }
     if (method === 'dart.listComments') {
       host.requests.push({ method, params })
-      return { ok: true, comments: [], totalCount: 0 }
+      return { ok: true, comments: [...comments], totalCount: comments.length }
     }
     return handle(method, params)
   }
@@ -72,12 +69,31 @@ export function tearDownRenderedDartDetail(): void {
 }
 
 /** Renders the real `TaskPageDartTaskDetail` on a fake host; the page itself sits on `pageEnv`, the detail on `detailEnv`. */
-export function openRenderedDartDetail(options: { detailEnv?: string; onClose?: () => void } = {}) {
+export function openRenderedDartDetail(
+  options: {
+    detailEnv?: string
+    onClose?: () => void
+    config?: DartWorkspaceConfig
+    comments?: readonly DartComment[]
+  } = {}
+) {
   nextHost += 1
   const pageEnv = `page-host-${nextHost}`
   const detailEnv = options.detailEnv ?? pageEnv
   const host = runtime.host(detailEnv)
-  answerCommentsAndConfig(host, `Board of ${detailEnv}`)
+  answerCommentsAndConfig(
+    host,
+    options.config ?? {
+      dartboards: [`Board of ${detailEnv}`],
+      statuses: ['To-do', 'Done'],
+      types: [],
+      tags: [],
+      priorities: [],
+      sizes: [],
+      assignees: []
+    },
+    options.comments ?? []
+  )
   const addTask = (suffix: string): DartTask => {
     const task = dartTaskFixture(`taskSheet${String(nextHost).padStart(3, '0')}${suffix}`, {
       description: 'Original description'

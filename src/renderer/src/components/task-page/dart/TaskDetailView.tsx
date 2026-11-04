@@ -55,7 +55,11 @@ export function DartTaskDetailView({
 
       <div className="min-h-0 flex-1 overflow-y-auto scrollbar-sleek">
         {/* The description editor shows its own notices. */}
-        {notice.notice?.field === 'description' ? null : <DartTaskDetailNotice {...notice} />}
+        {notice.notice && notice.notice.field !== 'description' ? (
+          <div className="mx-4 mt-3">
+            <DartTaskDetailNotice {...notice} />
+          </div>
+        ) : null}
         <DartTaskDetailProperties {...edit} />
 
         <DartTaskDetailDescription {...descriptionApi} onRetry={onRetry} />

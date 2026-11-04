@@ -1,10 +1,12 @@
 // @vitest-environment happy-dom
 
 import { useEffect } from 'react'
-import { act, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { Button } from '@/components/ui/button'
 import type { DartDetailDescriptionApi, DartDetailEditApi } from './dart-detail-contracts'
+import { DartTaskDetailNotice } from './TaskDetailNotice'
 import {
   openRenderedDartDetail,
   setUpRenderedDartDetail,
@@ -175,6 +177,34 @@ describe('TaskPageDartTaskDetail write notice', () => {
 
     await user.click(within(screen.getByRole('status')).getByRole('button', { name: 'Dismiss' }))
     expect(screen.queryByRole('status')).toBeNull()
+  })
+})
+
+describe('DartTaskDetailNotice actions', () => {
+  it('renders a section action before Dismiss and keeps it clickable', async () => {
+    const user = userEvent.setup()
+    const onCopy = vi.fn()
+    render(
+      <DartTaskDetailNotice
+        notice={{
+          kind: 'refused',
+          field: 'description',
+          message: 'Dart did not accept this change.'
+        }}
+        dismissNotice={vi.fn()}
+        recheckNotice={() => Promise.resolve()}
+        actions={
+          <Button type="button" variant="outline" size="xs" onClick={onCopy}>
+            Copy my text
+          </Button>
+        }
+      />
+    )
+
+    const buttons = within(screen.getByRole('alert')).getAllByRole('button')
+    expect(buttons.map((button) => button.textContent)).toEqual(['Copy my text', 'Dismiss'])
+    await user.click(buttons[0])
+    expect(onCopy).toHaveBeenCalledTimes(1)
   })
 })
 

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AlertTriangle, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getIntlLocale, translate } from '@/i18n/i18n'
@@ -63,9 +63,20 @@ export function DartTaskDetailNotice({
   notice,
   dismissNotice,
   recheckNotice,
-  actions
-}: DartNoticeApi & { actions?: React.ReactNode }): React.JSX.Element | null {
+  actions,
+  className
+}: DartNoticeApi & { actions?: React.ReactNode; className?: string }): React.JSX.Element | null {
   const [checking, setChecking] = useState(false)
+  const [showChecking, setShowChecking] = useState(false)
+  // A quick read stays clean; only a slow one gets the label swap.
+  useEffect(() => {
+    if (!checking) {
+      setShowChecking(false)
+      return
+    }
+    const timer = setTimeout(() => setShowChecking(true), 200)
+    return () => clearTimeout(timer)
+  }, [checking])
   if (!notice) {
     return null
   }
@@ -84,8 +95,9 @@ export function DartTaskDetailNotice({
     <div
       role={refused ? 'alert' : 'status'}
       className={cn(
-        'mx-4 mt-3 flex items-start gap-2 rounded-md border px-2.5 py-1.5 text-xs',
-        refused ? 'border-destructive/30 bg-destructive/10' : 'border-border/50 bg-muted/35'
+        'flex items-start gap-2 rounded-md border px-2.5 py-1.5 text-xs',
+        refused ? 'border-destructive/30 bg-destructive/10' : 'border-border/50 bg-muted/35',
+        className
       )}
     >
       <Icon className={cn('mt-0.5 size-3.5 flex-none', tone)} />
@@ -103,18 +115,28 @@ export function DartTaskDetailNotice({
       </div>
       {notice.kind === 'unknown' ? (
         <Button type="button" variant="outline" size="xs" disabled={checking} onClick={recheck}>
-          {checking
-            ? translate('auto.components.task.page.dart.TaskDetailNotice.checking', 'Checking…')
-            : translate(
+          <span className="grid">
+            <span
+              aria-hidden={showChecking}
+              className={cn('col-start-1 row-start-1', showChecking && 'invisible')}
+            >
+              {translate(
                 'auto.components.task.page.dart.TaskDetailNotice.checkAgain',
                 'Check again'
               )}
+            </span>
+            {showChecking ? (
+              <span className="col-start-1 row-start-1">
+                {translate('auto.components.task.page.dart.TaskDetailNotice.checking', 'Checking…')}
+              </span>
+            ) : null}
+          </span>
         </Button>
       ) : null}
+      {actions}
       <Button type="button" variant="ghost" size="xs" onClick={dismissNotice}>
         {translate('auto.components.task.page.dart.TaskDetailNotice.dismiss', 'Dismiss')}
       </Button>
-      {actions}
     </div>
   )
 }
