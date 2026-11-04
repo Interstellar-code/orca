@@ -476,9 +476,22 @@ describe('runtime Dart client writes', () => {
       updateTaskLocal.mockResolvedValue(okTask())
       await dartUpdateTaskForTarget({ kind: 'local' }, TASK_ID, {
         status: 'Doing',
-        // @ts-expect-error -- DartFieldUpdates has no description
+        // @ts-expect-error -- DartFieldUpdates refuses a description
         description: 'x'
       })
+
+      expect(updateTaskLocal).toHaveBeenCalledWith({
+        taskId: TASK_ID,
+        updates: { status: 'Doing' }
+      })
+    })
+
+    it('refuses a description held in a variable at compile time and still strips it', async () => {
+      updateTaskLocal.mockResolvedValue(okTask())
+      const smuggled = { status: 'Doing', description: 'x' }
+
+      // @ts-expect-error -- a variable escapes the excess-property check; `description?: never` does not
+      await dartUpdateTaskForTarget({ kind: 'local' }, TASK_ID, smuggled)
 
       expect(updateTaskLocal).toHaveBeenCalledWith({
         taskId: TASK_ID,

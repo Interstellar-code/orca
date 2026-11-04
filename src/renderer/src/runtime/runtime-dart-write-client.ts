@@ -32,7 +32,9 @@ export type DartWriteOutcome = 'applied' | 'notApplied' | 'unknown'
 export type DartWriteFailure = DartClientFailure & { outcome: 'notApplied' | 'unknown' }
 export type DartWriteResult<T extends object> = ({ ok: true } & T) | DartWriteFailure
 /** No `description`: an existing task's description changes only through the targeted patch. */
-export type DartFieldUpdates = Omit<DartUpdateTaskArgs['updates'], 'description'>
+export type DartFieldUpdates = Omit<DartUpdateTaskArgs['updates'], 'description'> & {
+  description?: never
+}
 
 // Mirrors DART_WRITE_TIMEOUT_MS in web-dart-api.ts: the host allows 30 s per request and a write may read `/config` twice first.
 const DART_WRITE_TIMEOUT_MS = 100_000
@@ -235,8 +237,7 @@ export async function dartUpdateTaskForTarget(
     return refusal
   }
   // Runtime guard for untyped callers: a description never goes through dart.updateTask.
-  const { description: _dropped, ...fieldUpdates }: DartFieldUpdates & { description?: unknown } =
-    updates
+  const { description: _dropped, ...fieldUpdates } = updates
   const args: DartUpdateTaskArgs = { taskId, updates: fieldUpdates }
   return sanitizeTaskReply(
     await callDartWrite<{ task: DartTask }>(target, 'dart.updateTask', args, () =>
