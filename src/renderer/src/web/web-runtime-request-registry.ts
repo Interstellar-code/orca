@@ -28,12 +28,18 @@ export class WebRuntimeRequestRegistry {
         reject(new Error(`Request timed out: ${method}`))
       }, REQUEST_TIMEOUT_MS)
       this.pending.set(id, { method, resolve, reject, timeout })
-      if (
-        !this.options.sendEncrypted({ id, deviceToken: this.options.deviceToken, method, params })
-      ) {
+      try {
+        if (
+          !this.options.sendEncrypted({ id, deviceToken: this.options.deviceToken, method, params })
+        ) {
+          this.pending.delete(id)
+          window.clearTimeout(timeout)
+          reject(new Error('Remote Orca runtime is not connected.'))
+        }
+      } catch (error) {
         this.pending.delete(id)
         window.clearTimeout(timeout)
-        reject(new Error('Remote Orca runtime is not connected.'))
+        reject(error)
       }
     })
   }
@@ -87,18 +93,25 @@ export class WebRuntimeRequestRegistry {
         },
         timeout
       })
-      if (
-        !this.options.sendEncrypted({
-          id,
-          deviceToken: this.options.deviceToken,
-          method,
-          params
-        })
-      ) {
+      try {
+        if (
+          !this.options.sendEncrypted({
+            id,
+            deviceToken: this.options.deviceToken,
+            method,
+            params
+          })
+        ) {
+          this.pending.delete(id)
+          window.clearTimeout(timeout)
+          cleanup()
+          reject(new Error('Remote Orca runtime is not connected.'))
+        }
+      } catch (error) {
         this.pending.delete(id)
         window.clearTimeout(timeout)
         cleanup()
-        reject(new Error('Remote Orca runtime is not connected.'))
+        reject(error)
       }
     })
   }
