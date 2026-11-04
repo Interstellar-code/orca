@@ -1,0 +1,392 @@
+// @vitest-environment happy-dom
+
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { DartTask, DartWorkspaceConfig } from '../../../../../shared/dart/dart-types'
+import { DART_WRITES_V2_RUNTIME_CAPABILITY } from '../../../../../shared/dart/dart-capabilities'
+import { dartSupportsWritesV2ForTarget } from '@/runtime/runtime-dart-write-client'
+import { createCompatibleRuntimeStatusResponse } from '@/runtime/runtime-compatibility-test-fixture'
+import type { FakeDartHost } from '@/store/slices/dart/dart-fake-runtime.test-support'
+import {
+  dartDetailViewer,
+  openRenderedDartDetail,
+  setUpRenderedDartDetail,
+  tearDownRenderedDartDetail
+} from './dart-task-detail.test-support'
+
+vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
+
+const CONFIG: DartWorkspaceConfig = {
+  dartboards: ['Board A', 'Board B'],
+  statuses: ['To-do', 'Done'],
+  types: [],
+  tags: ['search', 'backend', 'billing'],
+  priorities: ['High', 'Medium', 'Low'],
+  sizes: ['1', '3', '5'],
+  assignees: [dartDetailViewer.name, 'Sam Example']
+}
+
+beforeEach(() => {
+  setUpRenderedDartDetail()
+  vi.mocked(toast.error).mockClear()
+})
+
+afterEach(tearDownRenderedDartDetail)
+
+function lastUpdate(host: FakeDartHost): { taskId?: string; updates?: Record<string, unknown> } {
+  return host.requests.findLast((request) => request.method === 'dart.updateTask')!.params
+}
+
+function taskOf(host: FakeDartHost, id: string): DartTask {
+  return host.tasks.get(id)!
+}
+
+function openDetail(options: Parameters<typeof openRenderedDartDetail>[0] = {}) {
+  return openRenderedDartDetail({ config: CONFIG, ...options })
+}
+
+/** A host that lacks `dart.writes.v2`, as an older server answers the capability probe. */
+function withoutWritesV2(environmentId: string): void {
+  const { call } = window.api.runtimeEnvironments
+  Object.assign(window.api.runtimeEnvironments, {
+    call: (args: Parameters<typeof call>[0]) => {
+      if (args.method !== 'status.get' || args.selector !== environmentId) {
+        return call(args)
+      }
+      const reply = createCompatibleRuntimeStatusResponse(environmentId)
+      return Promise.resolve({
+        ...reply,
+        result: {
+          ...reply.result,
+          capabilities: reply.result.capabilities?.filter(
+            (capability) => capability !== DART_WRITES_V2_RUNTIME_CAPABILITY
+          )
+        }
+      })
+    }
+  })
+}
+
+async function chooseOption(
+  user: ReturnType<typeof userEvent.setup>,
+  label: string,
+  option: string
+) {
+  await user.click(await screen.findByRole('combobox', { name: label }))
+  await user.click(await screen.findByRole('option', { name: option }))
+}
+
+describe('detail property editors', () => {
+  it('shows a chosen status before the reply and sends the canonical value once', async () => {
+    const user = userEvent.setup()
+    const { host, task } = openDetail()
+    const release = host.hold('dart.updateTask')
+
+    await chooseOption(user, 'Status', 'Done')
+
+    expect((await screen.findByRole('combobox', { name: 'Status' })).textContent).toContain('Done')
+    expect(host.count('dart.updateTask')).toBe(1)
+    expect(lastUpdate(host)).toMatchObject({ taskId: task.id, updates: { status: 'Done' } })
+    await act(async () => release())
+    await waitFor(() => expect(taskOf(host, task.id).status).toBe('Done'))
+  })
+
+  it('restores the old value and names the field when Dart refuses', async () => {
+    const user = userEvent.setup()
+    const { host } = openDetail()
+    host.refusals.push({
+      ok: false,
+      error: 'Dart refused.',
+      errorCode: 'dart.badRequest',
+      outcome: 'notApplied'
+    })
+
+    await chooseOption(user, 'Status', 'Done')
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain("Status wasn't saved:")
+    expect(screen.getByRole('combobox', { name: 'Status' }).textContent).toContain('To-do')
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('offers the options of the detail’s config', async () => {
+    const user = userEvent.setup()
+    openDetail({ config: { ...CONFIG, statuses: ['Alpha', 'Beta'] } })
+
+    await user.click(await screen.findByRole('combobox', { name: 'Status' }))
+    const options = await screen.findAllByRole('option')
+    expect(options.map((option) => option.textContent)).toEqual(['To-do', 'Alpha', 'Beta'])
+  })
+
+  it('sends null for priority None and for Unassigned', async () => {
+    const user = userEvent.setup()
+    const { host } = openDetail()
+
+    await chooseOption(user, 'Priority', 'None')
+    await waitFor(() => expect(lastUpdate(host).updates).toEqual({ priority: null }))
+
+    await user.click(await screen.findByRole('combobox', { name: 'Assignee' }))
+    await user.click(await screen.findByRole('option', { name: 'Sam Example' }))
+    await waitFor(() => expect(lastUpdate(host).updates).toEqual({ assignee: 'Sam Example' }))
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: 'Assignee' }).hasAttribute('disabled')).toBe(
+        false
+      )
+    )
+
+    await user.click(screen.getByRole('combobox', { name: 'Assignee' }))
+    await user.click(await screen.findByRole('option', { name: 'Unassigned' }))
+    await waitFor(() => expect(lastUpdate(host).updates).toEqual({ assignee: null }))
+  })
+
+  it('assigns to the viewer and hides that entry when the viewer is not in the config', async () => {
+    const user = userEvent.setup()
+    const { host } = openDetail()
+
+    await user.click(await screen.findByRole('combobox', { name: 'Assignee' }))
+    await user.click(await screen.findByRole('option', { name: 'Assign to me' }))
+    await waitFor(() =>
+      expect(lastUpdate(host).updates).toEqual({ assignee: dartDetailViewer.name })
+    )
+  })
+
+  it('omits Assign to me when the viewer is not a listed assignee', async () => {
+    const user = userEvent.setup()
+    openDetail({ config: { ...CONFIG, assignees: ['Sam Example'] } })
+
+    await user.click(await screen.findByRole('combobox', { name: 'Assignee' }))
+    await screen.findByRole('option', { name: 'Unassigned' })
+    expect(screen.queryByRole('option', { name: 'Assign to me' })).toBeNull()
+  })
+
+  it('sends the whole tag set on every change', async () => {
+    const user = userEvent.setup()
+    const { host } = openDetail()
+
+    await user.click(await screen.findByRole('button', { name: 'Tags' }))
+    await user.click(await screen.findByRole('option', { name: 'search' }))
+    await waitFor(() => expect(lastUpdate(host).updates).toEqual({ tags: ['search'] }))
+
+    await user.click(await screen.findByRole('option', { name: 'backend' }))
+    await waitFor(() => expect(lastUpdate(host).updates).toEqual({ tags: ['search', 'backend'] }))
+  })
+
+  it('sends a changed date as YYYY-MM-DD and clears it with null', async () => {
+    const user = userEvent.setup()
+    const { host } = openDetail()
+
+    fireEvent.change(await screen.findByLabelText('Due'), { target: { value: '2026-12-24' } })
+    await waitFor(() => expect(lastUpdate(host).updates).toEqual({ dueAt: '2026-12-24' }))
+
+    await user.click(await screen.findByRole('button', { name: 'Clear Due' }))
+    await waitFor(() => expect(lastUpdate(host).updates).toEqual({ dueAt: null }))
+  })
+
+  it('does not send a half-typed year', async () => {
+    const { host } = openDetail()
+    fireEvent.change(await screen.findByLabelText('Start'), { target: { value: '0002-11-04' } })
+    await act(async () => {})
+    expect(host.count('dart.updateTask')).toBe(0)
+  })
+
+  it('shows size and dates as text on a host without writes v2', async () => {
+    const detailEnv = `old-host-${Date.now()}`
+    withoutWritesV2(detailEnv)
+    const { host } = openDetail({ detailEnv })
+    host.addTask({
+      ...host.tasks.values().next().value!,
+      size: '3',
+      dueAt: '2026-11-20T00:00:00.000Z'
+    })
+    await waitFor(() => expect(host.count('dart.config')).toBeGreaterThan(0))
+    await screen.findByRole('combobox', { name: 'Status' })
+    await act(async () => {
+      await dartSupportsWritesV2ForTarget({ kind: 'environment', environmentId: detailEnv })
+    })
+
+    await waitFor(() => expect(screen.queryByLabelText('Due')).toBeNull())
+    expect(screen.queryByRole('combobox', { name: 'Size' })).toBeNull()
+    expect(screen.queryByLabelText('Start')).toBeNull()
+  })
+
+  it('shows the status the server returned after a dartboard move', async () => {
+    const user = userEvent.setup()
+    const { host, task } = openDetail()
+    const handle = host.handle.bind(host)
+    host.handle = async (method, params) => {
+      const reply = await handle(method, params)
+      if (method === 'dart.updateTask' && 'task' in reply) {
+        const moved = { ...taskOf(host, task.id), status: 'Done' }
+        host.tasks.set(task.id, moved)
+        return { ok: true, task: moved }
+      }
+      return reply
+    }
+
+    await user.click(await screen.findByRole('combobox', { name: 'Dartboard' }))
+    await user.click(await screen.findByRole('option', { name: 'Board B' }))
+
+    await waitFor(() => expect(lastUpdate(host).updates).toEqual({ dartboard: 'Board B' }))
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: 'Status' }).textContent).toContain('Done')
+    )
+  })
+})
+
+describe('detail title editor', () => {
+  it('saves on Enter, trimmed, and reverts on Escape', async () => {
+    const user = userEvent.setup()
+    const { host } = openDetail()
+    const title = await screen.findByRole('textbox', { name: 'Title' })
+
+    await user.clear(title)
+    await user.type(title, 'Discarded{Escape}')
+    expect((title as HTMLTextAreaElement).value).toBe('Example task')
+    expect(host.count('dart.updateTask')).toBe(0)
+
+    await user.clear(title)
+    await user.type(title, '  New title  {Enter}')
+    await waitFor(() => expect(lastUpdate(host).updates).toEqual({ title: 'New title' }))
+  })
+
+  it('refuses an empty or too long title with a toast and keeps the saved one', async () => {
+    const user = userEvent.setup()
+    const { host } = openDetail()
+    const title = (await screen.findByRole('textbox', { name: 'Title' })) as HTMLTextAreaElement
+
+    await user.clear(title)
+    await user.keyboard('{Enter}')
+    expect(toast.error).toHaveBeenCalledTimes(1)
+    expect(title.value).toBe('Example task')
+
+    fireEvent.change(title, { target: { value: 'x'.repeat(501) } })
+    fireEvent.blur(title)
+    expect(toast.error).toHaveBeenCalledTimes(2)
+    expect(host.count('dart.updateTask')).toBe(0)
+  })
+
+  it('does not save on the Enter that confirms an IME candidate', async () => {
+    const { host } = openDetail()
+    const title = (await screen.findByRole('textbox', { name: 'Title' })) as HTMLTextAreaElement
+
+    fireEvent.compositionStart(title)
+    fireEvent.change(title, { target: { value: 'にほん' } })
+    fireEvent.keyDown(title, { key: 'Enter', keyCode: 229, isComposing: true })
+    expect(host.count('dart.updateTask')).toBe(0)
+    expect(title.value).toBe('にほん')
+
+    fireEvent.compositionEnd(title, { data: 'にほん' })
+    fireEvent.blur(title)
+    await waitFor(() => expect(lastUpdate(host).updates).toEqual({ title: 'にほん' }))
+  })
+})
+
+describe('detail editor states', () => {
+  it('keeps the pending slot laid out and shows the spinner while a save is held', async () => {
+    const user = userEvent.setup()
+    const { host } = openDetail()
+    const status = await screen.findByRole('combobox', { name: 'Status' })
+    const row = status.parentElement!
+    const slotsBefore = row.querySelectorAll('span.size-3').length
+    expect(slotsBefore).toBe(1)
+    expect(row.querySelector('.animate-spin')).toBeNull()
+    const release = host.hold('dart.updateTask')
+
+    await chooseOption(user, 'Status', 'Done')
+
+    await waitFor(() => expect(row.querySelector('.animate-spin')).not.toBeNull())
+    expect(row.querySelectorAll('span.size-3').length).toBe(slotsBefore)
+    expect((status as HTMLButtonElement).disabled).toBe(true)
+    await act(async () => release())
+    await waitFor(() => expect(row.querySelector('.animate-spin')).toBeNull())
+    expect((status as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('shows the spinner without moving the control for dates, assignee and title too', async () => {
+    const user = userEvent.setup()
+    const { host } = openDetail()
+    const due = await screen.findByLabelText('Due')
+    const assignee = await screen.findByRole('combobox', { name: 'Assignee' })
+    const title = await screen.findByRole('textbox', { name: 'Title' })
+    const rows = [due, assignee, title].map((control) => control.parentElement!)
+    const children = rows.map((row) => row.children.length)
+    const release = host.hold('dart.updateTask')
+
+    fireEvent.change(due, { target: { value: '2026-12-24' } })
+    await waitFor(() => expect(rows[0].querySelector('.animate-spin')).not.toBeNull())
+    release()
+    await waitFor(() => expect(rows[0].querySelector('.animate-spin')).toBeNull())
+
+    const releaseAssignee = host.hold('dart.updateTask')
+    await user.click(assignee)
+    await user.click(await screen.findByRole('option', { name: 'Sam Example' }))
+    await waitFor(() => expect(rows[1].querySelector('.animate-spin')).not.toBeNull())
+    releaseAssignee()
+    await waitFor(() => expect(rows[1].querySelector('.animate-spin')).toBeNull())
+
+    const releaseTitle = host.hold('dart.updateTask')
+    await user.clear(title)
+    await user.type(title, 'Renamed{Enter}')
+    await waitFor(() => expect(title.parentElement!.querySelector('.animate-spin')).not.toBeNull())
+    releaseTitle()
+    await waitFor(() => expect(title.parentElement!.querySelector('.animate-spin')).toBeNull())
+    expect(rows.map((row) => row.children.length)).toEqual(children)
+  })
+
+  it('disables a field after an unknown outcome and points at the notice', async () => {
+    const user = userEvent.setup()
+    const { host } = openDetail()
+    host.lostReplies.push({
+      ok: false,
+      error: 'Failed to update Dart task.',
+      errorCode: 'dart.updateFailed',
+      outcome: 'unknown'
+    })
+
+    await chooseOption(user, 'Status', 'Done')
+
+    const status = await screen.findByRole('combobox', { name: 'Status' })
+    await screen.findByRole('status')
+    await waitFor(() => expect((status as HTMLButtonElement).disabled).toBe(true))
+    expect(status.parentElement?.getAttribute('title')).toContain('notice above')
+    expect((screen.getByRole('combobox', { name: 'Priority' }) as HTMLButtonElement).disabled).toBe(
+      false
+    )
+    await user.click(within(screen.getByRole('status')).getByRole('button', { name: 'Dismiss' }))
+    await waitFor(() => expect((status as HTMLButtonElement).disabled).toBe(false))
+  })
+})
+
+describe('detail picker keyboard', () => {
+  it('opens a picker with Enter, closes it with Escape and returns focus to its trigger', async () => {
+    const user = userEvent.setup()
+    openDetail()
+    const trigger = await screen.findByRole('combobox', { name: 'Assignee' })
+
+    trigger.focus()
+    await user.keyboard('{Enter}')
+    await screen.findByRole('option', { name: 'Unassigned' })
+
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('option', { name: 'Unassigned' })).toBeNull())
+    expect(document.activeElement).toBe(trigger)
+  })
+
+  it('tabs through the controls in reading order', async () => {
+    const user = userEvent.setup()
+    openDetail()
+    ;(await screen.findByRole('textbox', { name: 'Title' })).focus()
+    const order = ['Status', 'Priority', 'Assignee', 'Size', 'Start', 'Due', 'Dartboard', 'Tags']
+    const seen: string[] = []
+    for (let step = 0; step < 24; step += 1) {
+      await user.tab()
+      const label = document.activeElement?.getAttribute('aria-label') ?? ''
+      if (order.includes(label) && !seen.includes(label)) {
+        seen.push(label)
+      }
+    }
+    expect(seen).toEqual(order)
+  })
+})
