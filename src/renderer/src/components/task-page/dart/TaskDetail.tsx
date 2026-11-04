@@ -4,7 +4,7 @@ import type { TaskSourceContext } from '../../../../../shared/task-source-contex
 import type { Worktree } from '../../../../../shared/worktree/types'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { translate } from '@/i18n/i18n'
-import { DartTaskDetailView, type DartDetailLoadState } from './TaskDetailView'
+import { DartTaskDetailView } from './TaskDetailView'
 import { useDartTaskDetailData } from './use-dart-task-detail-data'
 
 export function TaskPageDartTaskDetail({
@@ -22,16 +22,22 @@ export function TaskPageDartTaskDetail({
   onClose: () => void
   onOpenWorkspace: (workspace: Worktree) => void
 }): React.JSX.Element {
-  const { full, comments, retry } = useDartTaskDetailData(task, sourceContext)
-  const displayed = full.status === 'ready' ? full.value : task
-  const description: DartDetailLoadState<string> =
-    full.status === 'ready'
-      ? { status: 'ready', value: full.value.description ?? '' }
-      : full.status === 'error'
-        ? full
-        : { status: 'loading' }
+  const data = useDartTaskDetailData(task, sourceContext)
+  const { runCloseGuards } = data
+  const displayed = data.task
+  // A guard that returns false (unsaved work the user keeps) leaves the sheet open.
+  const requestClose = async (): Promise<void> => {
+    if (await runCloseGuards()) {
+      onClose()
+    }
+  }
+  const notice = {
+    notice: data.notice,
+    dismissNotice: data.dismissNotice,
+    recheckNotice: data.recheckNotice
+  }
   return (
-    <Sheet open={task !== null} onOpenChange={(open) => !open && onClose()}>
+    <Sheet open={task !== null} onOpenChange={(open) => !open && void requestClose()}>
       <SheetContent
         side="right"
         showCloseButton={false}
@@ -52,15 +58,43 @@ export function TaskPageDartTaskDetail({
             )}
           </SheetDescription>
         </VisuallyHidden.Root>
-        {displayed ? (
+        {displayed && data.commentDraftKey && data.descriptionDraftKey ? (
           <DartTaskDetailView
-            task={displayed}
-            description={description}
-            comments={comments}
+            edit={{
+              task: displayed,
+              openUrl: data.openUrl,
+              onUpdate: data.onUpdate,
+              pendingFields: data.pendingFields,
+              blockedFields: data.blockedFields,
+              config: data.config,
+              supportsWritesV2: data.supportsWritesV2,
+              viewerName: data.viewerName
+            }}
+            commentsApi={{
+              comments: data.comments,
+              onAddComment: data.onAddComment,
+              reloadComments: data.reloadComments,
+              appendLocalComment: data.appendLocalComment,
+              draftKey: data.commentDraftKey
+            }}
+            descriptionApi={{
+              task: displayed,
+              openUrl: data.openUrl,
+              supportsWritesV2: data.supportsWritesV2,
+              description: data.description,
+              readLatestTask: data.readLatestTask,
+              onSavePatch: data.onSavePatch,
+              registerCloseGuard: data.registerCloseGuard,
+              pendingFields: data.pendingFields,
+              blockedFields: data.blockedFields,
+              notice,
+              draftKey: data.descriptionDraftKey
+            }}
+            notice={notice}
             workspaces={workspaces}
             onUse={onUse}
-            onClose={onClose}
-            onRetry={retry}
+            onClose={() => void requestClose()}
+            onRetry={data.retry}
             onOpenWorkspace={onOpenWorkspace}
           />
         ) : null}

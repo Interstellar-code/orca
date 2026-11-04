@@ -1,22 +1,27 @@
 import { ArrowRight, ExternalLink, Info, X } from 'lucide-react'
 import type { DartTask } from '../../../../../shared/dart/dart-types'
+import type { DartDetailEditApi } from './dart-detail-contracts'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatUiRelativeTimeFromDate } from '@/i18n/relative-time-format'
 import { translate } from '@/i18n/i18n'
 import { openAppHttpLink } from '@/lib/app-http-link-open'
-import { getDartTaskOpenUrl } from './task-page-dart-list-model'
 
 export function DartTaskDetailHeader({
   task,
+  openUrl,
+  onUpdate: _onUpdate,
+  pendingFields: _pendingFields,
+  blockedFields: _blockedFields,
+  config: _config,
+  supportsWritesV2: _supportsWritesV2,
+  viewerName: _viewerName,
   onUse,
   onClose
-}: {
-  task: DartTask
+}: DartDetailEditApi & {
   onUse: (task: DartTask) => void
   onClose: () => void
 }): React.JSX.Element {
-  const openUrl = getDartTaskOpenUrl(task)
   return (
     <div className="flex-none border-b border-border/50 bg-muted/30 px-4 py-3">
       <div className="flex items-start gap-3">

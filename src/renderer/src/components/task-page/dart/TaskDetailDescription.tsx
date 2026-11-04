@@ -1,16 +1,23 @@
 import CommentMarkdown from '@/components/sidebar/CommentMarkdown'
 import { translate } from '@/i18n/i18n'
+import type { DartDetailDescriptionApi } from './dart-detail-contracts'
 import { InlineError, SkeletonLines } from './TaskDetailLoadStates'
 import { SectionHeading } from './TaskDetailSectionHeading'
-import type { DartDetailLoadState } from './TaskDetailView'
 
 export function DartTaskDetailDescription({
+  task: _task,
+  openUrl: _openUrl,
+  supportsWritesV2: _supportsWritesV2,
   description,
+  readLatestTask: _readLatestTask,
+  onSavePatch: _onSavePatch,
+  registerCloseGuard: _registerCloseGuard,
+  pendingFields: _pendingFields,
+  blockedFields: _blockedFields,
+  notice: _notice,
+  draftKey: _draftKey,
   onRetry
-}: {
-  description: DartDetailLoadState<string>
-  onRetry: () => void
-}): React.JSX.Element {
+}: DartDetailDescriptionApi & { onRetry: () => void }): React.JSX.Element {
   return (
     <section className="space-y-2 px-4 py-4">
       <SectionHeading>

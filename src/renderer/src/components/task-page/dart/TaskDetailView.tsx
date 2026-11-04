@@ -3,9 +3,16 @@ import type { DartComment, DartTask } from '../../../../../shared/dart/dart-type
 import type { Worktree } from '../../../../../shared/worktree/types'
 import { Button } from '@/components/ui/button'
 import { translate } from '@/i18n/i18n'
+import type {
+  DartDetailCommentsApi,
+  DartDetailDescriptionApi,
+  DartDetailEditApi,
+  DartNoticeApi
+} from './dart-detail-contracts'
 import { DartTaskDetailComments } from './TaskDetailComments'
 import { DartTaskDetailDescription } from './TaskDetailDescription'
 import { DartTaskDetailHeader } from './TaskDetailHeader'
+import { DartTaskDetailNotice } from './TaskDetailNotice'
 import { DartTaskDetailProperties } from './TaskDetailProperties'
 import { SectionHeading } from './TaskDetailSectionHeading'
 
@@ -20,9 +27,10 @@ export type DartCommentsView = {
 }
 
 export type DartTaskDetailViewProps = {
-  task: DartTask
-  description: DartDetailLoadState<string>
-  comments: DartDetailLoadState<DartCommentsView>
+  edit: DartDetailEditApi
+  commentsApi: DartDetailCommentsApi
+  descriptionApi: DartDetailDescriptionApi
+  notice: DartNoticeApi
   workspaces: readonly Worktree[]
   onUse: (task: DartTask) => void
   onClose: () => void
@@ -31,9 +39,10 @@ export type DartTaskDetailViewProps = {
 }
 
 export function DartTaskDetailView({
-  task,
-  description,
-  comments,
+  edit,
+  commentsApi,
+  descriptionApi,
+  notice,
   workspaces,
   onUse,
   onClose,
@@ -42,12 +51,13 @@ export function DartTaskDetailView({
 }: DartTaskDetailViewProps): React.JSX.Element {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
-      <DartTaskDetailHeader task={task} onUse={onUse} onClose={onClose} />
+      <DartTaskDetailHeader {...edit} onUse={onUse} onClose={onClose} />
 
       <div className="min-h-0 flex-1 overflow-y-auto scrollbar-sleek">
-        <DartTaskDetailProperties task={task} />
+        <DartTaskDetailNotice {...notice} />
+        <DartTaskDetailProperties {...edit} />
 
-        <DartTaskDetailDescription description={description} onRetry={onRetry} />
+        <DartTaskDetailDescription {...descriptionApi} onRetry={onRetry} />
 
         <section className="space-y-2 border-t border-border/60 px-4 py-4">
           <SectionHeading>
@@ -85,7 +95,7 @@ export function DartTaskDetailView({
           )}
         </section>
 
-        <DartTaskDetailComments comments={comments} onRetry={onRetry} />
+        <DartTaskDetailComments {...commentsApi} onRetry={onRetry} />
       </div>
     </div>
   )

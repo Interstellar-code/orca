@@ -3,15 +3,16 @@ import { formatUiRelativeTimeFromDate } from '@/i18n/relative-time-format'
 import { translate } from '@/i18n/i18n'
 import { InlineError, SkeletonLines } from './TaskDetailLoadStates'
 import { SectionHeading } from './TaskDetailSectionHeading'
-import type { DartCommentsView, DartDetailLoadState } from './TaskDetailView'
+import type { DartDetailCommentsApi } from './dart-detail-contracts'
 
 export function DartTaskDetailComments({
   comments,
+  onAddComment: _onAddComment,
+  reloadComments: _reloadComments,
+  appendLocalComment: _appendLocalComment,
+  draftKey: _draftKey,
   onRetry
-}: {
-  comments: DartDetailLoadState<DartCommentsView>
-  onRetry: () => void
-}): React.JSX.Element {
+}: DartDetailCommentsApi & { onRetry: () => void }): React.JSX.Element {
   return (
     <section className="space-y-3 border-t border-border/60 px-4 py-4">
       <SectionHeading>
