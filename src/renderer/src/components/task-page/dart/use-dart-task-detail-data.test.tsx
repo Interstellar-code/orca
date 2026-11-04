@@ -84,7 +84,7 @@ function withoutWritesV2(environmentId: string): void {
         ...reply,
         result: {
           ...reply.result,
-          capabilities: reply.result.capabilities.filter(
+          capabilities: reply.result.capabilities?.filter(
             (capability) => capability !== DART_WRITES_V2_RUNTIME_CAPABILITY
           )
         }
