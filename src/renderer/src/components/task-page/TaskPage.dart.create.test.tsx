@@ -4,8 +4,8 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import { getDefaultSettings } from '../../../../shared/constants'
-import type { TaskProvider } from '../../../../shared/task-providers'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { installAppKeyboardRouter } from '@/lib/app-keyboard-router'
 import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
@@ -82,10 +82,10 @@ function setUpFakeRuntime(): void {
 beforeEach(() => {
   setUpFakeRuntime()
   installAppKeyboardRouter()
-  const settings = {
+  const settings: GlobalSettings = {
     ...getDefaultSettings('/home/alex'),
-    visibleTaskProviders: ['github', 'dart'] as TaskProvider[],
-    defaultTaskSource: 'dart' as TaskProvider
+    visibleTaskProviders: ['github', 'dart'],
+    defaultTaskSource: 'dart'
   }
   useAppStore.setState({
     settings,
