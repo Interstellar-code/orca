@@ -96,6 +96,11 @@ export type DartApi = {
   updateTask: (
     args: DartMethodContract['dart.updateTask']['params']
   ) => DartReply<'dart.updateTask'>
+  updateTaskDescription: (
+    args: DartMethodContract['dart.updateTaskDescription']['params']
+  ) => DartReply<'dart.updateTaskDescription'>
+  /** Client-side capability query (`dart.writes.v2`), not an RPC. */
+  supportsWritesV2: () => Promise<boolean>
   addComment: (
     args: DartMethodContract['dart.addComment']['params']
   ) => DartReply<'dart.addComment'>

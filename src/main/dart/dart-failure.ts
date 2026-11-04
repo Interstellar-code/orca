@@ -1,4 +1,4 @@
-import type { DartFailure } from '../../shared/rpc-contract/dart-params'
+import type { DartFailure, DartWriteOutcome } from '../../shared/rpc-contract/dart-params'
 import { taskProviderFailure, type TaskProviderErrorCode } from '../../shared/task-provider-failure'
 import { DartApiError } from './dart-request'
 
@@ -10,6 +10,7 @@ export type DartOperation =
   | 'create'
   | 'update'
   | 'comment'
+  | 'descriptionPatch'
 
 const OPERATION_FAILURE: Record<DartOperation, { code: TaskProviderErrorCode; message: string }> = {
   connect: { code: 'dart.connectFailed', message: 'Could not connect to Dart.' },
@@ -18,11 +19,21 @@ const OPERATION_FAILURE: Record<DartOperation, { code: TaskProviderErrorCode; me
   comments: { code: 'dart.loadFailed', message: 'Could not load Dart comments.' },
   create: { code: 'dart.createFailed', message: 'Could not create the Dart task.' },
   update: { code: 'dart.updateFailed', message: 'Could not update the Dart task.' },
-  comment: { code: 'dart.commentFailed', message: 'Could not add the Dart comment.' }
+  comment: { code: 'dart.commentFailed', message: 'Could not add the Dart comment.' },
+  descriptionPatch: {
+    code: 'dart.updateFailed',
+    message: 'Could not update the Dart description.'
+  }
 }
 
 // Operations addressed by a task id: a 404 (JSON or HTML) means the task is gone.
-const TASK_TARGETED = new Set<DartOperation>(['getTask', 'comments', 'update', 'comment'])
+const TASK_TARGETED = new Set<DartOperation>([
+  'getTask',
+  'comments',
+  'update',
+  'comment',
+  'descriptionPatch'
+])
 
 function codeForStatus(status: number, operation: DartOperation): TaskProviderErrorCode | null {
   if (status === 401 || status === 403) {
@@ -37,6 +48,9 @@ function codeForStatus(status: number, operation: DartOperation): TaskProviderEr
   // Comments for an unknown (well-formed) task id answer 400 with a bare string array.
   if (status === 400 && operation === 'comments') {
     return 'dart.taskNotFound'
+  }
+  if (status === 400 && operation === 'descriptionPatch') {
+    return 'dart.descriptionPatchRefused'
   }
   if (status === 400 || status === 422) {
     return 'dart.badRequest'
@@ -65,8 +79,35 @@ export function isDartTokenRejected(error: unknown): boolean {
   return error instanceof DartApiError && error.status === 401
 }
 
-/** Maps any thrown value to a `dart.*` failure; non-Dart errors never surface their message. */
-export function toDartFailure(error: unknown, operation: DartOperation): DartFailure {
+const WRITE_OPERATIONS = new Set<DartOperation>(['create', 'update', 'comment', 'descriptionPatch'])
+
+export function isDartWriteOperation(operation: DartOperation): boolean {
+  return WRITE_OPERATIONS.has(operation)
+}
+
+/** After the request left, only a 4xx other than 408 proves Dart did not apply the write. */
+function outcomeAfterSend(error: unknown): DartWriteOutcome {
+  const status = error instanceof DartApiError ? error.status : null
+  return status !== null && status >= 400 && status < 500 && status !== 408
+    ? 'notApplied'
+    : 'unknown'
+}
+
+/** Maps any thrown value to a `dart.*` failure; non-Dart errors never surface their message.
+ * `requestSent` is true once the write's own request was started; before that nothing was applied. */
+export function toDartFailure(
+  error: unknown,
+  operation: DartOperation,
+  requestSent = false
+): DartFailure {
+  const failure = mapFailure(error, operation)
+  if (!isDartWriteOperation(operation)) {
+    return failure
+  }
+  return { ...failure, outcome: requestSent ? outcomeAfterSend(error) : 'notApplied' }
+}
+
+function mapFailure(error: unknown, operation: DartOperation): DartFailure {
   const fallback = OPERATION_FAILURE[operation]
   if (!(error instanceof DartApiError)) {
     return taskProviderFailure(fallback.code, fallback.message)
