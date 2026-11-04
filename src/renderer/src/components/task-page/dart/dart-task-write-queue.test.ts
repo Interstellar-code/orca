@@ -502,7 +502,7 @@ describe('dart task write queue: unknown outcome', () => {
     expect(result).toEqual(LOST_REPLY)
     expect(page.host.count('dart.getTask')).toBe(getTaskBefore + 1)
     expect(page.detailShown.task.status).toBe('Doing')
-    expect(page.state().pendingFields.has('status')).toBe(true)
+    expect(page.state().blockedFields.has('status')).toBe(true)
     expect(page.state().notice).toEqual({
       kind: 'unknown',
       field: 'status',
@@ -520,7 +520,22 @@ describe('dart task write queue: unknown outcome', () => {
     expect(page.detailShown.task.status).toBe('To-do')
     expect(page.listRow()?.status).toBe('To-do')
     expect(page.state().notice?.kind).toBe('unknown')
+    expect(page.state().blockedFields.has('status')).toBe(true)
+  })
+
+  it('reports the field as blocked, not as in flight', async () => {
+    const page = await openPage()
+    page.host.lostReplies.push(LOST_REPLY)
+    const release = page.host.hold('dart.updateTask')
+
+    const write = page.edit({ status: 'Doing' })
     expect(page.state().pendingFields.has('status')).toBe(true)
+    expect(page.state().blockedFields.size).toBe(0)
+
+    release()
+    await write
+    expect(page.state().pendingFields.size).toBe(0)
+    expect(page.state().blockedFields.has('status')).toBe(true)
   })
 
   it('sends nothing more to that field, and still sends other fields', async () => {
@@ -540,7 +555,7 @@ describe('dart task write queue: unknown outcome', () => {
     expect(other.ok).toBe(true)
     expect(page.host.count('dart.updateTask')).toBe(writes + 1)
     expect(page.state().notice?.kind).toBe('unknown')
-    expect(page.state().pendingFields.has('status')).toBe(true)
+    expect(page.state().blockedFields.has('status')).toBe(true)
   })
 
   it('does not send a queued edit of that field once the earlier one comes back unknown', async () => {
@@ -556,7 +571,7 @@ describe('dart task write queue: unknown outcome', () => {
     expect(queued).toMatchObject({ ok: false, outcome: 'notApplied' })
     expect(page.host.count('dart.updateTask')).toBe(1)
     expect(page.detailShown.task.status).toBe('To-do')
-    expect(page.state().pendingFields.has('status')).toBe(true)
+    expect(page.state().blockedFields.has('status')).toBe(true)
   })
 
   it('reads again on recheck, showing the delayed write, and never clears by itself', async () => {
@@ -575,7 +590,7 @@ describe('dart task write queue: unknown outcome', () => {
     expect(page.listRow()?.status).toBe('Doing')
     expect(page.state().notice?.kind).toBe('unknown')
     expect(page.state().notice?.checkedAt).toBeGreaterThanOrEqual(firstCheck ?? 0)
-    expect(page.state().pendingFields.has('status')).toBe(true)
+    expect(page.state().blockedFields.has('status')).toBe(true)
   })
 
   it('changes nothing when the re-read fails, including under a later read', async () => {
@@ -595,7 +610,7 @@ describe('dart task write queue: unknown outcome', () => {
     await recheckDartTaskNotice(page.identity)
     expect(page.detailShown.task.status).toBe('Doing')
     expect(page.state().notice?.checkedAt).toBeUndefined()
-    expect(page.state().pendingFields.has('status')).toBe(true)
+    expect(page.state().blockedFields.has('status')).toBe(true)
   })
 
   it('stops overlaying the optimistic value once a read has shown what Dart holds', async () => {
@@ -640,7 +655,7 @@ describe('dart task write queue: unknown outcome', () => {
     )
 
     expect(dartTaskWriteState(reopened).notice?.kind).toBe('unknown')
-    expect(dartTaskWriteState(reopened).pendingFields.has('status')).toBe(true)
+    expect(dartTaskWriteState(reopened).blockedFields.has('status')).toBe(true)
     await expect(page.edit({ status: 'Done' })).resolves.toMatchObject({ ok: false })
     expect(page.host.count('dart.updateTask')).toBe(writes)
   })
@@ -655,7 +670,7 @@ describe('dart task write queue: unknown outcome', () => {
     dismissDartTaskNotice(page.identity)
 
     expect(page.state().notice).toBeNull()
-    expect(page.state().pendingFields.size).toBe(0)
+    expect(page.state().blockedFields.size).toBe(0)
     await expect(page.edit({ status: 'Done' })).resolves.toMatchObject({ ok: true })
     expect(page.host.tasks.get(page.taskId)?.status).toBe('Done')
   })
@@ -710,7 +725,7 @@ describe('dart task write queue: unknown outcome', () => {
       })
 
     await saveDescription()
-    expect(page.state().pendingFields.has('description')).toBe(true)
+    expect(page.state().blockedFields.has('description')).toBe(true)
     expect(page.detailShown.task.description).toBe('patched description')
 
     await expect(saveDescription()).resolves.toMatchObject({ ok: false, outcome: 'notApplied' })

@@ -35,8 +35,10 @@ export type DartTaskWriteUpdate = {
 type DartTaskWriteListener = (update: DartTaskWriteUpdate) => void
 
 export type DartTaskWriteState = {
-  /** Fields with a queued write or an unreconciled unknown write; their controls stay disabled. */
+  /** Writes queued or in flight. */
   pendingFields: ReadonlySet<string>
+  /** Unreconciled unknown writes; the optimistic marker stays and nothing is sent until the user dismisses the notice. */
+  blockedFields: ReadonlySet<string>
   notice: DartWriteNotice | null
 }
 
@@ -178,13 +180,11 @@ function headNotice(entry: TaskWrites): OpenNotice | null {
 export function dartTaskWriteState(identity: DartTaskIdentity): DartTaskWriteState {
   const entry = writes.get(dartTaskIdentityKey(identity))
   if (!entry) {
-    return { pendingFields: new Set(), notice: null }
+    return { pendingFields: new Set(), blockedFields: new Set(), notice: null }
   }
   return {
-    pendingFields: new Set([
-      ...entry.pending.flatMap((queued) => queued.fields),
-      ...blockedFields(entry)
-    ]),
+    pendingFields: new Set(entry.pending.flatMap((queued) => queued.fields)),
+    blockedFields: blockedFields(entry),
     notice: headNotice(entry)?.notice ?? null
   }
 }

@@ -31,7 +31,10 @@ export type DartDetailEditApi = {
     updates: DartFieldUpdates,
     optimistic: Partial<DartTask>
   ): Promise<DartWriteResult<{ task: DartTask }>>
+  /** Writes queued or in flight. */
   pendingFields: ReadonlySet<string>
+  /** Unreconciled unknown writes: no write is sent to these until the user dismisses the notice. */
+  blockedFields: ReadonlySet<string>
   config: DartWorkspaceConfig | null
   supportsWritesV2: boolean
   viewerName: string | null
@@ -58,6 +61,9 @@ export type DartDetailDescriptionApi = {
     updates: DartUpdateTaskDescriptionArgs['updates']
   ): Promise<DartWriteResult<{ task: DartTask }>>
   registerCloseGuard(guard: () => boolean | Promise<boolean>): () => void
+  blockedFields: ReadonlySet<string>
+  /** Task-wide: act on it only when `notice.notice?.field === 'description'`. */
+  notice: DartNoticeApi
   draftKey: string
 }
 
@@ -76,6 +82,8 @@ export type DartCreateDraft = {
 
 export type DartCreateTaskModel = {
   createOpen: boolean
+  createSupportsWritesV2: boolean
+  createSubmitting: boolean
   openCreate(): void
   closeCreate(): void
   createTask(input: DartCreateTaskArgs): Promise<DartWriteResult<{ task: DartTask }>>
@@ -84,6 +92,9 @@ export type DartCreateTaskModel = {
   createNotice: DartWriteNotice | null
   listChecked: boolean
   createMatches: readonly DartTask[]
+  createMatchesTruncated: boolean
+  canCreateAnyway: boolean
+  dismissCreateNotice(): void
   checkAgain(): Promise<void>
   dismissMatches(): void
   createAnyway(): Promise<DartWriteResult<{ task: DartTask }>>
