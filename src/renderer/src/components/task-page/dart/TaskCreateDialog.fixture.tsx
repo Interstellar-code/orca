@@ -44,6 +44,10 @@ const matchTask: DartTask = {
 
 function model(overrides: Partial<DartCreateDialogModel> = {}): DartCreateDialogModel {
   return {
+    createUnresolved: false,
+    createFieldsLocked: false,
+    claimCreateMatch: noop,
+    discardCreateDraft: noop,
     createOpen: true,
     createSupportsWritesV2: true,
     createSubmitting: false,
@@ -106,6 +110,8 @@ export const mayHaveCreated = defineFixture({
         createDraft: filledDraft,
         dartConfig: filledConfig,
         createNotice: unknownNotice,
+        createUnresolved: true,
+        createFieldsLocked: true,
         listChecked: true,
         createMatches: [matchTask]
       })}
@@ -121,6 +127,8 @@ export const createAnyway = defineFixture({
         createDraft: filledDraft,
         dartConfig: filledConfig,
         createNotice: unknownNotice,
+        createUnresolved: true,
+        createFieldsLocked: true,
         listChecked: true,
         canCreateAnyway: true
       })}
