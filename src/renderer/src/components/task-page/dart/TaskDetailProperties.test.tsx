@@ -39,6 +39,20 @@ function lastUpdate(host: FakeDartHost): { taskId?: string; updates?: Record<str
   return host.requests.findLast((request) => request.method === 'dart.updateTask')!.params
 }
 
+function button(element: HTMLElement): HTMLButtonElement {
+  if (!(element instanceof HTMLButtonElement)) {
+    throw new Error('Expected a button')
+  }
+  return element
+}
+
+function textarea(element: HTMLElement): HTMLTextAreaElement {
+  if (!(element instanceof HTMLTextAreaElement)) {
+    throw new Error('Expected a textarea')
+  }
+  return element
+}
+
 function taskOf(host: FakeDartHost, id: string): DartTask {
   return host.tasks.get(id)!
 }
@@ -243,7 +257,7 @@ describe('detail title editor', () => {
 
     await user.clear(title)
     await user.type(title, 'Discarded{Escape}')
-    expect((title as HTMLTextAreaElement).value).toBe('Example task')
+    expect(textarea(title).value).toBe('Example task')
     expect(host.count('dart.updateTask')).toBe(0)
 
     await user.clear(title)
@@ -254,7 +268,7 @@ describe('detail title editor', () => {
   it('refuses an empty or too long title with a toast and keeps the saved one', async () => {
     const user = userEvent.setup()
     const { host } = openDetail()
-    const title = (await screen.findByRole('textbox', { name: 'Title' })) as HTMLTextAreaElement
+    const title = textarea(await screen.findByRole('textbox', { name: 'Title' }))
 
     await user.clear(title)
     await user.keyboard('{Enter}')
@@ -269,7 +283,7 @@ describe('detail title editor', () => {
 
   it('does not save on the Enter that confirms an IME candidate', async () => {
     const { host } = openDetail()
-    const title = (await screen.findByRole('textbox', { name: 'Title' })) as HTMLTextAreaElement
+    const title = textarea(await screen.findByRole('textbox', { name: 'Title' }))
 
     fireEvent.compositionStart(title)
     fireEvent.change(title, { target: { value: 'にほん' } })
@@ -298,10 +312,10 @@ describe('detail editor states', () => {
 
     await waitFor(() => expect(row.querySelector('.animate-spin')).not.toBeNull())
     expect(row.querySelectorAll('span.size-3').length).toBe(slotsBefore)
-    expect((status as HTMLButtonElement).disabled).toBe(true)
+    expect(button(status).disabled).toBe(true)
     await act(async () => release())
     await waitFor(() => expect(row.querySelector('.animate-spin')).toBeNull())
-    expect((status as HTMLButtonElement).disabled).toBe(false)
+    expect(button(status).disabled).toBe(false)
   })
 
   it('shows the spinner without moving the control for dates, assignee and title too', async () => {
@@ -349,13 +363,11 @@ describe('detail editor states', () => {
 
     const status = await screen.findByRole('combobox', { name: 'Status' })
     await screen.findByRole('status')
-    await waitFor(() => expect((status as HTMLButtonElement).disabled).toBe(true))
+    await waitFor(() => expect(button(status).disabled).toBe(true))
     expect(status.parentElement?.getAttribute('title')).toContain('notice above')
-    expect((screen.getByRole('combobox', { name: 'Priority' }) as HTMLButtonElement).disabled).toBe(
-      false
-    )
+    expect(button(screen.getByRole('combobox', { name: 'Priority' })).disabled).toBe(false)
     await user.click(within(screen.getByRole('status')).getByRole('button', { name: 'Dismiss' }))
-    await waitFor(() => expect((status as HTMLButtonElement).disabled).toBe(false))
+    await waitFor(() => expect(button(status).disabled).toBe(false))
   })
 })
 

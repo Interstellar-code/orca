@@ -18,7 +18,6 @@ import {
 } from '@/components/ui/select'
 import { LINEAR_EDIT_CHIP_CLASS } from '@/components/linear-item-drawer-edit-controls'
 import { translate } from '@/i18n/i18n'
-import { cn } from '@/lib/utils'
 
 const NONE_VALUE = '__dart-none__'
 
@@ -68,9 +67,6 @@ export function DartChipRow({
   )
 }
 
-const SELECT_CHIP_CLASS =
-  'h-6 min-w-0 max-w-[14rem] gap-1.5 rounded-full px-2.5 py-0 text-2xs font-medium data-[size=sm]:h-6'
-
 /** Status, priority and size: `value` null is the "None" entry, which only fields that can be cleared offer. */
 export function DartSelectChip({
   label,
@@ -100,8 +96,10 @@ export function DartSelectChip({
         onValueChange={(next) => onChange(next === NONE_VALUE ? null : next)}
         disabled={state.disabled || disabled}
       >
-        <SelectTrigger size="sm" aria-label={label} className={cn(SELECT_CHIP_CLASS, toneClass)}>
-          <SelectValue>{value ?? noneLabel ?? '—'}</SelectValue>
+        <SelectTrigger size="sm" density="compact" aria-label={label}>
+          <SelectValue>
+            <span className={toneClass}>{value ?? noneLabel ?? '—'}</span>
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           {noneLabel ? <SelectItem value={NONE_VALUE}>{noneLabel}</SelectItem> : null}
@@ -168,7 +166,7 @@ export function DartSearchChip({
             <ChevronDown className="size-3 shrink-0 opacity-55" />
           </button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-64 p-0">
+        <PopoverContent align="start" className="w-64">
           <Command>
             <CommandInput placeholder={searchPlaceholder} />
             <CommandList>

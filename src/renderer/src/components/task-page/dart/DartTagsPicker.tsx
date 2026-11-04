@@ -60,7 +60,7 @@ export function DartTagsPicker({
               <ChevronDown className="size-3 shrink-0 opacity-55" />
             </button>
           </PopoverTrigger>
-          <PopoverContent align="start" className="w-64 p-0">
+          <PopoverContent align="start" className="w-64">
             <Command>
               <CommandInput
                 placeholder={translate(

@@ -1,8 +1,7 @@
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { translate } from '@/i18n/i18n'
 import { ImeInput } from '@/lib/ime-text-field'
-import { getIntlLocale } from '@/i18n/i18n'
+import { getIntlLocale, translate } from '@/i18n/i18n'
 import { dartCalendarDate, formatDartDate, isFinishedDateInput } from './dart-date-format'
 import { DartChipRow, type DartFieldState } from './DartPropertyChips'
 

@@ -58,7 +58,11 @@ export function DartTaskDetailProperties({
             options={config?.statuses ?? NO_OPTIONS}
             state={state('status')}
             disabled={noConfig}
-            toneClass={task.status ? cn('border', getDartStatusTone(task.status)) : undefined}
+            toneClass={
+              task.status
+                ? cn('rounded-full border px-1.5 py-0.5', getDartStatusTone(task.status))
+                : undefined
+            }
             onChange={(status) => status && set({ status }, { status })}
           />
         </MetadataItem>
