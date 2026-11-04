@@ -324,6 +324,25 @@ describe('dart task writes', () => {
     expect(host.lastBody()).toEqual({ updates })
   })
 
+  it('keeps task text Dart echoes in a patch 400 out of the reply', async () => {
+    const { host, tasks } = await connected()
+    host.route('POST', `/tasks/${TASK_ID}/update-description`, () =>
+      jsonResponse(400, { errors: ['oldText "SECRET PARAGRAPH" was not found'] })
+    )
+
+    const result = await tasks.updateTaskDescription({
+      taskId: TASK_ID,
+      updates: [{ type: 'delete', oldText: 'SECRET PARAGRAPH' }]
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      errorCode: 'dart.descriptionPatchRefused',
+      error: 'Dart did not accept this change.',
+      outcome: 'notApplied'
+    })
+  })
+
   it.each([
     [400, 'dart.descriptionPatchRefused'],
     [404, 'dart.taskNotFound'],

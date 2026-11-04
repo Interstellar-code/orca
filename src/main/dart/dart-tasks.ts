@@ -70,7 +70,9 @@ async function withToken<T extends object>(
       : result
   } catch (error) {
     noteRequestFailure(error)
-    return toDartFailure(error, operation, requestSent)
+    return isDartWriteOperation(operation)
+      ? toDartFailure(error, operation, requestSent)
+      : toDartFailure(error, operation)
   }
 }
 

@@ -81,7 +81,7 @@ export function isDartTokenRejected(error: unknown): boolean {
 
 const WRITE_OPERATIONS = new Set<DartOperation>(['create', 'update', 'comment', 'descriptionPatch'])
 
-export function isDartWriteOperation(operation: DartOperation): boolean {
+export function isDartWriteOperation(operation: DartOperation): operation is DartWriteOperation {
   return WRITE_OPERATIONS.has(operation)
 }
 

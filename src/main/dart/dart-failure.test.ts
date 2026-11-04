@@ -45,14 +45,14 @@ describe('toDartFailure write outcome', () => {
   })
 
   it('treats any failure before the request was sent as notApplied, even a network error', () => {
-    expect(toDartFailure(new DartApiError('x', 'network'), 'update').outcome).toBe('notApplied')
-    expect(toDartFailure(new Error('boom'), 'create').outcome).toBe('notApplied')
+    expect(toDartFailure(new DartApiError('x', 'network'), 'update', false).outcome).toBe(
+      'notApplied'
+    )
+    expect(toDartFailure(new Error('boom'), 'create', false).outcome).toBe('notApplied')
   })
 
   it('adds no outcome to reads', () => {
-    expect(toDartFailure(http(503), 'getTask', true)).not.toHaveProperty('outcome')
-    expect(toDartFailure(new DartApiError('x', 'network'), 'load', true)).not.toHaveProperty(
-      'outcome'
-    )
+    expect(toDartFailure(http(503), 'getTask')).not.toHaveProperty('outcome')
+    expect(toDartFailure(new DartApiError('x', 'network'), 'load')).not.toHaveProperty('outcome')
   })
 })

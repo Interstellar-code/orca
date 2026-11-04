@@ -8,6 +8,7 @@ import {
   routeSignedIn,
   type DartHost
 } from './dart-host.test-fixture'
+import { DART_TITLE_MAX_LENGTH } from '../../shared/dart/dart-text-limits'
 
 const ipcHandlers = vi.hoisted(() => new Map<string, (event: unknown, args?: unknown) => unknown>())
 vi.mock('electron', () => ({
@@ -282,4 +283,65 @@ describe('dart write outcome over both transports', () => {
       'outcome'
     )
   })
+})
+
+describe('dart write params refused at the transport', () => {
+  const invalid = [
+    {
+      name: 'a patch update carrying occurrence',
+      write: WRITES[3],
+      params: {
+        taskId: TASK_ID,
+        updates: [{ type: 'replace', oldText: 'a', newText: 'b', occurrence: 2 }]
+      }
+    },
+    {
+      name: 'a title over the limit',
+      write: WRITES[0],
+      params: { title: 'x'.repeat(DART_TITLE_MAX_LENGTH + 1) }
+    }
+  ]
+
+  it.each(invalid)(
+    'refuses $name as notApplied over IPC and invalid_argument over RPC',
+    async (c) => {
+      const { host, ipc, rpc } = await transports()
+      routeSignedIn(host, CONFIG)
+      await ipc('dart:connect', { apiToken: FIXTURE_TOKEN })
+      host.route(c.write.http[0], c.write.http[1], () => jsonResponse(200, {}))
+      const writesBefore = host.fetch.mock.calls.length
+
+      await expect(ipc(c.write.channel, c.params)).resolves.toMatchObject({
+        ok: false,
+        errorCode: 'dart.badRequest',
+        outcome: 'notApplied'
+      })
+      await expect(rpc(c.write.method, c.params)).resolves.toMatchObject({
+        ok: false,
+        error: { code: 'invalid_argument' }
+      })
+      expect(host.fetch.mock.calls).toHaveLength(writesBefore)
+    }
+  )
+
+  it.each([
+    ['size 3', { size: 3 }],
+    ['size "M"', { size: 'M' }],
+    ['size null', { size: null }],
+    ['a date-only dueAt', { dueAt: '2026-11-30' }]
+  ])(
+    'sends %s from a parsed update to the Dart request body on both transports',
+    async (_n, updates) => {
+      const { host, ipc, rpc } = await transports()
+      routeSignedIn(host, CONFIG)
+      await ipc('dart:connect', { apiToken: FIXTURE_TOKEN })
+      host.route('PUT', `/tasks/${TASK_ID}`, () => jsonResponse(200, {}))
+      const params = { taskId: TASK_ID, updates }
+
+      await ipc('dart:updateTask', params)
+      expect(host.lastBody()).toEqual({ item: { id: TASK_ID, ...updates } })
+      await rpc('dart.updateTask', params)
+      expect(host.lastBody()).toEqual({ item: { id: TASK_ID, ...updates } })
+    }
+  )
 })
