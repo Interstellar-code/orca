@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { useEffect } from 'react'
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DartDetailDescriptionApi, DartDetailEditApi } from './dart-detail-contracts'
@@ -104,7 +104,7 @@ describe('TaskPageDartTaskDetail pending close guard', () => {
 
     showTask(addTask('b'))
     settle(true)
-    await new Promise((resolve) => setTimeout(resolve, 20))
+    await act(async () => {})
     expect(onClose).not.toHaveBeenCalled()
   })
 
@@ -114,7 +114,7 @@ describe('TaskPageDartTaskDetail pending close guard', () => {
     probe.guard = () => Promise.reject(new Error('guard failed'))
 
     await user.click(await screen.findByRole('button', { name: 'Close Dart task preview' }))
-    await new Promise((resolve) => setTimeout(resolve, 20))
+    await act(async () => {})
     expect(onClose).not.toHaveBeenCalled()
 
     probe.guard = () => true

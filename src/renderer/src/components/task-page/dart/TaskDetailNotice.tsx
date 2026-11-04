@@ -70,6 +70,7 @@ export function DartTaskDetailNotice({
     return null
   }
   const refused = notice.kind === 'refused'
+  const tone = refused ? 'text-destructive' : 'text-muted-foreground'
   const Icon = refused ? AlertTriangle : Info
   const recheck = async (): Promise<void> => {
     setChecking(true)
@@ -84,13 +85,11 @@ export function DartTaskDetailNotice({
       role={refused ? 'alert' : 'status'}
       className={cn(
         'mx-4 mt-3 flex items-start gap-2 rounded-md border px-2.5 py-1.5 text-xs',
-        refused
-          ? 'border-destructive/30 bg-destructive/10 text-destructive'
-          : 'border-border/50 bg-muted/35 text-muted-foreground'
+        refused ? 'border-destructive/30 bg-destructive/10' : 'border-border/50 bg-muted/35'
       )}
     >
-      <Icon className="mt-0.5 size-3.5 flex-none" />
-      <div className="min-w-0 flex-1">
+      <Icon className={cn('mt-0.5 size-3.5 flex-none', tone)} />
+      <div className={cn('min-w-0 flex-1', tone)}>
         <p className="break-words">{noticeText(notice)}</p>
         {notice.kind === 'unknown' && notice.checkedAt !== undefined ? (
           <p className="mt-0.5 text-2xs">
@@ -112,13 +111,7 @@ export function DartTaskDetailNotice({
               )}
         </Button>
       ) : null}
-      <Button
-        type="button"
-        variant="ghost"
-        size="xs"
-        className="text-foreground"
-        onClick={dismissNotice}
-      >
+      <Button type="button" variant="ghost" size="xs" onClick={dismissNotice}>
         {translate('auto.components.task.page.dart.TaskDetailNotice.dismiss', 'Dismiss')}
       </Button>
       {actions}
