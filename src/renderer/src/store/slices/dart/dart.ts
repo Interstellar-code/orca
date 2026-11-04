@@ -3,6 +3,8 @@ import type { AppState } from '../../types'
 import { createDartConnectionActions } from './dart-connection-actions'
 import { createDartReadActions } from './dart-read-actions'
 import type { DartSlice } from './dart-slice-contract'
+import { createDartTaskPatchActions } from './dart-task-patch-action'
+import { createDartWriteActions } from './dart-write-actions'
 
 export type { DartSlice } from './dart-slice-contract'
 
@@ -15,5 +17,7 @@ export const createDartSlice: StateCreator<AppState, [], [], DartSlice> = (set, 
   dartListCache: {},
   dartConfigCache: {},
   ...createDartConnectionActions(set, get),
-  ...createDartReadActions(set, get)
+  ...createDartReadActions(set, get),
+  ...createDartTaskPatchActions(set),
+  ...createDartWriteActions(set, get)
 })
