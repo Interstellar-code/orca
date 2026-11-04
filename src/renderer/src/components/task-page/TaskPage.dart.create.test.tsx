@@ -93,6 +93,7 @@ beforeEach(() => {
   }
   useAppStore.setState({
     settings,
+    dartCreateSessions: {},
     persistedUIReady: true,
     activeView: 'tasks',
     taskPageData: {},

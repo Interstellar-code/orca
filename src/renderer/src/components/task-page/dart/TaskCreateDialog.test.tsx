@@ -74,6 +74,7 @@ beforeEach(() => {
   setUpFakeRuntime()
   toastSuccess.mockClear()
   useAppStore.setState({
+    dartCreateSessions: {},
     settings: { ...getDefaultSettings('/home/alex'), activeRuntimeEnvironmentId: null },
     persistedUIReady: true,
     activeView: 'tasks',
@@ -281,9 +282,8 @@ describe('Dart create dialog lookup regressions', () => {
     expect(host.count('dart.createTask')).toBe(1)
   })
 
-  it('forces an exact-title lookup scoped to the selected board', async () => {
+  it('forces an exact-title lookup on the host the create went to', async () => {
     const user = userEvent.setup()
-    const list = vi.spyOn(useAppStore.getState(), 'listDartTasks')
     host.lostReplies.push({ ok: false, error: 'socket closed', outcome: 'unknown' })
     renderCreateHarness()
 
@@ -293,12 +293,7 @@ describe('Dart create dialog lookup regressions', () => {
 
     await waitFor(() => expect(host.count('dart.listTasks')).toBeGreaterThan(0))
     const lookup = host.requests.find((entry) => entry.method === 'dart.listTasks')
-    expect(list).toHaveBeenCalledWith(
-      { title: 'Ship the fix', dartboard: 'Example/Platform', limit: 100 },
-      { force: true }
-    )
-    list.mockRestore()
-    expect(lookup?.params).toMatchObject({
+    expect(lookup?.params).toEqual({
       title: 'Ship the fix',
       dartboard: 'Example/Platform',
       limit: 100
@@ -544,5 +539,43 @@ describe('Dart create dialog keyboard', () => {
     // The label stays in place under the spinner, so the button keeps its size.
     expect(screen.getByText('Create task')).toBeTruthy()
     release()
+  })
+})
+
+describe('Dart create session ownership', () => {
+  it('keeps the unknown lock across an unmount and remount of the page hook', async () => {
+    const user = userEvent.setup()
+    host.lostReplies.push({ ok: false, error: 'socket closed', outcome: 'unknown' })
+    const first = renderCreateHarness()
+
+    await user.click(first.newTaskButton())
+    await user.type(screen.getByLabelText('Title'), 'Ship the fix')
+    await user.click(screen.getByRole('button', { name: 'Create task' }))
+    await screen.findByText(/may have created this task/i)
+    cleanup()
+
+    renderCreateHarness()
+    await user.click(screen.getByRole('button', { name: 'New task' }))
+    expect(screen.getByLabelText('Title')).toHaveValue('Ship the fix')
+    expect(screen.getByRole('button', { name: 'Create task' })).toHaveProperty('disabled', true)
+    expect(host.count('dart.createTask')).toBe(1)
+  })
+
+  it('keeps Check again and Discard draft available after Dismiss', async () => {
+    const user = userEvent.setup()
+    hideTaskFromLists(host, CREATED_TASK_ID)
+    host.lostReplies.push({ ok: false, error: 'socket closed', outcome: 'unknown' })
+    const harness = renderCreateHarness()
+
+    await user.click(harness.newTaskButton())
+    await user.type(screen.getByLabelText('Title'), 'Ship the fix')
+    await user.click(screen.getByRole('button', { name: 'Create task' }))
+    await screen.findByText(/may have created this task/i)
+    expect(await screen.findByRole('button', { name: 'Create anyway' })).toBeTruthy()
+
+    await user.click(screen.getByRole('button', { name: 'Dismiss' }))
+    expect(screen.getByRole('button', { name: 'Check again' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Discard draft' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Create task' })).toHaveProperty('disabled', true)
   })
 })
