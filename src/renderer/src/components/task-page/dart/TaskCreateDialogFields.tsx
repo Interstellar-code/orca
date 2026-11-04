@@ -74,7 +74,7 @@ export function DartCreateFields({
             {label}
           </label>
           <Select
-            value={createDraft[key] || '__unset__'}
+            value={createDraft[key] || (key === 'dartboard' ? undefined : '__unset__')}
             disabled={blocked}
             onValueChange={(value) => setCreateDraft({ [key]: value === '__unset__' ? '' : value })}
           >
@@ -87,9 +87,11 @@ export function DartCreateFields({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__unset__">
-                {translate('auto.components.task.page.dart.TaskCreateDialog.default', 'Default')}
-              </SelectItem>
+              {key !== 'dartboard' ? (
+                <SelectItem value="__unset__">
+                  {translate('auto.components.task.page.dart.TaskCreateDialog.default', 'Default')}
+                </SelectItem>
+              ) : null}
               {options.map((option) => (
                 <SelectItem key={option} value={option}>
                   {option}
@@ -153,6 +155,7 @@ export function DartCreateFields({
           <Input
             id="dart-create-due"
             type="date"
+            className="h-8"
             value={createDraft.dueAt}
             disabled={blocked}
             onChange={(event) => setCreateDraft({ dueAt: event.target.value })}
