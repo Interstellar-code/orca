@@ -277,11 +277,23 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
     if (createInFlightRef.current) {
       return { ok: false, outcome: 'notApplied', error: 'A Dart create is already running.' }
     }
+    const refusal = dartCreateRefusal(
+      createDraft.title.trim(),
+      createDraft.description,
+      createDraft.dartboard,
+      dartConfig
+    )
+    if (refusal) {
+      refuseCreate(refusal)
+      return { ok: false, outcome: 'notApplied', error: refusal }
+    }
     createInFlightRef.current = true
     setCreateSubmitting(true)
-    const result = await useAppStore
-      .getState()
-      .createDartTask(dartCreateArgs(createDraft, createSupportsWritesV2))
+    const args = dartCreateArgs(createDraft, createSupportsWritesV2)
+    if (!dartConfig?.types.length) {
+      delete args.type
+    }
+    const result = await useAppStore.getState().createDartTask(args)
     if (result.ok) {
       finishCreate(result.task)
       return result
@@ -296,11 +308,11 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
     canCreateAnyway,
     createDraft,
     createSupportsWritesV2,
+    dartConfig,
     finishCreate,
     refuseCreate,
     reportUnknownOutcome
   ])
-
   return Object.assign(model, {
     createOpen,
     createSupportsWritesV2,
