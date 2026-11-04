@@ -337,16 +337,50 @@ describe('Dart create dialog fields and keyboard order', () => {
     expect(host.count('dart.createTask')).toBe(0)
   })
 
-  it('tabs from title to description and then the first select field', async () => {
+  it('tabs through every create field and traps focus in both directions', async () => {
     const user = userEvent.setup()
+    renderCreateHarness({ taskSource: 'dart', dartConfig: { ...config, types: ['Bug'] } })
+    await user.click(screen.getByRole('button', { name: 'New task' }))
+    await screen.findByLabelText('Due date')
+    await user.type(screen.getByLabelText('Title'), 'Ship the fix')
+    const controls = [
+      screen.getByLabelText('Title'),
+      screen.getByLabelText('Description'),
+      ...['Dartboard', 'Type', 'Status', 'Priority', 'Assignee'].map((name) =>
+        screen.getByRole('combobox', { name })
+      ),
+      screen.getByRole('button', { name: 'Tags' }),
+      screen.getByLabelText('Due date'),
+      screen.getByRole('button', { name: 'Cancel' }),
+      screen.getByRole('button', { name: 'Create task' })
+    ]
+    expect(document.activeElement).toBe(controls[0])
+    for (const control of controls.slice(1)) {
+      await user.tab()
+      expect(document.activeElement).toBe(control)
+    }
+    await user.tab()
+    expect(document.activeElement).toBe(controls[0])
+    for (const control of controls.toReversed()) {
+      await user.tab({ shift: true })
+      expect(document.activeElement).toBe(control)
+    }
+  })
+
+  it('sends only one create for two submits before the first settles', async () => {
+    const user = userEvent.setup()
+    const release = host.hold('dart.createTask')
     renderCreateHarness()
     await user.click(screen.getByRole('button', { name: 'New task' }))
-
-    expect(document.activeElement).toBe(screen.getByLabelText('Title'))
-    await user.tab()
-    expect(document.activeElement).toBe(screen.getByLabelText('Description'))
-    await user.tab()
-    expect(document.activeElement).toBe(screen.getByRole('combobox', { name: 'Dartboard' }))
+    await user.type(screen.getByLabelText('Title'), 'Ship the fix')
+    const submit = screen.getByRole('button', { name: 'Create task' })
+    fireEvent.click(submit)
+    fireEvent.click(submit)
+    expect(submit).toBeDisabled()
+    release()
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(host.count('dart.createTask')).toBe(1)
+    expect([...host.tasks.values()].filter((task) => task.title === 'Ship the fix')).toHaveLength(1)
   })
 })
 
