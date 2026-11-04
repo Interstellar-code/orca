@@ -24,6 +24,8 @@ export class FakeDartHost {
   refusals: Failure[] = []
   /** Applies the next writes, then loses the reply. */
   lostReplies: Failure[] = []
+  /** Applies the next writes, then answers with a reply the client cannot read. */
+  garbledReplies: object[] = []
   failReads = false
   connection: DartConnectionStatus = {
     connected: true,
@@ -59,7 +61,7 @@ export class FakeDartHost {
       return refusal
     }
     const reply = apply()
-    return this.lostReplies.shift() ?? reply
+    return this.lostReplies.shift() ?? this.garbledReplies.shift() ?? reply
   }
 
   private update(params: RpcParams, changes: Partial<DartTask>): { ok: true; task: DartTask } {

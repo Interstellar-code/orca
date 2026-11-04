@@ -74,6 +74,7 @@ describe('dart write actions', () => {
     const store = createTestStore()
     const updates = { status: 'Done', description: 'Overwrites Dart' }
 
+    // @ts-expect-error a description never goes through updateDartTask
     await store.getState().updateDartTask(TASK_ID, updates)
 
     expect(runtime.host(null).requests.at(-1)?.params.updates).toEqual({ status: 'Done' })
@@ -202,6 +203,36 @@ describe('dart write actions', () => {
 
     expect(result).toMatchObject({ ok: true, comment: { text: 'Looks good', taskId: TASK_ID } })
     expect(isDartEpochCurrent(readBeforeAdd)).toBe(false)
+  })
+
+  it('still ends the read epoch when reading a comment reply throws', async () => {
+    const store = createTestStore()
+    const identity = dartTaskIdentity(getDartReadScope(store.getState().settings), TASK_ID, null)
+    const release = runtime.host(null).hold('dart.addComment')
+    runtime.host(null).garbledReplies.push({ ok: true })
+
+    const add = store.getState().addDartComment({ taskId: TASK_ID, text: 'Looks good' })
+    await vi.waitFor(() => expect(runtime.host(null).count('dart.addComment')).toBe(1))
+    const readDuringAdd = captureDartEpoch(identity)
+    release()
+
+    await expect(add).resolves.toMatchObject({ ok: false, outcome: 'unknown' })
+    expect(isDartEpochCurrent(readDuringAdd)).toBe(false)
+  })
+
+  it('still refetches lists when reading a create reply throws', async () => {
+    const store = createTestStore()
+    await store.getState().listDartTasks({})
+    runtime.host(null).garbledReplies.push({ ok: true })
+
+    await expect(store.getState().createDartTask({ title: 'Landed' })).resolves.toMatchObject({
+      ok: false,
+      outcome: 'unknown'
+    })
+    const page = await store.getState().listDartTasks({})
+
+    expect(runtime.host(null).count('dart.listTasks')).toBe(2)
+    expect(page).toMatchObject({ ok: true, totalCount: 2 })
   })
 
   it('makes the next list read refetch after a create', async () => {

@@ -383,6 +383,43 @@ describe('dart task write queue: ordering', () => {
   })
 })
 
+describe('dart task write queue: a failing screen', () => {
+  it('keeps the queue moving and the other screens updated when a listener throws', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const page = await openPage()
+    const unsubscribeBroken = subscribeDartTaskWrites(
+      page.identity,
+      () => {
+        throw new Error('render failed')
+      },
+      () => {}
+    )
+    // Listeners run in order, so one added after the broken one proves the loop went on.
+    const seenAfterBroken: Partial<DartTask>[] = []
+    const unsubscribeLater = subscribeDartTaskWrites(
+      page.identity,
+      (update) => seenAfterBroken.push(update.patch),
+      () => {}
+    )
+
+    const [first, second] = await Promise.all([
+      page.edit({ status: 'Doing' }),
+      page.edit({ priority: 'High' })
+    ])
+
+    expect(first.ok).toBe(true)
+    expect(second.ok).toBe(true)
+    expect(page.host.tasks.get(page.taskId)).toMatchObject({ status: 'Doing', priority: 'High' })
+    expect(page.listRow()).toMatchObject({ status: 'Doing', priority: 'High' })
+    expect(page.state().pendingFields.size).toBe(0)
+    expect(seenAfterBroken).toContainEqual({ status: 'Doing' })
+    expect(consoleError).toHaveBeenCalled()
+    unsubscribeBroken()
+    unsubscribeLater()
+    consoleError.mockRestore()
+  })
+})
+
 describe('dart task write queue: stale reads', () => {
   it('keeps an older in-flight read from overwriting the caches', async () => {
     const page = await openPage()

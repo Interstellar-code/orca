@@ -86,9 +86,11 @@ export function createDartWriteActions(set: DartSliceSet, get: DartSliceGet): Da
         send: async (scope, viewerId) => {
           const identity = dartTaskIdentity(scope, args.taskId, viewerId)
           bumpDartEpochs(identity)
-          const result = await dartAddCommentForTarget(scope.target, args)
-          bumpDartEpochs(identity)
-          return result
+          try {
+            return await dartAddCommentForTarget(scope.target, args)
+          } finally {
+            bumpDartEpochs(identity)
+          }
         }
       }),
 
@@ -99,13 +101,18 @@ export function createDartWriteActions(set: DartSliceSet, get: DartSliceGet): Da
         sourceContext: options?.sourceContext,
         send: async (scope, viewerId) => {
           beginDartMutation()
-          const result = await dartCreateTaskForTarget(scope.target, args)
-          beginDartMutation()
-          // An unknown create may have landed, so a page cached before it can no longer be trusted.
-          if (result.ok || result.outcome === 'unknown') {
-            get().invalidateDartLists(dartAccountIdentity(scope, viewerId))
+          // A throw or an unknown create may have landed, so a page cached before it can no longer be trusted.
+          let mayHaveLanded = true
+          try {
+            const result = await dartCreateTaskForTarget(scope.target, args)
+            mayHaveLanded = result.ok || result.outcome === 'unknown'
+            return result
+          } finally {
+            beginDartMutation()
+            if (mayHaveLanded) {
+              get().invalidateDartLists(dartAccountIdentity(scope, viewerId))
+            }
           }
-          return result
         }
       })
   }

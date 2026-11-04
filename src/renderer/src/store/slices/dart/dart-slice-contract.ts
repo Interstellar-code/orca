@@ -64,7 +64,7 @@ export type DartSlice = {
   invalidateDartLists: (identity: DartAccountIdentity) => void
   updateDartTask: (
     taskId: string,
-    updates: DartFieldUpdates,
+    updates: DartFieldUpdates & { description?: never },
     options?: DartWriteOptions
   ) => Promise<DartWriteResult<{ task: DartTask }>>
   updateDartTaskDescription: (

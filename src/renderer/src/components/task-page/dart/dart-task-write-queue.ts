@@ -12,6 +12,7 @@ import {
   absorbRead,
   blockedFields,
   editedFields,
+  guardDartQueueCallback,
   pickFields,
   publish,
   readTask,
@@ -160,7 +161,8 @@ export function enqueueDartTaskWrite(args: {
   patch: (patch: Partial<DartTask>) => void
   invalidateLists: () => void
 }): Promise<DartTaskWrite> {
-  const { identity, previous, optimistic, write, refresh, patch, invalidateLists } = args
+  const { identity, previous, optimistic, write, refresh, patch } = args
+  const invalidateLists = (): void => guardDartQueueCallback(args.invalidateLists)
   const key = dartTaskIdentityKey(identity)
   const existing = writes.get(key)
   const fields = [...new Set([...editedFields(optimistic), ...(args.fields ?? [])])]

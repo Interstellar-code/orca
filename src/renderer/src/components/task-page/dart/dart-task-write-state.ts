@@ -99,16 +99,25 @@ export function visiblePatches(entry: TaskWrites): Partial<DartTask> {
   return merged
 }
 
+// A screen's failure must not strand the queue: later writes wait on this one's promise.
+export function guardDartQueueCallback(callback: () => void): void {
+  try {
+    callback()
+  } catch (error) {
+    console.error('Dart task write callback failed:', error)
+  }
+}
+
 export function publish(
   entry: TaskWrites,
   kind: DartTaskWriteUpdate['kind'],
   patch: Partial<DartTask>
 ): void {
   if (Object.keys(patch).length > 0) {
-    entry.patch(patch)
+    guardDartQueueCallback(() => entry.patch(patch))
   }
   for (const listener of listeners.get(dartTaskIdentityKey(entry.identity)) ?? []) {
-    listener({ kind, patch })
+    guardDartQueueCallback(() => listener({ kind, patch }))
   }
 }
 
