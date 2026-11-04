@@ -16,7 +16,7 @@ describe('runtimeEnvironmentCallFailure', () => {
     } catch (error) {
       refusal = error
     }
-    // SAFETY: the failure builder reads only runtimeId from the environment.
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the failure builder reads only runtimeId from the environment.
     const environment = { runtimeId: 'rt-1' } as ReturnType<typeof resolveEnvironment>
 
     expect(runtimeEnvironmentCallFailure(environment, 'dart.createTask', refusal)).toMatchObject({

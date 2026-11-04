@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { REMOTE_RUNTIME_MAX_INBOUND_REQUEST_JSON_BYTES } from '../../../shared/remote-runtime/remote-runtime-memory-limits'
 import { getUtf8ByteLength } from '../../../shared/utf8-byte-limits'
-import { dartCreateTaskForTarget } from '../runtime/runtime-dart-client'
+import { dartCreateTaskForTarget } from '../runtime/runtime-dart-write-client'
 import { createWebDartApi } from './preload-api/web-dart-api'
 import { WebRuntimeConnectionTransport } from './web-runtime-connection-transport'
 import { WebRuntimeRequestRegistry } from './web-runtime-request-registry'

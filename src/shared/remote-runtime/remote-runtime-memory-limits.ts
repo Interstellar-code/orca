@@ -92,6 +92,13 @@ export function serializeRemoteRuntimeRpcRequest(args: {
   return serialized
 }
 
+const REMOTE_RUNTIME_REQUEST_TOO_LARGE_PREFIX = 'Remote runtime request exceeds'
+
+/** Lets a caller tell the size refusal from other invalid_argument errors; the message is all that survives IPC. */
+export function isRemoteRuntimeRequestTooLargeMessage(message: string): boolean {
+  return message.startsWith(REMOTE_RUNTIME_REQUEST_TOO_LARGE_PREFIX)
+}
+
 /** A host closes the socket (1009) on a larger frame, failing every call on it; refuse before sending. */
 export function assertRemoteRuntimeRequestFitsHostFrame(serializedRequest: string): void {
   if (
@@ -101,7 +108,7 @@ export function assertRemoteRuntimeRequestFitsHostFrame(serializedRequest: strin
   ) {
     throw new RemoteRuntimeClientError(
       'invalid_argument',
-      `Remote runtime request exceeds ${REMOTE_RUNTIME_MAX_INBOUND_REQUEST_JSON_BYTES} bytes.`
+      `${REMOTE_RUNTIME_REQUEST_TOO_LARGE_PREFIX} ${REMOTE_RUNTIME_MAX_INBOUND_REQUEST_JSON_BYTES} bytes.`
     )
   }
 }

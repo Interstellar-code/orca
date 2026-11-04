@@ -6,7 +6,10 @@ import {
   type DartHost
 } from './dart-host.test-fixture'
 
-const traced = vi.hoisted(() => ({ calls: [] as unknown[][], failed: [] as unknown[] }))
+const traced = vi.hoisted((): { calls: unknown[][]; failed: unknown[] } => ({
+  calls: [],
+  failed: []
+}))
 vi.mock('../observability/tracer', () => ({
   withSpan: async (_name: string, fn: (span: unknown) => unknown) => {
     const span = new Proxy(
