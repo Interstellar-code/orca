@@ -14,8 +14,17 @@ import {
   collectLinkedDartTaskRefs,
   findDartTaskWorkspaceAttachmentsInIndex
 } from '@/lib/dart-issue-workspace-attachment'
+import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
 import { taskProviderErrorMessage } from '@/lib/task-provider-error-copy'
 import type { DartClientResult } from '@/runtime/runtime-dart-client'
+import { useAppStore } from '@/store'
+import { getDartReadScope } from '@/store/slices/dart/dart-read-coordination'
+import {
+  captureDartEpoch,
+  dartAccountIdentity,
+  dartScopeViewerId
+} from '@/store/slices/dart/dart-task-identity'
+import { readPastDartWrites } from './dart-stale-read'
 import {
   buildDartListArgs,
   DEFAULT_DART_LIST_FILTERS,
@@ -23,6 +32,7 @@ import {
   type DartListFilters
 } from './task-page-dart-list-model'
 import { filterLinkedDartTasks, readLinkedDartTasks } from './task-page-dart-linked-issues'
+import { useDartListPinnedRows } from './use-dart-list-pinned-rows'
 
 export type TaskPageDartError = { message: string; code?: string }
 
@@ -73,6 +83,25 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
   const [dartConfig, setDartConfig] = useState<DartWorkspaceConfig | null>(null)
   const active = taskSource === 'dart' && dartConnected
   const viewerId = dartStatus.viewer?.id ?? null
+  const activeRuntimeEnvironmentId = useAppStore((s) => s.settings?.activeRuntimeEnvironmentId)
+  const pageContextKey = useAppStore((s) => getProviderRuntimeContextKey(s.settings))
+  // The context key is a dep because its session generation decides whose status the scope trusts.
+  const pageScope = useMemo(
+    () => getDartReadScope({ activeRuntimeEnvironmentId }),
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- Why: see above.
+    [activeRuntimeEnvironmentId, pageContextKey]
+  )
+  const accountViewerId = useAppStore((s) => dartScopeViewerId(s, pageScope))
+  const { hostKey, accountKey } = dartAccountIdentity(pageScope, accountViewerId)
+  const shownRowsKeyRef = useRef<string | null>(null)
+  const { clearPinsOnNewList, mergeListRead, noteDartTaskCreated } = useDartListPinnedRows({
+    active,
+    hostKey,
+    accountKey,
+    dartTasks,
+    setDartTasks,
+    setDartTotalCount
+  })
   // Latest callbacks stay out of effect deps so identity churn never refetches.
   const actionsRef = useRef({ listDartTasks, fetchDartTask, fetchDartConfig })
   useEffect(() => {
@@ -125,55 +154,80 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
       return
     }
     let cancelled = false
-    const force = dartRefreshNonce > 0
+    clearPinsOnNewList(JSON.stringify([listKey, dartHasWorkspace, dartRefreshNonce]))
+    const rowsKey = JSON.stringify([listKey, dartHasWorkspace, linkedRefsSignature])
     setDartLoading(true)
     setDartError(null)
     const listArgs = dartHasWorkspace ? null : buildDartListArgs(dartFilters, viewerId)
-    const request: Promise<DartListOutcome> = dartHasWorkspace
-      ? readLinkedDartTasks(
-          linkedRefs,
-          (taskId, options) => actionsRef.current.fetchDartTask(taskId, options),
-          dartTaskSourceContext,
-          force
-        ).then((linked) => ({
-          tasks: linked.tasks,
-          totalCount: linked.tasks.length,
-          error: linked.error
-        }))
-      : listArgs === null
-        ? Promise.resolve({ tasks: [], totalCount: 0, error: null })
-        : actionsRef.current.listDartTasks(listArgs, { force }).then((result) =>
-            result.ok
-              ? {
-                  tasks: result.tasks,
-                  totalCount: result.totalCount,
-                  error: null
-                }
-              : {
-                  tasks: [],
-                  totalCount: 0,
-                  error: {
-                    message: taskProviderErrorMessage(result),
-                    code: result.errorCode
+    const readList = (force: boolean): Promise<DartListOutcome> => {
+      const request: Promise<DartListOutcome> = dartHasWorkspace
+        ? readLinkedDartTasks(
+            linkedRefs,
+            (taskId, options) => actionsRef.current.fetchDartTask(taskId, options),
+            dartTaskSourceContext,
+            force
+          ).then((linked) => ({
+            tasks: linked.tasks,
+            totalCount: linked.tasks.length,
+            error: linked.error
+          }))
+        : listArgs === null
+          ? Promise.resolve({ tasks: [], totalCount: 0, error: null })
+          : actionsRef.current.listDartTasks(listArgs, { force }).then((result) =>
+              result.ok
+                ? {
+                    tasks: result.tasks,
+                    totalCount: result.totalCount,
+                    error: null
                   }
-                }
-          )
-    void request
-      .catch((): DartListOutcome => ({ tasks: [], totalCount: 0, error: { message: '' } }))
-      .then((outcome) => {
-        if (cancelled) {
-          return
-        }
-        setDartTasks(outcome.tasks)
-        setDartTotalCount(outcome.totalCount)
-        setDartError(outcome.error)
-        setDartLoading(false)
-      })
+                : {
+                    tasks: [],
+                    totalCount: 0,
+                    error: {
+                      message: taskProviderErrorMessage(result),
+                      code: result.errorCode
+                    }
+                  }
+            )
+      return request.catch((): DartListOutcome => ({
+        tasks: [],
+        totalCount: 0,
+        error: { message: '' }
+      }))
+    }
+    void readPastDartWrites({
+      captureEpoch: () => captureDartEpoch({ hostKey }),
+      cancelled: () => cancelled,
+      force: dartRefreshNonce > 0,
+      read: readList
+    }).then(({ result, current }) => {
+      if (cancelled) {
+        return
+      }
+      setDartLoading(false)
+      // Past the re-read limit the rows on screen stay, unless they answer another filter.
+      if (!current && shownRowsKeyRef.current === rowsKey) {
+        return
+      }
+      shownRowsKeyRef.current = rowsKey
+      const outcome = mergeListRead(result)
+      setDartTasks(outcome.tasks)
+      setDartTotalCount(outcome.totalCount)
+      setDartError(outcome.error)
+    })
     return () => {
       cancelled = true
     }
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- Why: listKey/linkedRefsSignature fingerprint the filters and refs read here.
-  }, [active, listKey, dartHasWorkspace, linkedRefsSignature, dartRefreshNonce])
+  }, [
+    active,
+    listKey,
+    dartHasWorkspace,
+    linkedRefsSignature,
+    dartRefreshNonce,
+    hostKey,
+    accountKey
+  ])
 
   const displayedDartTasks = useMemo(
     () =>
@@ -213,6 +267,7 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
     dartError: typeof dartError
     dartConfig: typeof dartConfig
     getDartTaskWorkspaces: typeof getDartTaskWorkspaces
+    noteDartTaskCreated: typeof noteDartTaskCreated
   }
   nextModel.dartFilters = dartFilters
   nextModel.setDartFilter = setDartFilter
@@ -228,6 +283,7 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
   nextModel.dartError = dartError
   nextModel.dartConfig = dartConfig
   nextModel.getDartTaskWorkspaces = getDartTaskWorkspaces
+  nextModel.noteDartTaskCreated = noteDartTaskCreated
   return nextModel
 }
 export type TaskPageDartStateFields = Omit<

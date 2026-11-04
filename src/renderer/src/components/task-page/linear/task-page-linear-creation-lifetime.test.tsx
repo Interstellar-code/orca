@@ -174,6 +174,7 @@ it.each([
         dartError: null,
         dartConfig: null,
         getDartTaskWorkspaces: () => [],
+        noteDartTaskCreated: vi.fn<LinearDialogModel['noteDartTaskCreated']>(),
         taskPageListChromeHidden: false
       } satisfies LinearDialogModel
       useLayoutEffect(() => {
