@@ -37,7 +37,7 @@ function DiscardPrompt({
     <Dialog open={open} onOpenChange={(next) => !next && onDecline()}>
       <DialogContent size="compact" showCloseButton={false} onCloseAutoFocus={onCloseAutoFocus}>
         <DialogHeader>
-          <DialogTitle className="text-sm">
+          <DialogTitle size="compact">
             {translate(
               'auto.components.task.page.dart.DartDescription.discardPrompt',
               'Discard unsaved description changes?'
@@ -79,7 +79,6 @@ function DescriptionSection({
     </>
   )
   return (
-    // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- Why: Esc from the controls inside cancels the edit; the section itself takes no focus.
     <section
       className="space-y-2 px-4 py-4"
       data-dart-escape-local={editing ? '' : undefined}

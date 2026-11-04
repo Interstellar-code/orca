@@ -42,14 +42,16 @@ export function DartDescriptionConflictDialog({
         onCloseAutoFocus={onCloseAutoFocus}
       >
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-sm">
+          <div className="flex items-center gap-2">
             <AlertTriangle className="size-4 flex-none text-muted-foreground" />
-            {translate(
-              'auto.components.task.page.dart.DartDescriptionConflictDialog.title',
-              'This description changed in Dart while you were editing'
-            )}
-          </DialogTitle>
-          <DialogDescription className="text-xs">
+            <DialogTitle size="compact">
+              {translate(
+                'auto.components.task.page.dart.DartDescriptionConflictDialog.title',
+                'This description changed in Dart while you were editing'
+              )}
+            </DialogTitle>
+          </div>
+          <DialogDescription size="compact">
             {translate(
               'auto.components.task.page.dart.DartDescriptionConflictDialog.body',
               'Nothing was saved and nothing was overwritten. Your text is below so you can copy it.'

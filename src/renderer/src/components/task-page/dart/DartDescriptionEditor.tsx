@@ -160,7 +160,7 @@ export function DartDescriptionEditor({
           'auto.components.task.page.dart.DartDescription.editorLabel',
           'Description (Markdown)'
         )}
-        className={cn('resize-y text-xs leading-5 md:text-xs', preview && 'hidden')}
+        className={cn('resize-y', preview && 'hidden')}
         value={textareaText(lineage.draft)}
         onChange={(event) => editor.changeDraft(event.target.value)}
         onKeyDown={(event) => {

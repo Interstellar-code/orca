@@ -84,8 +84,8 @@ function applyPatchesLikeDart(host: FakeDartHost, beforeWrite?: () => void): voi
     beforeWrite?.()
     const id = params.taskId ?? ''
     const before = host.tasks.get(id)?.description ?? ''
-    // SAFETY: the fake's params type covers `dart.updateTask`; this method's `updates` is the patch array.
-    const updates = params.updates as unknown as DartDescriptionUpdate[]
+    // The fake's params type covers `dart.updateTask`; this method's `updates` is the patch array.
+    const updates: DartDescriptionUpdate[] = Array.isArray(params.updates) ? params.updates : []
     let patched: string
     try {
       patched = applyLikeDart(before, updates)
@@ -114,12 +114,19 @@ async function openWith(description: string) {
   return { ...detail, task: shown }
 }
 
+async function findEditorTextarea(): Promise<HTMLTextAreaElement> {
+  const textarea = await screen.findByRole('textbox', { name: 'Description (Markdown)' })
+  if (!(textarea instanceof HTMLTextAreaElement)) {
+    throw new Error('The description editor is not a textarea.')
+  }
+  return textarea
+}
+
 async function startEditing(
   user: ReturnType<typeof userEvent.setup>
 ): Promise<HTMLTextAreaElement> {
   await user.click(await screen.findByRole('button', { name: 'Edit' }))
-  const textarea = await screen.findByRole('textbox', { name: 'Description (Markdown)' })
-  return textarea as HTMLTextAreaElement
+  return findEditorTextarea()
 }
 
 function typeInto(textarea: HTMLTextAreaElement, text: string): void {
@@ -408,8 +415,8 @@ describe('the conflict flow', () => {
     const user = userEvent.setup()
     await reachConflict(user)
     await user.keyboard('{Escape}')
-    const textarea = await screen.findByRole('textbox', { name: 'Description (Markdown)' })
-    expect((textarea as HTMLTextAreaElement).value).toContain('stays changed')
+    const textarea = await findEditorTextarea()
+    expect(textarea.value).toContain('stays changed')
   })
 
   it('Back to editing merges, lists the hunk, and keeps it through everything until removed', async () => {
@@ -419,9 +426,7 @@ describe('the conflict flow', () => {
 
     await user.click(within(dialog).getByRole('button', { name: 'Back to editing' }))
 
-    const textarea = (await screen.findByRole('textbox', {
-      name: 'Description (Markdown)'
-    })) as HTMLTextAreaElement
+    const textarea = await findEditorTextarea()
     expect(textarea.value).toBe(
       `Remote top.\n\n${clash.replace('stays as it is', 'stays changed')}`
     )
@@ -439,9 +444,7 @@ describe('the conflict flow', () => {
     await screen.findByRole('button', { name: 'Edit' })
     expect(screen.queryByRole('button', { name: 'Mark resolved' })).toBeNull()
     showTask(task)
-    const reopened = (await screen.findByRole('textbox', {
-      name: 'Description (Markdown)'
-    })) as HTMLTextAreaElement
+    const reopened = await findEditorTextarea()
     expect(hunkCount()).toBe(firstCount)
 
     // A second conflict rebases the typed text, keeps the stored hunks and shows the current text.
@@ -453,9 +456,7 @@ describe('the conflict flow', () => {
     expect(screen.getByTestId('dart-description-conflict-editor-text').textContent).toBe(typed)
     expect(host.count('dart.updateTaskDescription')).toBe(0)
     await user.click(within(second).getByRole('button', { name: 'Back to editing' }))
-    const merged = (await screen.findByRole('textbox', {
-      name: 'Description (Markdown)'
-    })) as HTMLTextAreaElement
+    const merged = await findEditorTextarea()
     expect(merged.value).toContain('A sentence I added.')
     expect(merged.value).toContain('Remote bottom.')
     expect(merged.value).toContain('stays changed')
@@ -584,12 +585,12 @@ describe('read-only states', () => {
     const user = userEvent.setup()
     const call = window.api.runtimeEnvironments.call
     Object.assign(window.api.runtimeEnvironments, {
-      call: async (args: { selector: string; method: string }) => {
+      call: async (args: Parameters<typeof call>[0]) => {
         if (args.method !== 'status.get') {
-          return call(args as Parameters<typeof call>[0])
+          return call(args)
         }
         const status = createCompatibleRuntimeStatusResponse(args.selector)
-        status.result.capabilities = status.result.capabilities.filter(
+        status.result.capabilities = status.result.capabilities?.filter(
           (capability) => capability !== DART_WRITES_V2_RUNTIME_CAPABILITY
         )
         return status
