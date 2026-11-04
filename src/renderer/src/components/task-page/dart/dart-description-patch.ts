@@ -200,33 +200,53 @@ export function textareaText(text: string): string {
   return text.replace(/\r\n?/g, '\n')
 }
 
+function splitKeepingLineEndings(text: string): { text: string; ending: string }[] {
+  const lines: { text: string; ending: string }[] = []
+  let start = 0
+  for (const match of text.matchAll(/\r\n?|\n/g)) {
+    lines.push({ text: text.slice(start, match.index), ending: match[0] })
+    start = match.index + match[0].length
+  }
+  lines.push({ text: text.slice(start), ending: '' })
+  return lines
+}
+
 /** A textarea reports every line ending as LF; lines outside the edit keep what Dart holds, or each would count as a change. */
 export function restoreBaseLineEndings(base: string, edited: string): string {
-  if (!/\r/.test(base)) {
+  if (!base.includes('\r')) {
     return edited
   }
-  const baseLines = base.split('\n')
+  const baseLines = splitKeepingLineEndings(base)
   const editedLines = edited.split('\n')
   const limit = Math.min(baseLines.length, editedLines.length)
   let head = 0
-  while (head < limit && textareaText(baseLines[head]) === editedLines[head]) {
+  while (head < limit && baseLines[head].text === editedLines[head]) {
     head += 1
   }
   let tail = 0
   while (
     tail < limit - head &&
-    textareaText(baseLines[baseLines.length - 1 - tail]) ===
-      editedLines[editedLines.length - 1 - tail]
+    baseLines[baseLines.length - 1 - tail].text === editedLines[editedLines.length - 1 - tail]
   ) {
     tail += 1
   }
-  const lineEnd = base.includes('\r\n') ? '\r' : ''
-  const middle = editedLines
-    .slice(head, editedLines.length - tail)
-    .map((line, index, lines) =>
-      index < lines.length - 1 || tail > 0 ? `${line}${lineEnd}` : line
-    )
-  return [...baseLines.slice(0, head), ...middle, ...baseLines.slice(baseLines.length - tail)].join(
+  const nearestEnding =
+    baseLines.slice(0, head).findLast((line) => line.ending)?.ending ??
+    baseLines.find((line) => line.ending)?.ending ??
     '\n'
-  )
+  const replacedCount = baseLines.length - head - tail
+  const middle = editedLines.slice(head, editedLines.length - tail).map((text, index) => ({
+    text,
+    ending: index < replacedCount ? baseLines[head + index].ending : ''
+  }))
+  const lines = [
+    ...baseLines.slice(0, head),
+    ...middle,
+    ...baseLines.slice(baseLines.length - tail)
+  ]
+  return lines
+    .map((line, index) =>
+      index === lines.length - 1 ? line.text : line.text + (line.ending || nearestEnding)
+    )
+    .join('')
 }

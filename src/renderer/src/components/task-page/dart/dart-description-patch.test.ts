@@ -160,6 +160,39 @@ describe('restoreBaseLineEndings', () => {
     expect(restoreBaseLineEndings('one\r\ntwo', 'one\ntwo!')).toBe('one\r\ntwo!')
   })
 
+  it.each([
+    ['pure CRLF', 'one\r\ntwo\r\nthree'],
+    ['pure LF', 'one\ntwo\nthree'],
+    ['mixed', 'one\ntwo\r\nthree\nfour\r\nfive'],
+    ['a lone CR', 'one\rtwo\nthree'],
+    ['a trailing CRLF', 'one\ntwo\r\n']
+  ])('returns an untouched %s text exactly', (_name, base) => {
+    expect(restoreBaseLineEndings(base, textareaText(base))).toBe(base)
+  })
+
+  it.each([
+    ['an edit in a mixed text', 'a\nb\r\nc\nd\r\ne', 'a\nb\r\nC!\nd\r\ne'],
+    ['an edit next to a CRLF line', 'a\r\nb\nc\r\nd', 'a\r\nb!\nc\r\nd'],
+    ['an added line takes the ending before it', 'a\nb\r\nc', 'a\nb\r\nnew\r\nc'],
+    ['a removed line', 'a\nb\r\nc\nd', 'a\nb\r\nd'],
+    ['text added after the last line', 'a\nb\r\nc', 'a\nb\r\nc\r\nd'],
+    ['the last line removed', 'a\r\nb\nc', 'a\r\nb'],
+    ['everything replaced', 'a\r\nb', 'x\r\ny\r\nz']
+  ])('keeps each untouched line ending through %s', (_name, base, expected) => {
+    expect(restoreBaseLineEndings(base, textareaText(expected))).toBe(expected)
+  })
+
+  it('sends no line ending of an untouched line in a mixed text', () => {
+    const base = 'first line here\nsecond line here\r\nthird line here\nfourth line here'
+    const draft = restoreBaseLineEndings(
+      base,
+      textareaText(base).replace('third line', 'edited line')
+    )
+    const updates = patchOf(base, draft)
+    expect(updates).toEqual([{ type: 'replace', oldText: 'third', newText: 'edited' }])
+    expect(applyLikeDart(base, updates)).toBe(base.replace('third line', 'edited line'))
+  })
+
   it('leaves an LF text as typed', () => {
     expect(restoreBaseLineEndings('one\ntwo', 'one\ntwo!')).toBe('one\ntwo!')
   })
