@@ -292,6 +292,89 @@ describe('Dart create dialog with a lost reply', () => {
 
     expect(await screen.findByRole('button', { name: 'Create anyway' })).toBeTruthy()
   })
+
+  it('keeps the unresolved lookup across close and reopen', async () => {
+    const user = userEvent.setup()
+    host.lostReplies.push({ ok: false, error: 'socket closed', outcome: 'unknown' })
+    const harness = renderCreateHarness()
+
+    await user.click(harness.newTaskButton())
+    await user.type(screen.getByLabelText('Title'), 'Ship the fix')
+    await user.click(screen.getByRole('button', { name: 'Create task' }))
+    await screen.findByText(/may have created this task/i)
+    await waitFor(() => expect(host.count('dart.listTasks')).toBeGreaterThan(0))
+
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    await user.click(harness.newTaskButton())
+
+    expect(await screen.findByText(/may have created this task/i)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Create task' })).toHaveProperty('disabled', true)
+  })
+
+  it('does not unlock submit when the lost-reply notice is dismissed', async () => {
+    const user = userEvent.setup()
+    host.lostReplies.push({ ok: false, error: 'socket closed', outcome: 'unknown' })
+    renderCreateHarness()
+
+    await user.click(screen.getByRole('button', { name: 'New task' }))
+    await user.type(screen.getByLabelText('Title'), 'Ship the fix')
+    await user.click(screen.getByRole('button', { name: 'Create task' }))
+    await screen.findByText(/may have created this task/i)
+    await user.click(screen.getByRole('button', { name: 'Dismiss' }))
+
+    expect(screen.getByRole('button', { name: 'Create task' })).toHaveProperty('disabled', true)
+    expect(host.count('dart.createTask')).toBe(1)
+  })
+
+  it('keeps the dialog open when Escape lands while the create is in flight', async () => {
+    const user = userEvent.setup()
+    const release = host.hold('dart.createTask')
+    renderCreateHarness()
+
+    await user.click(screen.getByRole('button', { name: 'New task' }))
+    await user.type(screen.getByLabelText('Title'), 'Ship the fix')
+    await user.click(screen.getByRole('button', { name: 'Create task' }))
+    await user.keyboard('{Escape}')
+
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    release()
+    await waitFor(() => expect(host.count('dart.createTask')).toBe(1))
+  })
+
+  it('keeps the unresolved lookup when a match link closes the dialog', async () => {
+    const user = userEvent.setup()
+    host.lostReplies.push({ ok: false, error: 'socket closed', outcome: 'unknown' })
+    const harness = renderCreateHarness()
+
+    await user.click(harness.newTaskButton())
+    await user.type(screen.getByLabelText('Title'), 'Ship the fix')
+    await user.click(screen.getByRole('button', { name: 'Create task' }))
+    await user.click(await screen.findByRole('button', { name: 'Ship the fix' }))
+    await user.click(harness.newTaskButton())
+
+    expect(await screen.findByText(/may have created this task/i)).toBeTruthy()
+    expect(host.count('dart.createTask')).toBe(1)
+  })
+
+  it('sends one create when Create anyway loses its own reply, then waits for a new lookup', async () => {
+    const user = userEvent.setup()
+    hideTaskFromLists(host, CREATED_TASK_ID)
+    host.lostReplies.push({ ok: false, error: 'socket closed', outcome: 'unknown' })
+    renderCreateHarness()
+
+    await user.click(screen.getByRole('button', { name: 'New task' }))
+    await user.type(screen.getByLabelText('Title'), 'Ship the fix')
+    await user.click(screen.getByRole('button', { name: 'Create task' }))
+    const again = await screen.findByRole('button', { name: 'Create anyway' })
+
+    host.lostReplies.push({ ok: false, error: 'socket closed', outcome: 'unknown' })
+    await user.click(again)
+    await waitFor(() => expect(host.count('dart.createTask')).toBe(2))
+
+    expect(await screen.findByText(/may have created this task/i)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Create task' })).toHaveProperty('disabled', true)
+  })
 })
 
 describe('Dart create dialog keyboard', () => {

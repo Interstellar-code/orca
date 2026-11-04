@@ -32,11 +32,21 @@ export function DartCreateFields({
   createSupportsWritesV2,
   blocked
 }: DartCreateFieldsProps): React.JSX.Element {
+  if (!dartConfig) {
+    return (
+      <p role="status" className="text-xs text-muted-foreground">
+        {translate(
+          'auto.components.task.page.dart.TaskCreateDialog.loadingConfig',
+          'Loading dartboards…'
+        )}
+      </p>
+    )
+  }
   const fields: { key: CreateFieldKey; label: string; options: string[] }[] = [
     {
       key: 'dartboard',
       label: translate('auto.components.task.page.dart.TaskCreateDialog.dartboard', 'Dartboard'),
-      options: dartConfig?.dartboards ?? []
+      options: dartConfig.dartboards
     },
     ...(dartConfig?.types.length
       ? [

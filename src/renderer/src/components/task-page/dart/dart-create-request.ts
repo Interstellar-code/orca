@@ -3,6 +3,7 @@ import { checkDartRequestText } from '../../../../../shared/dart/dart-text-limit
 import type { DartCreateTaskArgs } from '../../../../../shared/rpc-contract/dart-params'
 import { translate } from '@/i18n/i18n'
 import { dartTextTooLargeMessage } from '@/runtime/runtime-dart-write-client'
+import { isDartListTruncated } from './task-page-dart-list-model'
 import type { DartCreateDraft } from './dart-detail-contracts'
 
 export const EMPTY_DART_CREATE_DRAFT: DartCreateDraft = {
@@ -97,6 +98,6 @@ export function dartCreateMatches(
 ): { matches: DartTask[]; truncated: boolean } {
   return {
     matches: tasks.filter((task) => dartCreateTitleMatches(title, task.title)),
-    truncated: tasks.length < (totalCount ?? tasks.length)
+    truncated: isDartListTruncated(tasks.length, totalCount ?? tasks.length)
   }
 }

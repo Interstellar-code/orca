@@ -39,16 +39,8 @@ const MAY_HAVE_CREATED_MESSAGE = 'auto.components.task.page.dart.TaskCreateDialo
 export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput>(
   model: TModel
 ): TModel & DartCreateTaskModel {
-  const {
-    dartConnected,
-    dartUpdateRequired,
-    dartConfig,
-    dartFilters,
-    dartStatus,
-    setDartRefreshNonce,
-    noteDartTaskCreated,
-    openDartDetailPage
-  } = model
+  const { dartConnected, dartUpdateRequired, dartConfig, dartFilters, dartStatus } = model
+  const { setDartRefreshNonce, noteDartTaskCreated, openDartDetailPage } = model
   const settings = useAppStore((s) => s.settings)
 
   const [createOpen, setCreateOpen] = useState(false)
@@ -118,6 +110,9 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
 
   const dismissCreateNotice = useCallback(() => {
     setCreateNotice(null)
+    if (unknownRef.current) {
+      setCreateMatches([])
+    }
   }, [])
 
   const dismissMatches = useCallback(() => {
@@ -145,7 +140,14 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
     }
     setLookingUp(false)
     if (!result.ok) {
-      // A failed lookup proves nothing, so no "no match" is claimed and the retry stays offered.
+      setCreateNotice({
+        kind: 'unknown',
+        message: translate(
+          'auto.components.task.page.dart.TaskCreateDialog.lookupFailed',
+          'Could not check whether Dart created this task. {{error}} Try again.',
+          { error: taskProviderErrorMessage(result) }
+        )
+      })
       setListChecked(false)
       setCreateMatches([])
       setCreateMatchesTruncated(false)
@@ -178,8 +180,12 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
   )
 
   const finishCreate = useCallback(
-    (task: DartTask): void => {
-      // The pinned row must not outlive a later host switch, so it is noted before the refresh.
+    (task: DartTask, contextKey: string): void => {
+      if (getDartReadScope(useAppStore.getState().settings!, null).contextKey !== contextKey) {
+        setCreateSubmitting(false)
+        createInFlightRef.current = false
+        return
+      }
       noteDartTaskCreated(task)
       setDartRefreshNonce((nonce) => nonce + 1)
       openDartDetailPage(task)
@@ -248,6 +254,7 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
         return { ok: false, outcome: 'notApplied', error: refusal }
       }
       setCreateSubmitting(true)
+      const contextKey = getDartReadScope(useAppStore.getState().settings!, null).contextKey
       createInFlightRef.current = true
       const args: DartCreateTaskArgs = { ...input, title, dartboard }
       // An empty type list means Dart applies its own default, so no type is sent.
@@ -256,7 +263,7 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
       }
       const result = await useAppStore.getState().createDartTask(args)
       if (result.ok) {
-        finishCreate(result.task)
+        finishCreate(result.task, contextKey)
         return result
       }
       if (result.outcome === 'unknown') {
@@ -287,6 +294,7 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
       refuseCreate(refusal)
       return { ok: false, outcome: 'notApplied', error: refusal }
     }
+    const contextKey = getDartReadScope(useAppStore.getState().settings!, null).contextKey
     createInFlightRef.current = true
     setCreateSubmitting(true)
     const args = dartCreateArgs(createDraft, createSupportsWritesV2)
@@ -295,7 +303,7 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
     }
     const result = await useAppStore.getState().createDartTask(args)
     if (result.ok) {
-      finishCreate(result.task)
+      finishCreate(result.task, contextKey)
       return result
     }
     if (result.outcome === 'unknown') {
@@ -322,6 +330,8 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
     createTask,
     createDraft,
     setCreateDraft,
+    createUnresolved: unknown,
+    createLookingUp: lookingUp,
     createNotice,
     listChecked,
     createMatches,

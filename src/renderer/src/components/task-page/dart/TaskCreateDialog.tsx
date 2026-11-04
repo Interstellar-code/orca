@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { LoaderCircle } from 'lucide-react'
 import type { DartTask, DartWorkspaceConfig } from '../../../../../shared/dart/dart-types'
 import {
@@ -28,6 +28,8 @@ import { DartCreateFields } from './TaskCreateDialogFields'
 export type DartCreateDialogModel = DartCreateTaskModel & {
   dartConfig: DartWorkspaceConfig | null
   openDartDetailPage: (task: DartTask) => void
+  createUnresolved?: boolean
+  createLookingUp?: boolean
 }
 
 export function TaskPageDartCreateDialog({
@@ -56,6 +58,8 @@ export function TaskPageDartCreateDialog({
     openDartDetailPage
   } = model
   const [showPending, setShowPending] = useState(false)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const focusWasInContentRef = useRef(false)
   useEffect(() => {
     if (!createSubmitting) {
       setShowPending(false)
@@ -64,7 +68,13 @@ export function TaskPageDartCreateDialog({
     const timer = setTimeout(() => setShowPending(true), 200)
     return () => clearTimeout(timer)
   }, [createSubmitting])
-  const blocked = createSubmitting || createNotice?.kind === 'unknown'
+  const blocked = createSubmitting || model.createUnresolved || createNotice?.kind === 'unknown'
+  useEffect(() => {
+    if (blocked && focusWasInContentRef.current) {
+      contentRef.current?.querySelector<HTMLButtonElement>('button:not([disabled])')?.focus()
+      focusWasInContentRef.current = false
+    }
+  }, [blocked])
   const descriptionCheck = checkDartRequestText('description', createDraft.description)
   const titleInvalid = createDraft.title.length > DART_TITLE_MAX_LENGTH
   const canSubmit =
@@ -87,6 +97,10 @@ export function TaskPageDartCreateDialog({
       }}
     >
       <DialogContent
+        ref={contentRef}
+        onFocusCapture={() => {
+          focusWasInContentRef.current = true
+        }}
         className="sm:max-w-xl"
         scrollable
         showCloseButton={false}
@@ -193,13 +207,11 @@ export function TaskPageDartCreateDialog({
           />
           {createNotice ? (
             <div className="flex flex-col gap-2">
-              {createNotice ? (
-                <DartTaskDetailNotice
-                  notice={createNotice}
-                  dismissNotice={dismissCreateNotice}
-                  recheckNotice={checkAgain}
-                />
-              ) : null}
+              <DartTaskDetailNotice
+                notice={createNotice}
+                dismissNotice={dismissCreateNotice}
+                recheckNotice={model.createLookingUp ? async () => {} : checkAgain}
+              />
               {createMatches.length ? (
                 <ul className="flex flex-col gap-1 rounded-md border border-border/50 p-2 text-xs">
                   {createMatches.map((match) => (
@@ -236,7 +248,7 @@ export function TaskPageDartCreateDialog({
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={createSubmitting}
+                  disabled={createSubmitting || model.createLookingUp}
                   onClick={dismissMatches}
                 >
                   {translate(
@@ -249,7 +261,7 @@ export function TaskPageDartCreateDialog({
                 <Button
                   type="button"
                   size="sm"
-                  disabled={createSubmitting}
+                  disabled={createSubmitting || model.createLookingUp}
                   onClick={() => void createAnyway()}
                 >
                   {translate(
