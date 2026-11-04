@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useSyncExternalStore } from 'react'
 import CommentMarkdown from '@/components/sidebar/CommentMarkdown'
 import { Button } from '@/components/ui/button'
 import { formatUiRelativeTimeFromDate } from '@/i18n/relative-time-format'
@@ -6,6 +6,11 @@ import { translate } from '@/i18n/i18n'
 import type { DartComment } from '../../../../../shared/dart/dart-types'
 import { DartCommentComposer } from './DartCommentComposer'
 import { buildDartCommentThread } from './dart-comment-thread'
+import {
+  getDartReplyTarget,
+  setDartReplyTarget,
+  subscribeDartReplyTargets
+} from './dart-reply-target-store'
 import type { DartDetailCommentsApi } from './dart-detail-contracts'
 import { InlineError, SkeletonLines } from './TaskDetailLoadStates'
 import { SectionHeading } from './TaskDetailSectionHeading'
@@ -28,7 +33,10 @@ function DartTaskDetailCommentsForTask({
   draftKey,
   onRetry
 }: DartDetailCommentsApi & { onRetry: () => void }): React.JSX.Element {
-  const [replyTo, setReplyTo] = useState<DartComment | null>(null)
+  // Item 9: the reply target rides the draft, so closing or switching restores it.
+  const getReplyTo = useCallback((): DartComment | null => getDartReplyTarget(draftKey), [draftKey])
+  const replyTo = useSyncExternalStore(subscribeDartReplyTargets, getReplyTo, getReplyTo)
+  const cancelReply = useCallback((): void => setDartReplyTarget(draftKey, null), [draftKey])
 
   return (
     <section className="space-y-3 border-t border-border/60 px-4 py-4">
@@ -77,7 +85,7 @@ function DartTaskDetailCommentsForTask({
                     variant="ghost"
                     size="xs"
                     className="ms-auto"
-                    onClick={() => setReplyTo(comment)}
+                    onClick={() => setDartReplyTarget(draftKey, comment)}
                   >
                     {translate(
                       'auto.components.right.sidebar.checks.panel.content.c1f6fc006a',
@@ -109,7 +117,7 @@ function DartTaskDetailCommentsForTask({
       <DartCommentComposer
         draftKey={draftKey}
         replyTo={replyTo}
-        onCancelReply={() => setReplyTo(null)}
+        onCancelReply={cancelReply}
         onAddComment={onAddComment}
         reloadComments={reloadComments}
         appendLocalComment={appendLocalComment}

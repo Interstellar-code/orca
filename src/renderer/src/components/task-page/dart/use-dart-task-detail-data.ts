@@ -254,19 +254,21 @@ export function useDartTaskDetailData(
   const writes = useDartTaskDetailWrites({ identity, sourceContext, displayedRef })
 
   const reloadComments = useCallback<DartDetailCommentsApi['reloadComments']>(async () => {
-    if (!identity) {
-      return
-    }
+    if (!identity) return
     commentReadRef.current += 1
     const commentRead = commentReadRef.current
-    const { result, current } = await readPastDartWrites({
+    const read = await readPastDartWrites({
       captureEpoch: () => captureDartEpoch(identity),
       force: true,
       read: () => listDartComments(identity.taskId, { sourceContext, force: true })
-    })
-    if (commentRead === commentReadRef.current) {
-      applyCommentsRead(result, current, true)
+    }).catch(() => null)
+    if (read && commentRead === commentReadRef.current) {
+      applyCommentsRead(read.result, read.current, true)
+      if (!read.result.ok) throw new Error(taskProviderErrorMessage(read.result))
+      if (!read.current) throw new Error(taskProviderErrorText(undefined, 'dart.loadFailed'))
+      return
     }
+    throw new Error(taskProviderErrorText(undefined, 'dart.loadFailed'))
   }, [applyCommentsRead, identity, listDartComments, sourceContext])
 
   const appendLocalComment = useCallback<DartDetailCommentsApi['appendLocalComment']>((comment) => {

@@ -6,6 +6,7 @@ import type { DartComment } from '../../../../../shared/dart/dart-types'
 import { getScreenSubmitShortcutLabel } from '@/lib/screen-submit-shortcut'
 import { getShortcutPlatform } from '@/lib/shortcut-platform'
 import type { FakeDartHost } from '@/store/slices/dart/dart-fake-runtime.test-support'
+import { clearDraft, dartDraftKey, getDraft, setDraft } from './dart-draft-store'
 import {
   openRenderedDartDetail,
   setUpRenderedDartDetail,
@@ -14,6 +15,25 @@ import {
 
 // Fixed clock: relative times and "Last checked" never depend on when the suite runs.
 const NOW = Date.parse('2026-11-04T12:00:00Z')
+
+/** A write that landed on the host but whose reply was lost: the client cannot know. */
+const UNKNOWN_ADD = {
+  ok: false,
+  error: 'Failed to add comment',
+  errorCode: 'dart.commentFailed',
+  outcome: 'unknown'
+} as const
+
+/** A write the host refused, which proves nothing was posted. */
+const REFUSED_ADD = {
+  ok: false,
+  error: 'Failed to add comment',
+  errorCode: 'dart.commentFailed',
+  outcome: 'notApplied'
+} as const
+
+/** The id the fake host gives each comment it applies (`FakeDartHost.applyWrite`). */
+const ADDED_COMMENT_ID = 'cMnOpQrStUvW'
 
 function commentFixture(id: string, text: string, extra: Partial<DartComment> = {}): DartComment {
   return {
@@ -36,6 +56,13 @@ function addCommentRequests(host: FakeDartHost): Record<string, unknown>[] {
   )
 }
 
+/** Text inside comment articles only: the composer's retained draft is not a second comment. */
+function commentTexts(text: string): Element[] {
+  return [...document.querySelectorAll('article')].flatMap((article) =>
+    within(article).queryAllByText(text)
+  )
+}
+
 async function openComments(): Promise<HTMLTextAreaElement> {
   // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: queried role is the known comment textarea.
   return (await screen.findByRole('textbox', { name: 'Comment' })) as HTMLTextAreaElement
@@ -50,6 +77,12 @@ function typeComment(textarea: HTMLTextAreaElement, value: string): void {
   fireEvent.change(textarea, { target: { value } })
 }
 
+/** The text the composer shows right now, without awaiting anything. */
+function currentCommentText(): string {
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: queried role is the known comment textarea.
+  return (screen.getByRole('textbox', { name: 'Comment' }) as HTMLTextAreaElement).value
+}
+
 /** The screen-submit chord for whichever platform this renderer reports. */
 function pressSubmitShortcut(textarea: HTMLElement): void {
   fireEvent.keyDown(
@@ -58,6 +91,13 @@ function pressSubmitShortcut(textarea: HTMLElement): void {
       ? { key: 'Enter', keyCode: 13, metaKey: true }
       : { key: 'Enter', keyCode: 13, ctrlKey: true }
   )
+}
+
+/** Lets promise chains started so far (write, reload, stale read) run to completion. */
+async function settle(): Promise<void> {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
 }
 
 beforeEach(() => {
@@ -375,5 +415,330 @@ describe('DartTaskDetailComments keyboard and pending state', () => {
     expect(screen.getByRole('button', { name: 'Send comment' })).toBe(send)
     expect(send.className).toBe(sizeClasses)
     expect(page.host.count('dart.addComment')).toBe(1)
+  })
+})
+
+// Reviewer round 2 (T5): an unknown outcome must outlive the component that showed it, so closing the
+// sheet or switching tasks can never hand the user a Send that posts the same text twice.
+describe('DartTaskDetailComments unknown outcome persistence', () => {
+  it('shows the maybe-posted comment exactly once and never resends it by itself', async () => {
+    const list = [commentFixture('cRoot', 'Existing')]
+    const page = openRenderedDartDetail({ comments: list })
+    const textarea = await openComments()
+    await screen.findByText('Existing')
+    // The lost write did land: the next list read reports it, as Dart would.
+    const handle = page.host.handle.bind(page.host)
+    let posted = 0
+    page.host.handle = async (method, params) => {
+      const reply = await handle(method, params)
+      if (method === 'dart.addComment' && posted === 0) {
+        posted += 1
+        list.push(commentFixture(ADDED_COMMENT_ID, 'Possibly posted'))
+      }
+      return reply
+    }
+    page.host.lostReplies.push(UNKNOWN_ADD)
+
+    typeComment(textarea, 'Possibly posted')
+    fireEvent.click(sendButton())
+
+    const status = await screen.findByRole('status')
+    expect(status.textContent).toContain('may have posted')
+    await waitFor(() =>
+      expect(screen.getByRole('status').textContent).toContain('Last checked')
+    )
+    // The composer keeps the draft text; the list must show the comment once.
+    expect(commentTexts('Possibly posted')).toHaveLength(1)
+    expect(screen.getByText('Existing')).toBeTruthy()
+    expect(page.host.count('dart.addComment')).toBe(1)
+    expect(sendButton().disabled).toBe(true)
+
+    // Rechecking and the shortcut both leave the maybe-posted comment alone.
+    fireEvent.click(screen.getByRole('button', { name: 'Check again' }))
+    await settle()
+    pressSubmitShortcut(textarea)
+    await settle()
+    expect(commentTexts('Possibly posted')).toHaveLength(1)
+    expect(page.host.count('dart.addComment')).toBe(1)
+  })
+
+  it('restores the blocked draft and its notice after the sheet closes and reopens', async () => {
+    const page = openRenderedDartDetail()
+    const textarea = await openComments()
+    page.host.lostReplies.push(UNKNOWN_ADD)
+
+    typeComment(textarea, 'Maybe landed')
+    fireEvent.click(sendButton())
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Last checked'))
+
+    // Closing unmounts the composer: the block has to live with the draft, not the component.
+    page.showTask(null)
+    await settle()
+    page.showTask(page.task)
+
+    const reopened = await openComments()
+    expect(reopened.value).toBe('Maybe landed')
+    expect(screen.getByRole('status').textContent).toContain('may have posted')
+    expect(screen.getByRole('status').textContent).toContain('Last checked')
+    expect(sendButton().disabled).toBe(true)
+    fireEvent.click(sendButton())
+    pressSubmitShortcut(reopened)
+    await settle()
+    expect(page.host.count('dart.addComment')).toBe(1)
+  })
+
+  it('keeps the unknown draft on its own task across a switch', async () => {
+    const page = openRenderedDartDetail({ comments: [] })
+    const other = page.addTask('B')
+    const textarea = await openComments()
+    page.host.lostReplies.push(UNKNOWN_ADD)
+
+    typeComment(textarea, 'Written on A')
+    fireEvent.click(sendButton())
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Last checked'))
+
+    page.showTask(other)
+    const otherBox = await openComments()
+    expect(otherBox.value).toBe('')
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(otherBox.closest('[aria-busy]')).toBeNull()
+
+    page.showTask(page.task)
+    const backBox = await openComments()
+    expect(backBox.value).toBe('Written on A')
+    expect(screen.getByRole('status').textContent).toContain('may have posted')
+    expect(sendButton().disabled).toBe(true)
+    fireEvent.click(sendButton())
+    await settle()
+    expect(page.host.count('dart.addComment')).toBe(1)
+  })
+
+  it('keeps a send in flight across a task switch without posting it again', async () => {
+    const page = openRenderedDartDetail({ comments: [] })
+    const other = page.addTask('B')
+    const textarea = await openComments()
+    const release = page.host.hold('dart.addComment')
+
+    typeComment(textarea, 'In flight body')
+    fireEvent.click(sendButton())
+    await settle()
+
+    page.showTask(other)
+    const otherBox = await openComments()
+    expect(otherBox.closest('[aria-busy]')).toBeNull()
+
+    page.showTask(page.task)
+    const backBox = await openComments()
+    expect(backBox.value).toBe('In flight body')
+    expect(sendButton().disabled).toBe(true)
+    fireEvent.click(sendButton())
+    pressSubmitShortcut(backBox)
+    await settle()
+    expect(page.host.count('dart.addComment')).toBe(1)
+
+    await act(async () => {
+      release()
+    })
+    // The sent text must not come back as a live draft: sending it again would duplicate the comment.
+    await waitFor(() => expect(currentCommentText()).toBe(''))
+    expect(page.host.count('dart.addComment')).toBe(1)
+  })
+
+  it('keeps Send blocked when the deliberate resend is refused, so nothing is posted a third time', async () => {
+    const page = openRenderedDartDetail()
+    const textarea = await openComments()
+    page.host.lostReplies.push(UNKNOWN_ADD)
+
+    typeComment(textarea, 'Body')
+    fireEvent.click(sendButton())
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Last checked'))
+
+    page.host.refusals.push(REFUSED_ADD)
+    fireEvent.click(screen.getByRole('button', { name: 'Send again' }))
+    await settle()
+    expect(page.host.count('dart.addComment')).toBe(2)
+    // A refusal of the second attempt says nothing about the first: the draft stays blocked.
+    expect((await openComments()).value).toBe('Body')
+    expect(sendButton().disabled).toBe(true)
+    fireEvent.click(sendButton())
+    pressSubmitShortcut(textarea)
+    await settle()
+    expect(page.host.count('dart.addComment')).toBe(2)
+  })
+})
+
+describe('DartTaskDetailComments stale read ordering', () => {
+  it('drops a list read that was already in flight before the add', async () => {
+    const page = openRenderedDartDetail({ comments: [commentFixture('cRoot', 'Existing')] })
+    const textarea = await openComments()
+    await screen.findByText('Existing')
+    page.host.lostReplies.push(UNKNOWN_ADD)
+    typeComment(textarea, 'First try')
+    fireEvent.click(sendButton())
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Last checked'))
+
+    // A read started now answers the pre-add list, whenever its reply lands.
+    const gate = Promise.withResolvers<void>()
+    const handle = page.host.handle.bind(page.host)
+    let held = false
+    page.host.handle = async (method, params) => {
+      const reply = await handle(method, params)
+      if (method === 'dart.listComments' && !held) {
+        held = true
+        await gate.promise
+      }
+      return reply
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Check again' }))
+    await waitFor(() => expect(held).toBe(true))
+
+    typeComment(textarea, 'Second note')
+    fireEvent.click(sendButton())
+    await waitFor(() => expect(page.host.count('dart.addComment')).toBe(2))
+
+    // The pre-add list answers now: it must not remove the newer comment's local copy.
+    await act(async () => {
+      gate.resolve()
+    })
+    await settle()
+    expect(screen.getAllByText('Second note')).toHaveLength(1)
+    expect(screen.getByText('Existing')).toBeTruthy()
+    expect(page.host.count('dart.addComment')).toBe(2)
+  })
+})
+
+describe('DartTaskDetailComments submit paths', () => {
+  it('posts once when the shortcut and the click race the same draft', async () => {
+    const page = openRenderedDartDetail()
+    const textarea = await openComments()
+    const release = page.host.hold('dart.addComment')
+
+    typeComment(textarea, 'Race note')
+    pressSubmitShortcut(textarea)
+    fireEvent.click(sendButton())
+
+    await waitFor(() => expect(page.host.count('dart.addComment')).toBe(1))
+    release()
+    await waitFor(() => expect(screen.getAllByText('Race note')).toHaveLength(1))
+    expect(page.host.count('dart.addComment')).toBe(1)
+  })
+})
+
+describe('DartTaskDetailComments dismiss and draft persistence', () => {
+  it('keeps Send blocked after Dismiss until the text is edited', async () => {
+    const page = openRenderedDartDetail()
+    const textarea = await openComments()
+    page.host.lostReplies.push(UNKNOWN_ADD)
+
+    typeComment(textarea, 'Dismiss body')
+    fireEvent.click(sendButton())
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Last checked'))
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+    await settle()
+    // The notice is gone; the reason Send stays disabled may replace it, but not its buttons.
+    expect(screen.queryByRole('button', { name: 'Check again' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull()
+    // Dismissing the notice is not permission to reuse a maybe-posted draft.
+    expect(sendButton().disabled).toBe(true)
+    fireEvent.click(sendButton())
+    pressSubmitShortcut(textarea)
+    await settle()
+    expect(page.host.count('dart.addComment')).toBe(1)
+
+    typeComment(textarea, 'Dismiss body, edited')
+    expect(sendButton().disabled).toBe(false)
+    fireEvent.click(sendButton())
+    await settle()
+    expect(page.host.count('dart.addComment')).toBe(2)
+  })
+
+  it('warns when drafts are full and keeps the draft once the oldest is discarded', async () => {
+    const page = openRenderedDartDetail()
+    const identity = { hostKey: `runtime:${page.pageEnv}`, accountKey: 'user-a' }
+    const draftKey = dartDraftKey(identity, page.task.id, 'comment')
+    const filled: string[] = []
+    try {
+      const textarea = await openComments()
+      // Fill the shared store to its cap; drafts can outlive a test file's own cleanup.
+      for (let index = 0; index < 40; index += 1) {
+        const key = dartDraftKey(identity, `filler${index}`, 'comment')
+        filled.push(key)
+        if (setDraft(key, 'filler', { dirty: true }) === 'full') {
+          break
+        }
+      }
+      typeComment(textarea, 'Twenty first')
+
+      const warning = await screen.findByRole('alert')
+      expect(warning.textContent).toMatch(/draft/i)
+      expect(within(warning).getByRole('button', { name: 'Copy' })).toBeTruthy()
+      // Nothing was stored for this text yet, so closing now would lose it.
+      expect(getDraft(draftKey)).toBeUndefined()
+
+      // Discarding the named draft frees the slot, so this text becomes a real draft.
+      fireEvent.click(within(warning).getByRole('button', { name: 'Discard it' }))
+      await settle()
+      expect(screen.queryByRole('alert')).toBeNull()
+      expect(getDraft(draftKey)).toBe('Twenty first')
+
+      page.showTask(null)
+      await settle()
+      page.showTask(page.task)
+      expect((await openComments()).value).toBe('Twenty first')
+    } finally {
+      for (const key of [...filled, draftKey]) {
+        clearDraft(key)
+      }
+    }
+  })
+})
+
+describe('DartTaskDetailComments reply target persistence', () => {
+  it('restores the reply target with the draft after the sheet closes and reopens', async () => {
+    const page = openRenderedDartDetail({ comments: [commentFixture('cRoot', 'Parent note')] })
+    const textarea = await openComments()
+    const article = (await screen.findByText('Parent note')).closest('article')
+    expect(article).not.toBeNull()
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the article holds the known Reply button.
+    fireEvent.click(within(article as HTMLElement).getByRole('button', { name: 'Reply' }))
+    typeComment(textarea, 'A reply draft')
+    await settle()
+
+    page.showTask(null)
+    await settle()
+    page.showTask(page.task)
+
+    const reopened = await openComments()
+    expect(reopened.value).toBe('A reply draft')
+    expect(screen.getByText('Replying to Alex Example')).toBeTruthy()
+    fireEvent.click(sendButton())
+    await waitFor(() => expect(page.host.count('dart.addComment')).toBe(1))
+    expect(addCommentRequests(page.host)[0]).toEqual(
+      expect.objectContaining({ text: 'A reply draft', parentId: 'cRoot' })
+    )
+  })
+
+  it('keeps the reply target on the task that owns it across a switch', async () => {
+    const page = openRenderedDartDetail({ comments: [commentFixture('cRoot', 'Parent note')] })
+    const other = page.addTask('B')
+    const textarea = await openComments()
+    const article = (await screen.findByText('Parent note')).closest('article')
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the article holds the known Reply button.
+    fireEvent.click(within(article as HTMLElement).getByRole('button', { name: 'Reply' }))
+    typeComment(textarea, 'Reply on A')
+    await settle()
+
+    page.showTask(other)
+    await openComments()
+    expect(screen.queryByText('Replying to Alex Example')).toBeNull()
+
+    page.showTask(page.task)
+    expect((await openComments()).value).toBe('Reply on A')
+    expect(screen.getByText('Replying to Alex Example')).toBeTruthy()
+    fireEvent.click(sendButton())
+    await waitFor(() => expect(page.host.count('dart.addComment')).toBe(1))
+    expect(addCommentRequests(page.host)[0]).toEqual(
+      expect.objectContaining({ taskId: page.task.id, parentId: 'cRoot' })
+    )
   })
 })
