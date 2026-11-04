@@ -55,6 +55,17 @@ one stable code signature so macOS permissions survive rebuilds.
 - systemd timer downloads the Linux release and swaps `/opt/Orca` only when no client is connected
   (reuse the server swap in `rebuild-and-install.sh`).
 
+### 5. Version fork builds from the upstream release they contain (decided 2026-11-04)
+
+- Upstream keeps `package.json` on main frozen at `1.4.214`; each release (e.g. `v1.4.248`) is a tag
+  on a side commit that bumps the version and is never merged back. So fork builds show `1.4.214`
+  even when current, which misleads.
+- Fix: at build time, find the newest upstream `vX.Y.Z` tag whose upstream-main base is an ancestor
+  of the build commit, and stamp that version (e.g. `1.4.247-fork.<stamp>.<sha>`) into the build
+  instead of the stale `package.json` value. Applies to `fork-release.yml` and local builds.
+- Release-only fixes on upstream tags (7 on `v1.4.248`) never reach upstream main; decide whether
+  the nightly merge should also pick them up.
+
 ## Open decisions
 
 - Apple Developer ID ($99/yr): would give true auto-update and no Gatekeeper warning. Not decided.
