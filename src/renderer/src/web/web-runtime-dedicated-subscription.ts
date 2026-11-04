@@ -134,14 +134,20 @@ export async function enrollWebRuntimeSubscription({
   const id = nextId()
   const subscription = { id, method, params, callbacks, needsReplay: false }
   subscriptions.set(id, subscription)
-  if (
-    !sendEncrypted({
+  let sent: boolean
+  try {
+    sent = sendEncrypted({
       id,
       deviceToken: deviceToken,
       method,
       params
     })
-  ) {
+  } catch (error) {
+    // An over-cap request is refused by sendEncrypted; drop the entry like the not-connected path.
+    subscriptions.delete(id)
+    throw error
+  }
+  if (!sent) {
     subscriptions.delete(id)
     throw new Error('Remote Orca runtime is not connected.')
   }

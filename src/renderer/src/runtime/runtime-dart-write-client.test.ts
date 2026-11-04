@@ -1,5 +1,7 @@
 // @vitest-environment happy-dom
 
+import { RemoteRuntimeClientError } from '../../../shared/remote-runtime/remote-runtime-client-error'
+import { getUtf8ByteLength } from '../../../shared/utf8-byte-limits'
 import { createBrowserUuid } from '@/lib/browser-uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -8,7 +10,10 @@ import {
 } from '../../../shared/dart/dart-capabilities'
 import { DART_REQUEST_TEXT_MAX_BYTES } from '../../../shared/dart/dart-text-limits'
 import { runtimeEnvironmentCallFailure } from '../../../main/ipc/runtime-environments/runtime-environment-call-failure'
-import { serializeRemoteRuntimeRpcRequest } from '../../../shared/remote-runtime/remote-runtime-memory-limits'
+import {
+  REMOTE_RUNTIME_MAX_INBOUND_REQUEST_JSON_BYTES,
+  serializeRemoteRuntimeRpcRequest
+} from '../../../shared/remote-runtime/remote-runtime-memory-limits'
 import type { resolveEnvironment } from '../../../shared/runtime-environment-store'
 import type { DartTask } from '../../../shared/dart/dart-types'
 import {
@@ -358,5 +363,127 @@ describe('runtime Dart client writes', () => {
     const result = await dartUpdateTaskForTarget({ kind: 'local' }, TASK_ID, { status: 'x' })
 
     expect(result.ok && result.task).toMatchObject({ id: TASK_ID, htmlUrl: '' })
+  })
+
+  describe('invalid_argument refusals', () => {
+    it('shows the too-large message only for the size-admission refusal', async () => {
+      createTaskLocal.mockRejectedValue(
+        new RemoteRuntimeClientError(
+          'invalid_argument',
+          'Remote runtime request exceeds 786304 bytes.'
+        )
+      )
+
+      const result = await dartCreateTaskForTarget({ kind: 'local' }, { title: 't' })
+
+      expect(result).toMatchObject({ ok: false, outcome: 'notApplied' })
+      expect(result.ok === false && result.error).toContain('too large')
+    })
+
+    it('keeps the host text for another invalid_argument and stays notApplied', async () => {
+      mockRemote({
+        withDartCapability: true,
+        onWrite: (args) => ({
+          id: args.method,
+          ok: false,
+          error: { code: 'invalid_argument', message: 'Title is required' },
+          _meta: { runtimeId: 'remote-dart' }
+        })
+      })
+
+      await expect(dartCreateTaskForTarget(remote, { title: 't' })).resolves.toEqual({
+        ok: false,
+        error: 'Title is required',
+        errorCode: 'dart.badRequest',
+        outcome: 'notApplied'
+      })
+    })
+  })
+
+  describe('request cap through the Dart write path', () => {
+    const cap = REMOTE_RUNTIME_MAX_INBOUND_REQUEST_JSON_BYTES
+    const TOKEN = 'dvt_'.padEnd(64, 'a')
+    const serializeCreate = (description: string) =>
+      serializeRemoteRuntimeRpcRequest({
+        requestId: createBrowserUuid(),
+        deviceToken: TOKEN,
+        method: 'dart.createTask',
+        params: { title: 't', description }
+      })
+    // Control characters serialize to 6 bytes each, so a description under the 256 KB text cap reaches the request cap.
+    function descriptionForRequestSize(target: number): string {
+      const room = target - getUtf8ByteLength(serializeCreate(''))
+      return '\u0001'.repeat(Math.floor(room / 6)) + 'x'.repeat(room % 6)
+    }
+
+    function mockHostThatCounts() {
+      let reached = 0
+      mockRemote({
+        withDartCapability: true,
+        onWrite: (args) => {
+          try {
+            serializeRemoteRuntimeRpcRequest({
+              requestId: createBrowserUuid(),
+              deviceToken: TOKEN,
+              method: args.method,
+              params: args.params
+            })
+          } catch (error) {
+            const failure = runtimeEnvironmentCallFailure(
+              // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the failure builder reads only runtimeId from the environment.
+              { runtimeId: 'remote-dart' } as ReturnType<typeof resolveEnvironment>,
+              args.method,
+              error
+            )
+            if (failure) {
+              return failure
+            }
+            throw error
+          }
+          reached += 1
+          return okEnvelope(okTask())
+        }
+      })
+      return () => reached
+    }
+
+    it('sends a request of exactly the cap', async () => {
+      const reached = mockHostThatCounts()
+      const description = descriptionForRequestSize(cap)
+      expect(getUtf8ByteLength(serializeCreate(description))).toBe(cap)
+
+      await expect(
+        dartCreateTaskForTarget(remote, { title: 't', description })
+      ).resolves.toMatchObject({ ok: true })
+      expect(reached()).toBe(1)
+    })
+
+    it('refuses cap plus one although the params alone are under the cap', async () => {
+      const reached = mockHostThatCounts()
+      const description = descriptionForRequestSize(cap + 1)
+      expect(getUtf8ByteLength(JSON.stringify({ title: 't', description }))).toBeLessThan(cap)
+
+      const result = await dartCreateTaskForTarget(remote, { title: 't', description })
+
+      expect(result).toMatchObject({ ok: false, outcome: 'notApplied' })
+      expect(result.ok === false && result.error).toContain('too large')
+      expect(reached()).toBe(0)
+    })
+  })
+
+  describe('description key', () => {
+    it('never forwards a description through dart.updateTask', async () => {
+      updateTaskLocal.mockResolvedValue(okTask())
+      await dartUpdateTaskForTarget({ kind: 'local' }, TASK_ID, {
+        status: 'Doing',
+        // @ts-expect-error -- DartFieldUpdates has no description
+        description: 'x'
+      })
+
+      expect(updateTaskLocal).toHaveBeenCalledWith({
+        taskId: TASK_ID,
+        updates: { status: 'Doing' }
+      })
+    })
   })
 })

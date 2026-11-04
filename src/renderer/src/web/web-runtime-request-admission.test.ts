@@ -4,6 +4,9 @@ import { getUtf8ByteLength } from '../../../shared/utf8-byte-limits'
 import { dartCreateTaskForTarget } from '../runtime/runtime-dart-write-client'
 import { createWebDartApi } from './preload-api/web-dart-api'
 import { WebRuntimeConnectionTransport } from './web-runtime-connection-transport'
+import { enrollWebRuntimeSubscription } from './web-runtime-dedicated-subscription'
+import { WebRuntimeSubscriptionRegistry } from './web-runtime-subscription-registry'
+import type { WebRuntimeTransportSubscription } from './web-runtime-subscription-contract'
 import { WebRuntimeRequestRegistry } from './web-runtime-request-registry'
 
 const mocks = vi.hoisted(() => ({ call: vi.fn() }))
@@ -138,5 +141,66 @@ describe('web Dart client size refusal end to end', () => {
     expect(sealText).not.toHaveBeenCalled()
     expect(send).not.toHaveBeenCalled()
     expect(registry.pending.size).toBe(0)
+  })
+})
+
+describe('web runtime subscriptions over the cap', () => {
+  const big = () => ({ value: 'x'.repeat(cap) })
+
+  it('drops the entry of a dedicated subscribe the transport refuses', async () => {
+    const { transport, send } = harness()
+    const subscriptions = new Map<string, WebRuntimeTransportSubscription>()
+
+    await expect(
+      enrollWebRuntimeSubscription({
+        method: 'files.watch',
+        params: big(),
+        callbacks: { onResponse: vi.fn() },
+        waitForConnected: () => Promise.resolve(),
+        nextId: () => 'sub-1',
+        subscriptions,
+        sendEncrypted: (message) => transport.sendEncrypted(message),
+        sendBinary: () => true,
+        deviceToken: 'dvt_'.padEnd(64, 'a')
+      })
+    ).rejects.toMatchObject({ code: 'invalid_argument' })
+
+    expect(subscriptions.size).toBe(0)
+    expect(send).not.toHaveBeenCalled()
+  })
+
+  it('keeps replaying the remaining subscriptions when one replay is refused', () => {
+    const { transport, send } = harness()
+    let counter = 0
+    const registry = new WebRuntimeSubscriptionRegistry({
+      deviceToken: 'dvt_'.padEnd(64, 'a'),
+      nextId: () => `replay-${(counter += 1)}`,
+      sendEncrypted: (message) => transport.sendEncrypted(message)
+    })
+    const onError = vi.fn()
+    const onTransportReplayed = vi.fn()
+    registry.subscriptions.set('a', {
+      id: 'a',
+      method: 'files.watch',
+      params: big(),
+      callbacks: { onResponse: vi.fn(), onError },
+      needsReplay: true
+    })
+    registry.subscriptions.set('b', {
+      id: 'b',
+      method: 'files.watch',
+      params: { path: '/ok' },
+      callbacks: { onResponse: vi.fn(), onTransportReplayed },
+      needsReplay: true
+    })
+
+    expect(() => registry.replayInterrupted()).not.toThrow()
+
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ code: 'invalid_argument' }))
+    expect(onTransportReplayed).toHaveBeenCalledTimes(1)
+    expect(send).toHaveBeenCalledTimes(1)
+    expect(Array.from(registry.subscriptions.values()).map((item) => item.method)).toEqual([
+      'files.watch'
+    ])
   })
 })
