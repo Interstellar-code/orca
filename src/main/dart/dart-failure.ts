@@ -93,8 +93,20 @@ function outcomeAfterSend(error: unknown): DartWriteOutcome {
     : 'unknown'
 }
 
+export type DartWriteOperation = 'create' | 'update' | 'comment' | 'descriptionPatch'
+export type DartReadOperation = Exclude<DartOperation, DartWriteOperation>
+
+// Dart may echo the patched text in a 400; the reply carries a fixed message instead.
+const PATCH_REFUSED_MESSAGE = 'Dart did not accept this change.'
+
 /** Maps any thrown value to a `dart.*` failure; non-Dart errors never surface their message.
- * `requestSent` is true once the write's own request was started; before that nothing was applied. */
+ * For writes, `requestSent` is true once the write's own request was started; before that nothing was applied. */
+export function toDartFailure(error: unknown, operation: DartReadOperation): DartFailure
+export function toDartFailure(
+  error: unknown,
+  operation: DartWriteOperation,
+  requestSent: boolean
+): DartFailure
 export function toDartFailure(
   error: unknown,
   operation: DartOperation,
@@ -116,6 +128,9 @@ function mapFailure(error: unknown, operation: DartOperation): DartFailure {
   if (code === 'dart.rateLimited') {
     const wait = retryAfterWait(error.retryAfter)
     return taskProviderFailure(code, wait ? `${error.message} ${wait}` : error.message)
+  }
+  if (operation === 'descriptionPatch' && code === 'dart.descriptionPatchRefused') {
+    return taskProviderFailure(code, PATCH_REFUSED_MESSAGE)
   }
   return taskProviderFailure(code ?? fallback.code, error.message)
 }

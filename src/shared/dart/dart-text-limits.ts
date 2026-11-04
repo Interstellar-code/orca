@@ -1,4 +1,4 @@
-import { measureUtf8ByteLength } from '../utf8-byte-limits'
+import { getUtf8ByteLength, measureUtf8ByteLength } from '../utf8-byte-limits'
 
 export const DART_TITLE_MAX_LENGTH = 500
 export const DART_COMMENT_MAX_LENGTH = 50_000
@@ -27,7 +27,9 @@ export function checkDartRequestText(
       stopAfterBytes: DART_REQUEST_TEXT_MAX_BYTES - size
     }).byteLength
     if (size > DART_REQUEST_TEXT_MAX_BYTES) {
-      return { ok: false, unit: 'bytes', size, limit: DART_REQUEST_TEXT_MAX_BYTES }
+      // The bounded measure stops just past the limit; the message needs the real size.
+      const full = list.reduce((sum, text) => sum + getUtf8ByteLength(text), 0)
+      return { ok: false, unit: 'bytes', size: full, limit: DART_REQUEST_TEXT_MAX_BYTES }
     }
   }
   return { ok: true }

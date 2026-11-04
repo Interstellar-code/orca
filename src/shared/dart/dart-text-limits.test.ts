@@ -38,4 +38,16 @@ describe('checkDartRequestText', () => {
       ok: false
     })
   })
+
+  it('reports the real size of a text far over the cap', () => {
+    const size = 1024 * 1024
+    expect(checkDartRequestText('description', 'x'.repeat(size))).toMatchObject({
+      ok: false,
+      size
+    })
+    expect(checkDartRequestText('descriptionPatch', ['x'.repeat(size), 'é'])).toMatchObject({
+      ok: false,
+      size: size + 2
+    })
+  })
 })

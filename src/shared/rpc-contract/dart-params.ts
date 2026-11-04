@@ -43,6 +43,12 @@
  * status, type, assignee (name or email; null clears), priority. `tags` replaces the whole set
  * (`[]` clears) and UNKNOWN TAG TITLES CREATE NEW TAGS, so callers validate tag names against
  * `dart.config` tags before sending.
+ *
+ * Description edits go only through `dart.updateTaskDescription` (`POST /tasks/{id}/update-description
+ * {updates}`): a targeted patch that Dart refuses when `oldText` or `anchorText` no longer matches
+ * uniquely. `occurrence` is never sent. A 400 maps to `dart.descriptionPatchRefused` with a fixed
+ * message (Dart may echo task text); it is not proof of an external edit. Every failed write carries
+ * `outcome`: `notApplied` or `unknown` (see `DartFailure`).
  */
 import { z } from 'zod'
 import { DART_TASK_ID_PATTERN } from '../dart/dart-issue-url'
@@ -249,9 +255,16 @@ const DescriptionUpdate = z
       insert_before: ['anchorText', 'newText'],
       insert_after: ['anchorText', 'newText']
     } as const
-    for (const field of required[update.type]) {
-      if (update[field] === undefined) {
+    const needed: readonly string[] = required[update.type]
+    for (const field of ['oldText', 'anchorText', 'newText'] as const) {
+      if (needed.includes(field) && update[field] === undefined) {
         ctx.addIssue({ code: 'custom', message: `${update.type} needs ${field}`, path: [field] })
+      } else if (!needed.includes(field) && update[field] !== undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          message: `${update.type} does not take ${field}`,
+          path: [field]
+        })
       }
     }
   })

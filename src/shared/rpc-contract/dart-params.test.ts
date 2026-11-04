@@ -53,6 +53,39 @@ describe('dart text limits', () => {
     expect(UpdateTaskDescription.safeParse(patch('')).success).toBe(true)
     expect(UpdateTaskDescription.safeParse(patch('x')).success).toBe(false)
   })
+
+  it('counts anchorText and newText of an insert toward the cap', () => {
+    const half = 'x'.repeat(DART_REQUEST_TEXT_MAX_BYTES / 2)
+    const insert = (anchorText: string) => ({
+      taskId,
+      updates: [{ type: 'insert_after', anchorText, newText: half }]
+    })
+    expect(UpdateTaskDescription.safeParse(insert(half)).success).toBe(true)
+    expect(UpdateTaskDescription.safeParse(insert(`${half}x`)).success).toBe(false)
+  })
+
+  it('caps a multi-byte patch by bytes although its characters are under the cap', () => {
+    const oldText = 'é'.repeat(DART_REQUEST_TEXT_MAX_BYTES / 2 + 1)
+    expect(oldText.length).toBeLessThan(DART_REQUEST_TEXT_MAX_BYTES)
+    const result = UpdateTaskDescription.safeParse({
+      taskId,
+      updates: [{ type: 'delete', oldText }]
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('sums the texts across two updates', () => {
+    const half = 'x'.repeat(DART_REQUEST_TEXT_MAX_BYTES / 2)
+    const two = (second: string) => ({
+      taskId,
+      updates: [
+        { type: 'delete', oldText: half },
+        { type: 'delete', oldText: second }
+      ]
+    })
+    expect(UpdateTaskDescription.safeParse(two(half)).success).toBe(true)
+    expect(UpdateTaskDescription.safeParse(two(`${half}x`)).success).toBe(false)
+  })
 })
 
 describe('dart write params', () => {
@@ -70,6 +103,15 @@ describe('dart write params', () => {
     [{ type: 'insert_before', newText: 'b' }],
     [{ type: 'insert_after', anchorText: 'a' }]
   ])('refuses a patch update missing a required field: %j', (update) => {
+    expect(UpdateTaskDescription.safeParse({ taskId, updates: [update] }).success).toBe(false)
+  })
+
+  it.each([
+    [{ type: 'delete', oldText: 'a', newText: 'b' }],
+    [{ type: 'delete', oldText: 'a', anchorText: 'b' }],
+    [{ type: 'replace', oldText: 'a', newText: 'b', anchorText: 'c' }],
+    [{ type: 'insert_before', anchorText: 'a', newText: 'b', oldText: 'c' }]
+  ])('refuses a patch update with a field its type does not take: %j', (update) => {
     expect(UpdateTaskDescription.safeParse({ taskId, updates: [update] }).success).toBe(false)
   })
 
