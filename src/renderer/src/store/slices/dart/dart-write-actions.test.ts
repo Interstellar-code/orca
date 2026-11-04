@@ -169,6 +169,29 @@ describe('dart write actions', () => {
     expect(store.getState().dartStatus).toEqual({ connected: true, viewer })
   })
 
+  it('applies a status check that a task write settled during, after a host switch', async () => {
+    const store = createTestStore()
+    store.setState({ dartStatus: { connected: true, viewer }, dartStatusChecked: true })
+    const remoteViewer = { id: 'user-remote', name: 'Remote Example' }
+    runtime.host(REMOTE).connection = { connected: true, viewer: remoteViewer }
+    store.setState({
+      settings: { ...store.getState().settings!, activeRuntimeEnvironmentId: REMOTE }
+    })
+    const release = runtime.host(REMOTE).hold('dart.status')
+
+    const check = store.getState().checkDartConnection()
+    await vi.waitFor(() => expect(runtime.host(REMOTE).count('dart.status')).toBe(1))
+    await store.getState().createDartTask({ title: 'During the check' })
+    release()
+    await check
+
+    expect(store.getState().dartStatus.viewer).toMatchObject(remoteViewer)
+    expect(store.getState().dartStatusChecked).toBe(true)
+    expect(store.getState().dartStatusContextKey).toBe(
+      getDartReadScope(store.getState().settings).contextKey
+    )
+  })
+
   it('drops a comments read that started before the comment was added', async () => {
     const store = createTestStore()
     const scope = getDartReadScope(store.getState().settings)

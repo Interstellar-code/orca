@@ -660,6 +660,55 @@ describe('dart task write queue: unknown outcome', () => {
     expect(page.host.count('dart.updateTask')).toBe(writes)
   })
 
+  it('returns to the last confirmed value when a never-read unknown notice is dismissed', async () => {
+    const page = await openPage()
+    page.host.refusals.push(LOST_REPLY)
+    page.host.failReads = true
+    await page.edit({ status: 'Doing' })
+    expect(page.detailShown.task.status).toBe('Doing')
+    page.host.failReads = false
+
+    dismissDartTaskNotice(page.identity)
+
+    expect(page.detailShown.task.status).toBe('To-do')
+    expect(page.listRow()?.status).toBe('To-do')
+    expect(page.state().blockedFields.size).toBe(0)
+    expect(pendingDartPatches(page.identity)).toEqual({})
+
+    page.host.refusals.push(REFUSED)
+    await page.edit({ status: 'Done' })
+    expect(page.detailShown.task.status).toBe('To-do')
+  })
+
+  it('leaves the value alone when an unknown notice with a read behind it is dismissed', async () => {
+    const page = await openPage()
+    page.host.lostReplies.push(LOST_REPLY)
+    await page.edit({ status: 'Doing' })
+
+    dismissDartTaskNotice(page.identity)
+
+    expect(page.detailShown.task.status).toBe('Doing')
+    expect(page.listRow()?.status).toBe('Doing')
+  })
+
+  it('shows the newest refusal over an unknown notice, whose block stays', async () => {
+    const page = await openPage()
+    page.host.lostReplies.push(LOST_REPLY)
+    await page.edit({ status: 'Doing' })
+    page.host.refusals.push(REFUSED)
+    await page.edit({ priority: 'High' })
+
+    expect(page.state().notice).toMatchObject({ kind: 'refused', field: 'priority' })
+    expect(page.state().blockedFields.has('status')).toBe(true)
+    const writes = page.host.count('dart.updateTask')
+    await expect(page.edit({ status: 'Done' })).resolves.toMatchObject({ ok: false })
+    expect(page.host.count('dart.updateTask')).toBe(writes)
+
+    dismissDartTaskNotice(page.identity)
+    expect(page.state().notice).toMatchObject({ kind: 'unknown', field: 'status' })
+    expect(page.state().blockedFields.has('status')).toBe(true)
+  })
+
   it('lifts the block only when the user dismisses the notice', async () => {
     const page = await openPage()
     page.host.lostReplies.push(LOST_REPLY)

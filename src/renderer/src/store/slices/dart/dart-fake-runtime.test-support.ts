@@ -1,5 +1,9 @@
 import { vi } from 'vitest'
-import type { DartComment, DartTask } from '../../../../../shared/dart/dart-types'
+import type {
+  DartComment,
+  DartConnectionStatus,
+  DartTask
+} from '../../../../../shared/dart/dart-types'
 import { createCompatibleRuntimeStatusResponse } from '@/runtime/runtime-compatibility-test-fixture'
 import { clearRuntimeCompatibilityCacheForTests } from '@/runtime/runtime-rpc-client'
 
@@ -21,6 +25,10 @@ export class FakeDartHost {
   /** Applies the next writes, then loses the reply. */
   lostReplies: Failure[] = []
   failReads = false
+  connection: DartConnectionStatus = {
+    connected: true,
+    viewer: { id: 'user-a', name: 'Alex Example' }
+  }
   /** The next write dies in transport after leaving the client. */
   transportError: Error | null = null
   private gates: { method: string; release: Promise<void> }[] = []
@@ -78,6 +86,9 @@ export class FakeDartHost {
 
   private read(method: string, params: RpcParams): object | null {
     const failure = { ok: false, error: 'Failed to load Dart task.', errorCode: 'dart.loadFailed' }
+    if (method === 'dart.status') {
+      return this.connection
+    }
     if (method === 'dart.getTask') {
       const task = this.tasks.get(params.taskId ?? '')
       return this.failReads || !task ? failure : { ok: true, task }
@@ -149,6 +160,7 @@ export function installFakeDartRuntime(): { host: (environmentId: string | null)
   vi.stubGlobal('window', {
     api: {
       dart: {
+        status: local('dart.status'),
         getTask: local('dart.getTask'),
         listTasks: local('dart.listTasks'),
         updateTask: local('dart.updateTask'),

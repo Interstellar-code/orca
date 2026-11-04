@@ -173,8 +173,10 @@ export function withPendingDartPatches(
   }))
 }
 
+// A fresh refusal is the thing to read now; the older unknown notice returns once it is dismissed, and its block holds meanwhile.
 function headNotice(entry: TaskWrites): OpenNotice | null {
-  return unknownNotices(entry)[0] ?? entry.notices.at(-1) ?? null
+  const refused = entry.notices.filter((open) => open.notice.kind === 'refused')
+  return refused.at(-1) ?? unknownNotices(entry)[0] ?? null
 }
 
 export function dartTaskWriteState(identity: DartTaskIdentity): DartTaskWriteState {
@@ -198,7 +200,13 @@ export function dismissDartTaskNotice(identity: DartTaskIdentity): void {
     return
   }
   entry.notices = entry.notices.filter((open) => open !== head)
-  publish(entry, 'notice', {})
+  if (head.notice.kind === 'unknown' && !head.evidenced) {
+    // No read ever showed Dart holding this value, so without its notice it must not pass for confirmed.
+    const lastKnown = { ...entry.confirmed, ...visiblePatches(entry) }
+    publish(entry, 'rollback', pickFields(lastKnown, head.fields))
+  } else {
+    publish(entry, 'notice', {})
+  }
   releaseIfIdle(key, entry)
 }
 

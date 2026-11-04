@@ -29,6 +29,7 @@ export type DartReadScope = {
 
 let dartStatusReadGeneration = 0
 let dartMutationGeneration = 0
+let dartConnectionGeneration = 0
 
 export const EMPTY_DART_READ_CACHES = {
   dartTaskCache: {},
@@ -53,9 +54,21 @@ export function evictStaleDartCacheEntries<T>(
   return Object.fromEntries(newest.map((key) => [key, cache[key]]))
 }
 
+/** Stops older reads from caching; a task write stops only this, never a status check or a connect in progress. */
 export function beginDartMutation(): number {
   dartMutationGeneration += 1
   return dartMutationGeneration
+}
+
+/** A credential change supersedes status reads and earlier connection requests, and every read in flight. */
+export function beginDartConnectionChange(): number {
+  beginDartMutation()
+  dartConnectionGeneration += 1
+  return dartConnectionGeneration
+}
+
+export function currentDartConnectionGeneration(): number {
+  return dartConnectionGeneration
 }
 
 export function currentDartMutationGeneration(): number {
@@ -71,8 +84,8 @@ export function isCurrentDartStatusRead(generation: number): boolean {
   return generation === dartStatusReadGeneration
 }
 
-export function isCurrentDartMutation(generation: number): boolean {
-  return generation === dartMutationGeneration
+export function isCurrentDartConnectionChange(generation: number): boolean {
+  return generation === dartConnectionGeneration
 }
 
 export function isCurrentDartRuntimeContext(
