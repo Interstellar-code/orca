@@ -61,6 +61,10 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
   const [createSupportsWritesV2, setCreateSupportsWritesV2] = useState(false)
   // A ref, not the state: two clicks in one tick would both read the same stale `false`.
   const createInFlightRef = useRef(false)
+  const unknownRef = useRef(false)
+  const lookupSequenceRef = useRef(0)
+  const [unknown, setUnknown] = useState(false)
+  const [lookingUp, setLookingUp] = useState(false)
 
   // A date-only value needs `dart.writes.v2`; an old host would refuse it, so the field stays hidden.
   useEffect(() => {
@@ -86,11 +90,6 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
     }
     const boards = dartConfig?.dartboards ?? []
     setCreateOpen(true)
-    setCreateNotice(null)
-    setListChecked(false)
-    setCreateMatches([])
-    setCreateMatchesTruncated(false)
-    setMatchesDismissed(false)
     setCreateDraftState((current) => ({
       ...current,
       // A board of another host's config is not this host's board.
@@ -115,10 +114,6 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
 
   const dismissCreateNotice = useCallback(() => {
     setCreateNotice(null)
-    setListChecked(false)
-    setCreateMatches([])
-    setCreateMatchesTruncated(false)
-    setMatchesDismissed(false)
   }, [])
 
   const dismissMatches = useCallback(() => {
@@ -130,6 +125,9 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
     if (!title) {
       return
     }
+    const sequence = ++lookupSequenceRef.current
+    setLookingUp(true)
+    setListChecked(false)
     const result = await useAppStore.getState().listDartTasks(
       {
         title,
@@ -138,6 +136,10 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
       },
       { force: true }
     )
+    if (sequence !== lookupSequenceRef.current) {
+      return
+    }
+    setLookingUp(false)
     if (!result.ok) {
       // A failed lookup proves nothing, so no "no match" is claimed and the retry stays offered.
       setListChecked(false)
@@ -158,9 +160,17 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
   const canCreateAnyway = useMemo(
     () =>
       listChecked &&
-      createNotice?.kind === 'unknown' &&
+      unknown &&
+      !lookingUp &&
       (matchesDismissed || (createMatches.length === 0 && !createMatchesTruncated)),
-    [createMatches.length, createMatchesTruncated, createNotice, listChecked, matchesDismissed]
+    [
+      createMatches.length,
+      createMatchesTruncated,
+      unknown,
+      lookingUp,
+      listChecked,
+      matchesDismissed
+    ]
   )
 
   const finishCreate = useCallback(
@@ -170,6 +180,8 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
       setDartRefreshNonce((nonce) => nonce + 1)
       openDartDetailPage(task)
       setCreateNotice(null)
+      unknownRef.current = false
+      setUnknown(false)
       setListChecked(false)
       setCreateMatches([])
       setCreateMatchesTruncated(false)
@@ -191,6 +203,10 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
 
   /** The write may have landed, so the task is looked up before another create is offered. */
   const reportUnknownOutcome = useCallback(async (): Promise<void> => {
+    unknownRef.current = true
+    setUnknown(true)
+    setListChecked(false)
+    setMatchesDismissed(false)
     setCreateNotice({
       kind: 'unknown',
       message: translate(
@@ -205,6 +221,13 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
 
   const createTask = useCallback<DartCreateTaskModel['createTask']>(
     async (input) => {
+      if (unknownRef.current) {
+        return {
+          ok: false,
+          outcome: 'notApplied',
+          error: 'Review the possible previous creation first.'
+        }
+      }
       if (createInFlightRef.current) {
         return { ok: false, outcome: 'notApplied', error: 'A Dart create is already running.' }
       }

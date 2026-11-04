@@ -81,7 +81,7 @@ export function TaskPageDartCreateDialog({
     <Dialog
       open={createOpen}
       onOpenChange={(open) => {
-        if (!open) {
+        if (!open && !createSubmitting) {
           closeCreate()
         }
       }}
@@ -95,9 +95,9 @@ export function TaskPageDartCreateDialog({
           document.querySelector<HTMLButtonElement>('[data-dart-new-task]')?.focus()
         }}
         onEscapeKeyDown={(event) => {
-          // The page's own Escape handler runs first and prevents the default, so the dialog closes itself.
-          event.preventDefault()
-          closeCreate()
+          if (createSubmitting) {
+            event.preventDefault()
+          }
         }}
         onKeyDown={(event) => {
           if (isScreenSubmitShortcut(event)) {
@@ -193,11 +193,13 @@ export function TaskPageDartCreateDialog({
           />
           {createNotice ? (
             <div className="flex flex-col gap-2">
-              <DartTaskDetailNotice
-                notice={createNotice}
-                dismissNotice={dismissCreateNotice}
-                recheckNotice={checkAgain}
-              />
+              {createNotice ? (
+                <DartTaskDetailNotice
+                  notice={createNotice}
+                  dismissNotice={dismissCreateNotice}
+                  recheckNotice={checkAgain}
+                />
+              ) : null}
               {createMatches.length ? (
                 <ul className="flex flex-col gap-1 rounded-md border border-border/50 p-2 text-xs">
                   {createMatches.map((match) => (
