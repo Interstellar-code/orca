@@ -54,6 +54,10 @@ function setUpFakeRuntime(): void {
   })
   Object.assign(realWindow, { api })
   host = runtime.host(null)
+  // The shared fake exposes no config method; this page test needs the page to load config for real.
+  Object.assign((realWindow.api as { dart: object }).dart, {
+    config: (params: Record<string, unknown> = {}) => host.handle('dart.config', params)
+  })
   const originalHandle = host.handle.bind(host)
   host.handle = async (method, params) => {
     if (method === 'dart.config') {
@@ -157,5 +161,35 @@ describe('Tasks page Dart new task', () => {
 
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(closeTaskPage).not.toHaveBeenCalled()
+  })
+
+  it('opens the created task and pins its row before the list refresh', async () => {
+    const user = userEvent.setup()
+    const originalHandle = host.handle.bind(host)
+    host.handle = async (method, params) => {
+      const reply = await originalHandle(method, params)
+      if (method === 'dart.listTasks' && 'ok' in reply && reply.ok) {
+        return { ...reply, tasks: [], totalCount: 0 }
+      }
+      return reply
+    }
+    render(
+      <TooltipProvider>
+        <TaskPage />
+      </TooltipProvider>
+    )
+
+    await user.click(await screen.findByRole('button', { name: 'New task' }))
+    await user.type(await screen.findByLabelText('Title'), 'Ship the fix')
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Create task' })).toHaveProperty('disabled', false)
+    )
+    await user.click(screen.getByRole('button', { name: 'Create task' }))
+
+    await waitFor(() => expect(host.count('dart.createTask')).toBe(1))
+    await waitFor(() =>
+      expect(useAppStore.getState().taskPageData.openDartTask?.title).toBe('Ship the fix')
+    )
+    expect(screen.getAllByText('Ship the fix').length).toBeGreaterThan(0)
   })
 })

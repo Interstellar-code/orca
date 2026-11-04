@@ -12,12 +12,8 @@ import { dartSupportsWritesV2ForTarget } from '@/runtime/runtime-dart-write-clie
 import { useAppStore } from '@/store'
 import { getDartReadScope } from '@/store/slices/dart/dart-read-coordination'
 import type { DartCreateDraft, DartCreateTaskModel, DartWriteNotice } from './dart-detail-contracts'
-import {
-  dartCreateArgs,
-  dartCreateMatches,
-  dartCreateRefusal,
-  EMPTY_DART_CREATE_DRAFT
-} from './dart-create-request'
+import { dartCreateArgs, dartCreateRefusal, EMPTY_DART_CREATE_DRAFT } from './dart-create-request'
+import { lookupDartCreateMatches } from './dart-create-lookup'
 import type { DartListFilters } from './task-page-dart-list-model'
 
 export type TaskPageDartCreationInput = {
@@ -31,8 +27,6 @@ export type TaskPageDartCreationInput = {
   noteDartTaskCreated: (task: DartTask) => void
   openDartDetailPage: (task: DartTask) => void
 }
-
-const CREATE_LOOKUP_LIMIT = 100
 
 const MAY_HAVE_CREATED_MESSAGE = 'auto.components.task.page.dart.TaskCreateDialog.mayHaveCreated'
 
@@ -79,6 +73,12 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
   const setCreateDraft = useCallback((patch: Partial<DartCreateDraft>) => {
     setCreateDraftState((current) => ({ ...current, ...patch }))
   }, [])
+  useEffect(() => {
+    const board = dartFilters.dartboard ?? dartConfig?.dartboards[0]
+    if (createOpen && !createDraft.dartboard && board) {
+      setCreateDraftState((current) => ({ ...current, dartboard: board }))
+    }
+  }, [createDraft.dartboard, createOpen, dartConfig?.dartboards, dartFilters.dartboard])
 
   const openCreate = useCallback(() => {
     if (!dartConnected || dartUpdateRequired) {
@@ -127,37 +127,25 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
     const sequence = ++lookupSequenceRef.current
     setLookingUp(true)
     setListChecked(false)
-    const result = await useAppStore.getState().listDartTasks(
-      {
-        title,
-        ...(createDraft.dartboard ? { dartboard: createDraft.dartboard } : {}),
-        limit: CREATE_LOOKUP_LIMIT
-      },
-      { force: true }
+    const lookup = await lookupDartCreateMatches(
+      (args) => useAppStore.getState().listDartTasks(args, { force: true }),
+      title,
+      createDraft.dartboard
     )
     if (sequence !== lookupSequenceRef.current) {
       return
     }
     setLookingUp(false)
-    if (!result.ok) {
-      setCreateNotice({
-        kind: 'unknown',
-        message: translate(
-          'auto.components.task.page.dart.TaskCreateDialog.lookupFailed',
-          'Could not check whether Dart created this task. {{error}} Try again.',
-          { error: taskProviderErrorMessage(result) }
-        )
-      })
+    if ('error' in lookup) {
+      setCreateNotice({ kind: 'unknown', message: lookup.error })
       setListChecked(false)
       setCreateMatches([])
       setCreateMatchesTruncated(false)
       setMatchesDismissed(false)
       return
     }
-    const tasks = result.tasks ?? []
-    const matched = dartCreateMatches(title, tasks, result.totalCount)
-    setCreateMatches(matched.matches)
-    setCreateMatchesTruncated(matched.truncated)
+    setCreateMatches(lookup.matches)
+    setCreateMatchesTruncated(lookup.truncated)
     setListChecked(true)
     setMatchesDismissed(false)
   }, [createDraft.dartboard, createDraft.title])
