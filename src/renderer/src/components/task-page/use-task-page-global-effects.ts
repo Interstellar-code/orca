@@ -67,8 +67,8 @@ export function useTaskPageGlobalEffects(model: TaskPageJiraSummaryGenerationMod
         return
       }
 
-      // Any open dialog owns Esc, including when focus fell to body after a field disabled.
-      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) {
+      // A modal owns Esc even when disabling a field moved focus to body.
+      if (document.querySelector('[role="dialog"][aria-modal="true"], [role="alertdialog"]')) {
         return
       }
 
