@@ -3,6 +3,18 @@
 Status: READY FOR EXECUTION once the user says go (drafted 2026-11-04, revised after review the same day, see "Review 2026-11-04" at the end). Owner: Rohit. Delivery: fork `Interstellar-code/orca`, not pushed upstream. Parent of this plan: phase 1, GitHub issue #8 (merged). Next: `docs/plans/dart-phase-3.md` (outline).
 Each task below is written so it can be pasted as a worker prompt (with the "Rules for every worker" block).
 
+No live Dart writes during the build (decided by Rohit, 2026-11-04). Builders, reviewers and the orchestrator never write to the user's dartai account; every test uses mocks and fakes. The only real-account check is Rohit's own hands-on test of the delivered dev build, and his feedback comes back as fix rounds.
+
+## Design reference (mockups)
+
+Canvas: https://claude.ai/artifact/KQ1KRfMTagC8me6fhvADsb (top row, "Phase 2"). The bottom row is phase 3 and is not built here.
+
+1. `Main.dc.html`, "P2 · Task detail: edit fields and comments": T4b (pickers, title, dates, size, tags, dartboard move, "Assign to me", saving and rollback messages) and T5 (comments, replies, comment box).
+2. `P2-Description.dc.html`, "P2 · Description edit and conflict": T6 (markdown editor, conflict dialog with "Copy my text", "Discard my changes", "Back to editing"; no overwrite button).
+3. `P2-NewTask.dc.html`, "P2 · New task dialog": T7. The mockup also shows type and size chips; T7's field list wins (no size in create; add type only if `dartConfig.types` is non-empty).
+
+The mockups set layout, content and behaviour. Colours, type, spacing and components come from `docs/STYLEGUIDE.md`, `main.css` tokens and the shadcn primitives, not from the mockup's hex values. Workers that cannot open the link get the matching description from this section.
+
 Base: fork `main` at `62c4752fa0f` (2026-11-04). Every path and line number below was read on that commit; re-check a line before editing, files move.
 
 ## Goal
@@ -52,7 +64,7 @@ Other providers edit in place already. Phase 2 reuses these as they are (no edit
 
 ## Decisions
 
-1. D1 — Safe description edit, using Dart's targeted patch. The public API has it: `POST /tasks/{id}/update-description` (`operationId: updateTaskDescription`), body `{ "updates": [ { "type": "replace" | "insert_before" | "insert_after" | "delete", "oldText", "anchorText", "newText", "occurrence" } ] }` (1 or more updates, applied in order, each on the result of the previous one, atomically; "when occurrence is omitted, the target text must be unique"), reply `{ item: Task }`, 400 on invalid, 404 on unknown task. So the save sends only what the user changed; text edited on dartai elsewhere stays, and if the text the user changed was itself changed meanwhile, the `oldText` no longer matches and Dart refuses (400): that is the conflict signal. Fallbacks: (a) a description that was empty when editing began cannot be patched (`oldText` needs text): re-read the task right before save and only send a full `PUT` if the description is still empty, otherwise show the conflict dialog; (b) a host without the new capability keeps the description read-only with "Update the remote Orca server to edit descriptions"; (c) if the T0 spike shows that the markdown from `GET` is not the text the patch searches, the whole description save becomes re-read, compare, warn if changed, and a full `PUT` only when unchanged (never an overwrite of a changed description). Unverified until T0: everything above comes from the spec only.
+1. D1 — Safe description edit, using Dart's targeted patch. The public API has it: `POST /tasks/{id}/update-description` (`operationId: updateTaskDescription`), body `{ "updates": [ { "type": "replace" | "insert_before" | "insert_after" | "delete", "oldText", "anchorText", "newText", "occurrence" } ] }` (1 or more updates, applied in order, each on the result of the previous one, atomically; "when occurrence is omitted, the target text must be unique"), reply `{ item: Task }`, 400 on invalid, 404 on unknown task. So the save sends only what the user changed; text edited on dartai elsewhere stays, and if the text the user changed was itself changed meanwhile, the `oldText` no longer matches and Dart refuses (400): that is the conflict signal. Fallbacks: (a) a description that was empty when editing began cannot be patched (`oldText` needs text): re-read the task right before save and only send a full `PUT` if the description is still empty, otherwise show the conflict dialog; (b) a host without the new capability keeps the description read-only with "Update the remote Orca server to edit descriptions"; (c) if Rohit's hands-on test shows that the markdown from `GET` is not the text the patch searches (every save would then hit the conflict dialog, which is safe: nothing is overwritten), a fix round switches the save to re-read, compare, warn if changed, and a full `PUT` only when unchanged (never an overwrite of a changed description). Unverified until Rohit's test: everything above comes from the spec only.
 2. D2 — Description editor is a plain markdown textarea with a preview, not the Linear rich editor. The rich editor (`LinearIssueMarkdownDescriptionEditor`) re-serializes markdown, so an untouched paragraph can come back different and would show up as a change in the diff. A textarea returns exactly the text typed, so the patch holds only real edits. Rich editing can follow later.
 3. D3 — One write at a time per task (serialized), applied optimistically. Rollback goes to the last confirmed server state. A transport error or timeout on a write (not a clean `{ ok:false }`) is "outcome unknown": do not roll back blindly, re-read the task with `force` and show the server's truth with the message "Dart may have applied this change" (same idea as the CLI's `dart_write_unverified`, `src/cli/dart/dart-call.ts`).
 4. D4 — Rate limit: `dart.rateLimited` (existing, `src/main/dart/dart-failure.ts:31-33`, message carries `Retry-After` when sent) rolls the edit back and shows the message in a toast. No automatic retry, no replay queue. No rate-limit header has ever been seen (#8, item 7.8), so the numbers are unknown.
@@ -74,33 +86,20 @@ Other providers edit in place already. Phase 2 reuses these as they are (no edit
 5. Follow `AGENTS.md` and `docs/STYLEGUIDE.md`: shadcn primitives in `src/renderer/src/components/ui/`, tokens from `main.css`, comments only where code cannot say it (one line, why not how); no vague file names (`helpers`, `utils`); no type assertions except `as const` without a line-specific `SAFETY:` note; reuse before reimplementing; avoid low-value tests (`docs/agents-md-refs/test-antipatterns.md`: no list-membership or inventory tests).
 6. First-class concerns on every change: macOS/Linux/Windows, remote hosts (mixed client and server versions), folder workspaces (a Dart task link must keep working for a plain folder), mobile (Dart stays hidden there; do not touch `mobile/`).
 7. Run your task's checks and report the real output. Do not claim done without it.
-8. Never print, log, commit or paste the Dart token. Do not write to the user's real Dart workspace; live write checks happen only in T0 and T8, on a throwaway dartboard the user names.
+8. Never print, log, commit or paste the Dart token. Never call the real Dart API or write to the user's Dart workspace, in any task; all tests use mocks and fakes.
 9. Every new user-facing string uses `translate('auto.components.task.page.dart.<File>.<key>', 'English default')` like the existing Dart files; new error codes also get an English `COPY` entry.
 10. Copy patterns from the current files named in the task, not from memory.
 11. Each task has its own fixture file (named in the task); do not edit another task's fixture file.
 
 ## Tasks and order
 
-Order: T1, then T2, then T3, then T4a; after T4a, T4b, T5, T6 and T7 run in parallel; then T8. T0 (live spike) needs the user's go, can run any time (it needs no code), and must finish before T6 starts. T1 to T3 are non-visual plumbing. T4a splits the detail view without changing behaviour and wires every write callback (`onUpdate`, `onAddComment`, `onSaveDescription`, `pendingFields`) from `TaskDetail.tsx` and `TaskDetailView.tsx` to T3's store actions with the detail's `writeScope`; `TaskDetail.tsx` and `TaskDetailView.tsx` belong to T4a alone. T4b, T5 and T6 only use those props inside their own section files and never edit those two files.
+Order: T1, then T2, then T3, then T4a; after T4a, T4b, T5, T6 and T7 run in parallel; then T8. T1 to T3 are non-visual plumbing. T4a splits the detail view without changing behaviour and wires every write callback (`onUpdate`, `onAddComment`, `onSaveDescription`, `pendingFields`) from `TaskDetail.tsx` and `TaskDetailView.tsx` to T3's store actions with the detail's `writeScope`; `TaskDetail.tsx` and `TaskDetailView.tsx` belong to T4a alone. T4b, T5 and T6 only use those props inside their own section files and never edit those two files.
 
 ```
-T0 (spike, needs a go) ---------------------------> T6
 T1 -> T2 -> T3 -> T4a -> T4b, T5, T6, T7 (parallel) -> T8
 ```
 
 Content.tsx (`src/renderer/src/components/task-page/dart/Content.tsx`) has two hunks, owned as follows and by nobody else: hunk A, the `<TaskPageDartTaskDetail ... />` props at `:243-250`, belongs to T4a; hunk B, one new line rendering the create dialog after `{connectDialog}` at `:251` (plus its import), belongs to T7. T4a merges first; T7 rebases onto it.
-
-### T0. Spike: does the description patch work on real text (needs Rohit's go, live write)
-
-Run by the orchestrator (or the user), not by a worker: workers never get the token. On a throwaway dartboard the user names, on one throwaway task (made in the Dart web app, or an existing one the user names), with the token read inside the command from the existing token file via a mode-600 header file and `curl -H @file` (never in argv, never `curl -v`):
-
-1. `GET /tasks/{id}` and note the `description` markdown.
-2. Pick one sentence in it. `POST /tasks/{id}/update-description` with a single `replace` of that sentence (`{"updates":[{"type":"replace","oldText":"<sentence>","newText":"<changed sentence>"}]}`).
-3. `GET /tasks/{id}` again. Confirm: the changed sentence is there; the rest of the text is byte-for-byte the same (watch line endings, trailing whitespace, escaped characters, HTML entities, list markers); and that the `oldText` you copied from the `GET` output matched, which proves the `GET` markdown is the text the patch searches.
-4. While there, record (no more writes than needed): the 400 body when `oldText` does not match; whether an empty `newText` is accepted for `replace` (otherwise the plan's `delete` is used); how `occurrence` counts when the text repeats; one `insert_after`; which format `dueAt` / `startAt` come back in after a `PUT` with `YYYY-MM-DD`; whether `size` round-trips as a string or integer.
-5. Write the findings into the scratchpad first (ids and names scrubbed); the user reads them before they go into a `docs/` note (T8).
-
-Accept: a short written result: "GET markdown equals patch text: yes/no", plus the observations in step 4. If "no" (or any surprise that makes a patch unsafe), D1 (c) applies: T6 builds the re-read, compare, warn flow with a full `PUT` only when unchanged, and drops the patch call. The orchestrator tells the T6 worker which branch to build.
 
 ### T1. Host and contract: description patch, size, dates, limits, one new capability and error code
 
@@ -212,16 +211,15 @@ Accept: `pnpm test src/renderer/src/components/task-page/dart --maxWorkers=2` co
 
 ### T6. Description edit with a safe, targeted save (G5)
 
-Starts after T0 reports. Files owned: `TaskDetailDescription.tsx`, new `DartDescriptionEditor.tsx`, `dart-description-patch.ts` (+ test), `DartDescriptionConflictDialog.tsx`, fixture files `DartDescriptionEditor.fixture.tsx` and `DartDescriptionConflictDialog.fixture.tsx` (new). No other task edits these. T6 does not edit `TaskDetail.tsx` or `TaskDetailView.tsx`: it saves through the `onSaveDescription` prop T4a wired.
+Starts after T4a. Files owned: `TaskDetailDescription.tsx`, new `DartDescriptionEditor.tsx`, `dart-description-patch.ts` (+ test), `DartDescriptionConflictDialog.tsx`, fixture files `DartDescriptionEditor.fixture.tsx` and `DartDescriptionConflictDialog.fixture.tsx` (new). No other task edits these. T6 does not edit `TaskDetail.tsx` or `TaskDetailView.tsx`: it saves through the `onSaveDescription` prop T4a wired.
 
 Steps:
 
 1. `dart-description-patch.ts`: `buildDescriptionUpdates(base, draft)` returns the ordered `updates` array, using the `diff` package on `base` (the description when editing began) and `draft`. Dart applies the updates in order and each one searches the text as it stands after the previous ones, so the builder works from the end of the text toward the start: the last changed region first, the first one last. Edits made at later positions leave earlier text untouched, so earlier positions keep their meaning. For each changed region, against the document as it stands at that step (base with the already-built later edits applied, not the original base): pure removal gives `delete` with `oldText`; pure addition gives `insert_after` (anchor is the unchanged text just before) or `insert_before` (anchor is the text just after, when the region is at the start); a change gives `replace`. Each `oldText` or `anchorText` is widened with neighbouring unchanged text until it occurs exactly once in the current document; if it cannot be made unique, use `occurrence` (1-indexed in the current document) as the last resort and mark the result `fragile`. If `base` is empty, return `{ kind: 'full-replace' }` (D1 a). Cap the number of updates: past a small cap, send one larger `replace` of the whole changed block.
 2. `DartDescriptionEditor`: "Edit" opens a markdown textarea (D2) with a Preview toggle (`CommentMarkdown`); Save, Cancel; Save is disabled when nothing changed or over `DART_REQUEST_TEXT_MAX_BYTES` (the patch's changed text, or the whole text for a `full-replace`), with the D12 message shown inline. When `supportsWritesV2` is false, the description is read-only with the update hint (D1 b, D5).
-3. Save flow: (a) if `base` is empty, re-read the task (`fetchDartTask` with `force`, in the detail's scope); if its description is still empty send a normal `dart.updateTask` with `description`; if not, open the conflict dialog; (b) otherwise send `dart.updateTaskDescription` with the built updates through T3's `updateDartTaskDescription`. Success: replace the shown description with the reply task's description (never with the local draft) and leave edit mode. If T0 chose D1 (c): re-read, compare with `base`; unchanged gives a full `PUT`; changed gives the conflict dialog; no patch call.
-4. Conflict (`dart.descriptionConflict`, or the re-read in 3a): `DartDescriptionConflictDialog` says "This description changed in Dart while you were editing" and shows the latest Dart text and, below it, a visible read-only copy of the user's own text with a Copy button, so nothing the user typed is lost. Two actions only: "Back to editing" (keeps the draft in the editor and re-bases `base` on the fresh Dart text, so the next save patches against it) and "Discard my changes" (drops the draft and shows Dart's text). There is no "use my version" and no overwrite path: description edits must not overwrite what is in Dart.
-5. A `fragile` patch first re-reads the task and compares `base` with the fresh description; if they differ it goes to the conflict dialog instead of sending.
-6. If the draft is not saved (close, switch task), keep it per task id in memory for the session and warn before discarding on close.
+3. Save flow: (a) if `base` is empty, re-read the task (`fetchDartTask` with `force`, in the detail's scope); if its description is still empty send a normal `dart.updateTask` with `description`; if not, open the conflict dialog; (b) otherwise send `dart.updateTaskDescription` with the built updates through T3's `updateDartTaskDescription`. Success: replace the shown description with the reply task's description (never with the local draft) and leave edit mode.4. Conflict (`dart.descriptionConflict`, or the re-read in 3a): `DartDescriptionConflictDialog` says "This description changed in Dart while you were editing" and shows the latest Dart text and, below it, a visible read-only copy of the user's own text with a Copy button, so nothing the user typed is lost. Two actions only: "Back to editing" (keeps the draft in the editor and re-bases `base` on the fresh Dart text, so the next save patches against it) and "Discard my changes" (drops the draft and shows Dart's text). There is no "use my version" and no overwrite path: description edits must not overwrite what is in Dart.
+4. A `fragile` patch first re-reads the task and compares `base` with the fresh description; if they differ it goes to the conflict dialog instead of sending.
+5. If the draft is not saved (close, switch task), keep it per task id in memory for the session and warn before discarding on close.
 
 Accept: `pnpm test src/renderer/src/components/task-page/dart --maxWorkers=2` with: round-trip tests on `buildDescriptionUpdates` (insert, delete, replace, several regions, repeated phrases, unicode, CRLF, start and end of text, empty base, no change) that apply the updates in order with a reference implementation of the spec, assert that `apply(base, updates) === draft`, and assert at every step that the `oldText` or `anchorText` occurs exactly once in the document as it stands at that step (or that `occurrence` is set and valid); a save sends only the changed text (assert the request body); a 400 opens the conflict dialog with both texts and only its two actions; "Back to editing" keeps the draft and re-bases; "Discard my changes" sends nothing; a host without `dart.writes.v2` shows read-only. Screenshot fixtures for editor and conflict dialog in their own fixture files, both themes. `pnpm tc` passes.
 
@@ -239,7 +237,7 @@ Steps:
 
 Accept: component tests: required title; submit sends canonical values once; failure keeps the draft and shows the message; success opens the new task; unknown-config board is refused; timeout shows the "may have created" notice and keeps Submit disabled. Screenshots from `TaskCreateDialog.fixture.tsx` (empty and filled), both themes, looked at. `pnpm tc` passes.
 
-### T8. Remote, mixed versions, docs and live verification (G7, G8, G9)
+### T8. Remote, mixed versions, docs and final checks (G7, G8, G9)
 
 Files owned: tests and docs only (`src/main/dart/dart-transport-parity.test.ts` additions, `src/renderer/src/components/task-page/TaskPage.dart.test.tsx` additions, one `docs/` note), no product code. A bug found goes back to the owning task as a fix round.
 
@@ -251,7 +249,7 @@ Steps:
 3. Scope parity: open a task whose `sourceContext` differs from the page's; its config, comments, edits and capability probe go to that scope, and the page list stays on its own.
 4. Folder workspace: a plain folder workspace linked to a Dart task still opens the task and its edits save (no git assumption in any new code).
 5. `pnpm check:changed` after the last edit; also `pnpm lint`, `pnpm verify:renderer-boot-graph`, `pnpm lint:design-system`.
-6. Live write check, only on a throwaway dartboard the user names and with the user's go (see "Approval gates"): create a task, change status, priority, assignee, tags, size, dates and title; move it to a second throwaway board; comment and reply; patch its description from the app while changing another sentence in the Dart web app; trigger a description conflict by changing the same sentence in both; read back each result with `orca dart get`. On hold (added 2026-11-04): if the workspace has a custom status such as `On hold`, check it appears in the status picker and saves; add and remove an `on-hold` tag from the tag control. Record observed shapes (including T0's findings) in a short `docs/` note with names and ids scrubbed, and correct the "Open items" below.
+6. No live Dart calls. Instead, write Rohit's test checklist into the T8 report (not a file in the repo): each feature to try in the dev build, what should happen, and which "Open items" each step settles (description patch on real text, a description conflict made by editing the same sentence in the Dart web app, date and size formats, dartboard move, rate-limit message if seen, a custom `On hold` status in the picker, an `on-hold` tag). Rohit runs it on tasks he chooses and reports back; findings become fix rounds.
 7. Hidden-renderer screenshots with `ORCA_BACKGROUND_LAUNCH=1` and CDP (per `AGENTS.md`, never steal focus): detail with pickers, a refused edit, the conflict dialog, the new-task dialog, an old-host detail, light and dark.
 
 Accept: all of the above pass with real output pasted into the report.
@@ -259,8 +257,8 @@ Accept: all of the above pass with real output pasted into the report.
 ## Approval gates and data handling
 
 1. No push, no PR, no merge without the user's explicit go. Local branches and worktrees only.
-2. Writes to the user's real Dart workspace only on a throwaway dartboard the user names, with the user's go, each time (T0 and T8 step 6). Unit and component tests use mocks.
-3. The Dart token is never typed, echoed, logged or committed; workers never receive it. Live runs read it inside the command from the existing token file; the UI-level live check is the user's own step in their own profile.
+2. No writes, and no calls at all, to the user's real Dart account during the build, by anyone (workers, reviewers, orchestrator). Unit, component and parity tests use mocks and fakes. The only real-account use is Rohit's own test of the delivered dev build.
+3. The Dart token is never typed, echoed, logged or committed; workers never receive it.
 4. Screenshots, fixtures and the findings note must contain no real names, emails, workspace or task ids; scrub or use fixture data.
 5. Issues and plan files go to `Interstellar-code/orca` only, never `stablyai/orca`.
 
@@ -270,19 +268,18 @@ Accept: all of the above pass with real output pasted into the report.
 2. Layer 2, runtime client, store and queue tests (T2, T3): remote and local routing, capability gates, queue ordering, rollback, outcome-unknown, stale reads, rate limit.
 3. Layer 3, component tests and fixture screenshots (T4a to T7).
 4. Layer 4, gates (T8): `pnpm tc`, `pnpm lint`, `pnpm test` for the touched areas, `pnpm check:changed`, `pnpm verify:rpc-params-catalog`, `pnpm lint:design-system`, `pnpm verify:renderer-boot-graph`.
-5. Layer 5, live writes on a throwaway dartboard with the user's go (T0, T8 step 6).
-6. Layer 6, the user's checks: install the fork build, edit a real task on the Mac app and through the remote server, confirm the change in Dart's web app.
+5. Layer 5, Rohit's own test after delivery: run the dev build, edit real tasks of his choosing locally and through the remote server, follow the T8 checklist, confirm the changes in Dart's web app, and send feedback as fix rounds.
 
 ## Open items (unverified; none were guessed)
 
-1. Description patch behaviour is read from the OpenAPI schema only (2026-11-04, `https://app.dartai.com/api/v0/public/schema/`; the docs page `/docs/` also loaded). No write has been sent. T0 settles: that the `GET` markdown is the text the patch searches (the gate for the whole patch design), the error body when `oldText` does not match (the plan treats any 400 as a conflict, so it is safe either way), whether an empty `newText` is accepted for `replace` (the plan uses `delete` for removals), and how `occurrence` counts.
+1. Description patch behaviour is read from the OpenAPI schema only (2026-11-04, `https://app.dartai.com/api/v0/public/schema/`; the docs page `/docs/` also loaded). No write has been sent. Rohit's test settles: that the `GET` markdown is the text the patch searches (the gate for the whole patch design), the error body when `oldText` does not match (the plan treats any 400 as a conflict, so it is safe either way), whether an empty `newText` is accepted for `replace` (the plan uses `delete` for removals), and how `occurrence` counts.
 2. The format Dart returns for `startAt` / `dueAt` (date only or datetime) is not seen: phase 1 never printed it and the spec gives `YYYY-MM-DD` for input. The display function accepts both.
 3. `PUT /tasks/{id}` moving a task to another dartboard: allowed by the schema (`dartboard` is an updatable field); whether the status is kept or remapped on a board with different statuses is unknown (D9 shows whatever the server returns).
 4. Rate limits: the spec has no rate-limit text and no header has been seen; handling relies on a 429 mapping that exists but has never fired against the live API.
-5. `size` values: `/config` returns `sizes` as one string in this workspace (see the comment in `dart-task-mapping.ts`, `stringList`), and the update accepts string or integer; which form the workspace stores is checked live.
+5. `size` values: `/config` returns `sizes` as one string in this workspace (see the comment in `dart-task-mapping.ts`, `stringList`), and the update accepts string or integer; which form the workspace stores is seen in Rohit's test.
 6. Whether a `PUT` with `tags` that match an existing tag by a differently-cased title creates a duplicate: the host already canonicalizes case against `/config`, so the UI only offers existing tags.
 7. Multiple-assignee workspaces: the schema has `assignees` (plural) for them. This plan writes the single `assignee` field only; a workspace that allows several would need the plural field (out of scope; noted).
-8. The limits in D12 are chosen, not measured: Dart's schema has no `maxLength`, and the byte cap exists for Orca's own remote request limit (about 786 KB, with JSON escaping able to inflate text), not for Dart. A description whose changed text is over `DART_REQUEST_TEXT_MAX_BYTES` (256 KiB) cannot be saved from the app; check live that real descriptions are far below it.
+8. The limits in D12 are chosen, not measured: Dart's schema has no `maxLength`, and the byte cap exists for Orca's own remote request limit (about 786 KB, with JSON escaping able to inflate text), not for Dart. A description whose changed text is over `DART_REQUEST_TEXT_MAX_BYTES` (256 KiB) cannot be saved from the app; Rohit's test shows whether real descriptions are far below it.
 
 ## Risks
 
@@ -290,7 +287,7 @@ Accept: all of the above pass with real output pasted into the report.
 2. Char-level diffs can produce many small updates for a heavily rewritten description; the builder falls back to one larger `replace` (the whole changed block) when the update count passes a small cap (tested).
 3. Optimistic UI hides latency but a refused edit flips back; the message must name the field. The tests assert the message text, not only the rollback.
 4. Date-only strings in a negative-offset time zone: covered by the timezone-safe formatter test (T4b step 5).
-5. Not every description save is overwrite-proof. Only the patch path guarantees that nothing in Dart is overwritten (Dart refuses a patch whose `oldText` no longer matches). The empty-description path (T6 step 3a) and the D1 (c) fallback (if T0 shows the patch cannot be used) re-read the task and then send a full `PUT`: a change made in Dart between the re-read and the `PUT` (a window of well under a second to a few seconds) can be overwritten. The window is small, but it is not zero.
+5. Not every description save is overwrite-proof. Only the patch path guarantees that nothing in Dart is overwritten (Dart refuses a patch whose `oldText` no longer matches). The empty-description path (T6 step 3a) and the D1 (c) fallback (if Rohit's test shows the patch cannot be used) re-read the task and then send a full `PUT`: a change made in Dart between the re-read and the `PUT` (a window of well under a second to a few seconds) can be overwritten. The window is small, but it is not zero.
 6. Pinned rows (D11) can show a task that no longer matches the filter until the next refresh; that is intended and the row clears on refresh or filter change.
 
 ## Review 2026-11-04
@@ -299,7 +296,7 @@ Changes made after the coordinator's review (one line each):
 
 1. Old hosts: new single capability `dart.writes.v2` (D5, T1, T2) covering the description patch, `size` and date-only dates; size control, date inputs and description editor gated on it in T4b and T6; the write layer refuses to send them to a host without it; T8 step 2 adds the old-host parity case. "What exists" item 3 documents the silent-drop trap. (The reviewer cited the files as `src/shared/dart/dart-params.ts`; the real path is `src/shared/rpc-contract/dart-params.ts`, used throughout.)
 2. T6 step 1: updates are built from the end of the text toward the start, uniqueness is checked against the document as it stands at each step, and the round-trip test asserts it at every step.
-3. New T0 spike (live write, needs Rohit's go) before T6: GET, patch one sentence, GET again; if the GET markdown is not the text the patch searches, D1 (c) applies (re-read, warn, full PUT only when unchanged).
+3. (Removed in round 3: no live steps.) New T0 spike (live write, needs Rohit's go) before T6: GET, patch one sentence, GET again; if the GET markdown is not the text the patch searches, D1 (c) applies (re-read, warn, full PUT only when unchanged).
 4. Wrong host: the detail fetches its own config with `fetchDartConfig({ sourceContext })` (T3, in `use-dart-task-detail-data.ts`); `onUpdate`, the T3 actions and the capability probe use the detail's own scope; T8 step 3 tests scope parity.
 5. Stale reads: T3's hooks re-apply pending queue patches over incoming reads (`withPendingDartPatches`, applied at `setDartTasks` and `setFull`); the tests check the visible state, not only the cache.
 6. T4 split into T4a (split with no behaviour change plus config plumbing) and T4b; after T4a, T4b, T5, T6 and T7 run in parallel; each task has its own named fixture file; `Content.tsx` hunks are assigned (A to T4a, B to T7); T3 owns the two hooks it edits; the order diagram is updated.
@@ -318,3 +315,8 @@ Changes made after the coordinator's review (one line each):
 3. Size cap: the 500,000-character description cap is replaced by `DART_REQUEST_TEXT_MAX_BYTES = 256 * 1024` UTF-8 bytes for the full description and for a patch (sum of `oldText`, `newText` and `anchorText`), in a new `src/shared/dart/dart-text-limits.ts` using `shared/utf8-byte-limits`; the renderer checks it before sending and shows a message; T2 also measures the serialized params against `REMOTE_RUNTIME_MAX_INBOUND_REQUEST_JSON_BYTES` (about 786 KB, `remote-runtime-memory-limits.ts:14-16`; over it a host closes the socket with 1009) because JSON escaping inflates text. Title 500 and comment 50,000 stay. The note that the Dart schema has no `maxLength` is in "What exists" item 8 and in D12.
 4. "Assign to me" uses the viewer of the detail's own scope (`viewerName` from the detail hook) and is hidden when the detail's scope differs from the page's.
 5. Risks item 5 now says the empty-description path and the D1 (c) fallback re-read and then `PUT`, so a change between the two calls can be overwritten; the window is small and only the patch path guarantees no overwrite.
+
+## Round 3 (2026-11-04, Rohit)
+
+1. All live Dart steps removed: T0 (live spike) deleted, T8 step 6 is now a test checklist for Rohit in the T8 report, Approval gate 2 and Verification layer 5 rewritten, worker rule 8 forbids any real Dart call. T6 starts after T4a and builds the patch path; D1 (c) becomes a fix round only if Rohit's test shows the patch text does not match.
+2. Design reference section added with the mockup canvas link and which artboard each task builds.
