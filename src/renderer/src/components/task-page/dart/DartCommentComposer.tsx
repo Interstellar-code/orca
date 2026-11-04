@@ -20,6 +20,7 @@ import {
   draftCommentText,
   getDartCommentSendState,
   patchDartCommentSendState,
+  isDartCommentBodyBlocked,
   readDartCommentSubmission,
   subscribeDartCommentSendState
 } from './dart-comment-send-state'
@@ -87,7 +88,7 @@ export function DartCommentComposer({
     (next: string): void => {
       persistDraft(next)
       patchDartCommentSendState(draftKey, (current) => ({
-        blocked: current.uncertainBody !== null && next.trim() === current.uncertainBody.trim(),
+        blocked: isDartCommentBodyBlocked(draftKey, next),
         refusalNotice: null,
         ...(current.noticeIsSize && readDartCommentSubmission(next).status !== 'refused'
           ? { notice: null, noticeIsSize: false }
@@ -108,20 +109,15 @@ export function DartCommentComposer({
         return
       }
       if (submission.status === 'refused') {
-        // An unresolved unknown write is the more important notice: a local refusal does not explain it.
-        if (!before.blocked) {
-          patchDartCommentSendState(draftKey, {
-            notice: submission.notice,
-            noticeIsSize: true
-          })
-        }
+        patchDartCommentSendState(draftKey, {
+          refusalNotice: submission.notice
+        })
         return
       }
       // Claimed synchronously, so a shortcut and a click in one tick cannot both send.
       if (!beginDartCommentSend(draftKey)) {
         return
       }
-      let ended = false
       const sentText = text
       try {
         const result = await onAddComment({
@@ -140,28 +136,19 @@ export function DartCommentComposer({
           if (cleared) {
             clearDraft(draftKey)
           }
+          const uncertainBodies = new Set(before.uncertainBodies)
+          uncertainBodies.delete(submission.body)
           patchDartCommentSendState(draftKey, {
             ...(cleared ? { text: null, saved: true } : {}),
-            ...(before.blocked || before.uncertainBody === null
-              ? {
-                  blocked: false,
-                  uncertainBody: null,
-                  uncertainParentId: null,
-                  refusalNotice: null,
-                  reconciled: false,
-                  notice: null,
-                  noticeIsSize: false
-                }
-              : {})
+            blocked: false,
+            uncertainBodies,
+            refusalNotice: null,
+            ...(uncertainBodies.size === 0 ? { notice: null, noticeIsSize: false } : {})
           })
           if (cleared) {
             setDartReplyTarget(draftKey, null)
           }
-          endDartCommentSend(draftKey)
-          ended = true
-          if (mountedRef.current) {
-            appendLocalComment(result.comment)
-          }
+          appendLocalComment(result.comment)
           // Refresh the original task even if its composer has unmounted.
           await reloadComments().catch(() => {})
           return
@@ -171,7 +158,7 @@ export function DartCommentComposer({
             notice: dartCommentUnknownNotice(),
             noticeIsSize: false,
             blocked: true,
-            uncertainBody: submission.body,
+            uncertainBodies: new Set([...before.uncertainBodies, submission.body]),
             uncertainParentId: resend ? before.uncertainParentId : (replyTo?.id ?? null),
             refusalNotice: null,
             reconciled: false
@@ -195,14 +182,12 @@ export function DartCommentComposer({
           return
         }
         patchDartCommentSendState(draftKey, (current) =>
-          current.uncertainBody !== null
+          current.uncertainBodies.size > 0
             ? { refusalNotice: dartCommentRefusedNotice(result) }
             : { notice: dartCommentRefusedNotice(result), noticeIsSize: false }
         )
       } finally {
-        if (!ended) {
-          endDartCommentSend(draftKey)
-        }
+        endDartCommentSend(draftKey)
       }
     },
     [appendLocalComment, draftKey, onAddComment, reloadComments, replyTo, text]

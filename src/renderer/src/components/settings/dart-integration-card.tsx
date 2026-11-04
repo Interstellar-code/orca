@@ -28,7 +28,10 @@ import {
   dirtyDraftTexts,
   discardDirtyDrafts
 } from '../task-page/dart/dart-draft-store'
-import { clearDartCommentSendStatesForHost } from '../task-page/dart/dart-comment-send-state'
+import {
+  clearDartCommentSendStatesForHost,
+  dirtyDartCommentTextsForHost
+} from '../task-page/dart/dart-comment-send-state'
 import { clearDartReplyTargetsForHost } from '../task-page/dart/dart-reply-target-store'
 import { DartAgentSkillInstallCta } from './dart-agent-skill-install-cta'
 import { IntegrationCardDetails, IntegrationCardShell } from './integration-card-shell'
@@ -54,10 +57,14 @@ function DartDisconnectDraftsDialog({
 }): React.JSX.Element {
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
   const copyAll = (): void => {
-    void window.api.ui.writeClipboardText(dirtyDraftTexts(hostKey).join('\n\n---\n\n')).then(
-      () => setCopyState('copied'),
-      () => setCopyState('failed')
-    )
+    void window.api.ui
+      .writeClipboardText(
+        [...dirtyDraftTexts(hostKey), ...dirtyDartCommentTextsForHost(hostKey)].join('\n\n---\n\n')
+      )
+      .then(
+        () => setCopyState('copied'),
+        () => setCopyState('failed')
+      )
   }
   return (
     <Dialog open onOpenChange={(open) => !open && onCancel()}>
@@ -154,9 +161,9 @@ export function DartIntegrationCard(): React.JSX.Element {
     if (result.ok) {
       if (discardDraftsOfHost) {
         discardDirtyDrafts(discardDraftsOfHost)
+        clearDartCommentSendStatesForHost(discardDraftsOfHost)
+        clearDartReplyTargetsForHost(discardDraftsOfHost)
       }
-      clearDartCommentSendStatesForHost(disconnectHostKey)
-      clearDartReplyTargetsForHost(disconnectHostKey)
     }
     if (!mountedRef.current) {
       return
@@ -168,7 +175,8 @@ export function DartIntegrationCard(): React.JSX.Element {
   }
 
   const requestDisconnect = (): void => {
-    const count = dirtyDraftCount(disconnectHostKey)
+    const count =
+      dirtyDraftCount(disconnectHostKey) + dirtyDartCommentTextsForHost(disconnectHostKey).length
     if (count > 0) {
       setDraftPrompt({ hostKey: disconnectHostKey, count })
       return

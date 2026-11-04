@@ -58,6 +58,7 @@ export function useDartTaskDetailData(
   const localCommentsRef = useRef<DartComment[]>([])
   const commentReadRef = useRef(0)
   const latestTaskReadRef = useRef(0)
+  const taskIdRef = useRef<string | null>(null)
 
   // The context key is a dep because its session generation decides whose status the default scope trusts.
   const scope = useMemo(
@@ -170,6 +171,7 @@ export function useDartTaskDetailData(
     rowPatchRef,
     latestTaskReadRef,
     commentReadRef,
+    taskIdRef,
     setLoadedFor
   })
 
@@ -194,7 +196,12 @@ export function useDartTaskDetailData(
   const writes = useDartTaskDetailWrites({ identity, sourceContext, displayedRef })
 
   const reloadComments = useCallback<DartDetailCommentsApi['reloadComments']>(async () => {
-    if (!identity) {
+    if (
+      !identity ||
+      identityRef.current?.hostKey !== identity.hostKey ||
+      identityRef.current.accountKey !== identity.accountKey ||
+      identityRef.current.taskId !== identity.taskId
+    ) {
       return
     }
     const commentRead = ++commentReadRef.current
@@ -203,22 +210,36 @@ export function useDartTaskDetailData(
       sourceContext,
       listDartComments,
       isLatestRead: () =>
-        identityRef.current === identity && commentRead === commentReadRef.current,
+        identityRef.current !== null &&
+        identityRef.current.hostKey === identity.hostKey &&
+        identityRef.current.accountKey === identity.accountKey &&
+        identityRef.current.taskId === identity.taskId &&
+        commentRead === commentReadRef.current,
       applyCommentsRead
     })
   }, [applyCommentsRead, identity, listDartComments, sourceContext])
 
-  const appendLocalComment = useCallback<DartDetailCommentsApi['appendLocalComment']>((comment) => {
-    if (!localCommentsRef.current.some((local) => local.id === comment.id)) {
-      localCommentsRef.current = [...localCommentsRef.current, comment]
-    }
-    setComments((shown) =>
-      shown.status === 'ready'
-        ? { status: 'ready', value: withLocalComments(shown.value, [comment]) }
-        : shown
-    )
-  }, [])
-
+  const appendLocalComment = useCallback<DartDetailCommentsApi['appendLocalComment']>(
+    (comment) => {
+      if (
+        !identity ||
+        identityRef.current?.hostKey !== identity.hostKey ||
+        identityRef.current.accountKey !== identity.accountKey ||
+        identityRef.current.taskId !== identity.taskId
+      ) {
+        return
+      }
+      if (!localCommentsRef.current.some((local) => local.id === comment.id)) {
+        localCommentsRef.current = [...localCommentsRef.current, comment]
+      }
+      setComments((shown) =>
+        shown.status === 'ready'
+          ? { status: 'ready', value: withLocalComments(shown.value, [comment]) }
+          : shown
+      )
+    },
+    [identity]
+  )
   const readLatestTask = useCallback<DartDetailDescriptionApi['readLatestTask']>(async () => {
     if (!identity) {
       return noOpenDartTaskFailure()
@@ -232,7 +253,10 @@ export function useDartTaskDetailData(
     if (
       result.ok &&
       current &&
-      identityRef.current === identity &&
+      identityRef.current !== null &&
+      identityRef.current.hostKey === identity.hostKey &&
+      identityRef.current.accountKey === identity.accountKey &&
+      identityRef.current.taskId === identity.taskId &&
       latestTaskRead === latestTaskReadRef.current
     ) {
       const latest = { ...result.task, ...pendingDartPatches(identity) }

@@ -33,8 +33,8 @@ export type DartCommentSendState = {
   inFlight: boolean
   /** An unknown outcome blocks Send until the user edits the text or sends again on purpose. */
   blocked: boolean
-  /** Normalized body whose delivery remains unknown, even after edits. */
-  uncertainBody: string | null
+  /** Set of normalized bodies whose delivery remains unknown, even after edits. */
+  uncertainBodies: ReadonlySet<string>
   refusalNotice: DartWriteNotice | null
   uncertainParentId: string | null
   generation: number
@@ -50,7 +50,7 @@ const EMPTY_STATE: DartCommentSendState = {
   saved: true,
   inFlight: false,
   blocked: false,
-  uncertainBody: null,
+  uncertainBodies: new Set<string>(),
   refusalNotice: null,
   uncertainParentId: null,
   generation: 0,
@@ -127,9 +127,25 @@ export function clearDartCommentSendState(draftKey: string): void {
 export function clearDartCommentSendStatesForHost(hostKey: string): void {
   for (const key of states.keys()) {
     if (dartDraftKeyParts(key).hostKey === hostKey) {
+      const current = getDartCommentSendState(key)
       clearDartCommentSendState(key)
+      patchDartCommentSendState(key, {
+        uncertainBodies: current.uncertainBodies,
+        uncertainParentId: current.uncertainParentId,
+        reconciled: current.reconciled,
+        notice: current.uncertainBodies.size > 0 ? dartCommentUnknownNotice() : null
+      })
     }
   }
+}
+
+export function dirtyDartCommentTextsForHost(hostKey: string): string[] {
+  return [...states]
+    .filter(
+      ([key, state]) =>
+        dartDraftKeyParts(key).hostKey === hostKey && !state.saved && state.text?.trim()
+    )
+    .map(([, state]) => state.text ?? '')
 }
 
 export type DartCommentSubmission =
@@ -181,7 +197,7 @@ export function dartCommentUnknownNotice(): DartWriteNotice {
     kind: 'unknown',
     message: translate(
       'auto.components.task.page.dart.DartCommentComposer.mayHavePosted',
-      'Dart may have posted this comment. Check the list before sending again'
+      'Dart may have posted this comment. Check the list before sending again.'
     )
   }
 }
@@ -207,6 +223,21 @@ export function dartCommentBlockedReason(): string {
     'auto.components.task.page.dart.DartCommentComposer.blockedReason',
     'Dart may have posted this comment. Check the list before sending again.'
   )
+}
+
+/** Whether the trimmed body is currently blocked by an unresolved unknown write. */
+export function isDartCommentBodyBlocked(draftKey: string, text: string): boolean {
+  const { uncertainBodies } = getDartCommentSendState(draftKey)
+  const trimmed = text.trim()
+  if (trimmed === '') {
+    return false
+  }
+  for (const body of uncertainBodies) {
+    if (body.trim() === trimmed) {
+      return true
+    }
+  }
+  return false
 }
 
 /** Name the drafts-full warning in words, keeping an id only where nothing is known. */
@@ -243,10 +274,7 @@ export function dartDraftsFullWarning(
   )
 }
 
-function cachedDartTaskTitle(
-  state: Pick<AppState, 'dartTaskCache'>,
-  taskId: string
-): string | null {
+function cachedDartTaskTitle(state: AppState, taskId: string): string | null {
   for (const entry of Object.values(state.dartTaskCache)) {
     const task: DartTask | null = entry.data
     if (task?.id === taskId && task.title.trim()) {
@@ -256,7 +284,7 @@ function cachedDartTaskTitle(
   return null
 }
 
-/** Copying the oldest draft copies its whole lineage, unresolved description hunks included. */
+/** Copying the oldest draft copies the whole lineage, unresolved description hunks included. */
 export function dartFullDraftCopyText(oldest: { key: string; value: DartDraftValue }): string {
   // The oldest dirty draft overall is its host's first entry, so `dirtyDraftTexts` starts with it.
   const [oldestText] = dirtyDraftTexts(dartDraftKeyParts(oldest.key).hostKey)

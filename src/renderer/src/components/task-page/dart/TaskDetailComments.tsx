@@ -14,6 +14,7 @@ import {
 import type { DartDetailCommentsApi } from './dart-detail-contracts'
 import { InlineError, SkeletonLines } from './TaskDetailLoadStates'
 import { SectionHeading } from './TaskDetailSectionHeading'
+import { getDartCommentSendState, subscribeDartCommentSendState } from './dart-comment-send-state'
 
 // Replies step in by one avatar width; deeper threads stay readable on a narrow sheet.
 const REPLY_INDENT = 16
@@ -37,6 +38,8 @@ function DartTaskDetailCommentsForTask({
   const getReplyTo = useCallback((): DartComment | null => getDartReplyTarget(draftKey), [draftKey])
   const replyTo = useSyncExternalStore(subscribeDartReplyTargets, getReplyTo, getReplyTo)
   const cancelReply = useCallback((): void => setDartReplyTarget(draftKey, null), [draftKey])
+  const getSendState = useCallback(() => getDartCommentSendState(draftKey), [draftKey])
+  const sendState = useSyncExternalStore(subscribeDartCommentSendState, getSendState, getSendState)
 
   return (
     <section className="space-y-3 border-t border-border/60 px-4 py-4">
@@ -85,6 +88,7 @@ function DartTaskDetailCommentsForTask({
                     variant="ghost"
                     size="xs"
                     className="ms-auto"
+                    disabled={sendState.blocked || sendState.inFlight}
                     onClick={() => setDartReplyTarget(draftKey, comment)}
                   >
                     {translate(

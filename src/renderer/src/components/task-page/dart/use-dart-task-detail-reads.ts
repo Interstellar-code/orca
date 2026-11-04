@@ -34,7 +34,15 @@ type Options = {
   rowPatchRef: RefObject<Partial<DartTask>>
   latestTaskReadRef: RefObject<number>
   commentReadRef: RefObject<number>
+  taskIdRef: RefObject<string | null>
   setLoadedFor: Dispatch<SetStateAction<string | null>>
+}
+
+function identityMatches(a: Identity | null, b: Identity | null): boolean {
+  if (a === null || b === null) {
+    return false
+  }
+  return a.hostKey === b.hostKey && a.accountKey === b.accountKey && a.taskId === b.taskId
 }
 
 export function useDartTaskDetailReads({
@@ -51,11 +59,17 @@ export function useDartTaskDetailReads({
   rowPatchRef,
   latestTaskReadRef,
   commentReadRef,
+  taskIdRef,
   setLoadedFor
 }: Options): void {
   useEffect(() => {
     identityRef.current = identity
-    // The hook outlives a task switch, so a slow read of the last task must not land on this one.
+    taskIdRef.current = taskId
+    const thisRead = { taskId, identity }
+    // Per-task read sequencing: a reload or switch for task A must never cancel task B's first read.
+    if (taskId) {
+      commentReadRef.current += 1
+    }
     latestTaskReadRef.current += 1
     if (!taskId || !identity) {
       return
@@ -64,6 +78,10 @@ export function useDartTaskDetailReads({
     const force = reloadNonce > 0
     const captureEpoch = (): DartEpochSnapshot => captureDartEpoch(identity)
     const isCancelled = (): boolean => cancelled
+    const isCurrentRead = (): boolean =>
+      identityRef.current !== null &&
+      identityMatches(identityRef.current, thisRead.identity) &&
+      taskIdRef.current === thisRead.taskId
     setLoadedFor(taskId)
     setFull(LOADING_STATE)
     setComments(LOADING_STATE)
@@ -74,10 +92,9 @@ export function useDartTaskDetailReads({
       read: (forced) => fetchDartTask(taskId, { sourceContext, force: forced })
     })
       .then(({ result, current }) => {
-        if (cancelled) {
+        if (cancelled || !isCurrentRead()) {
           return
         }
-        // Past the re-read limit the edits on screen stay over the last read, since no read is shown yet.
         setFull(
           result.ok
             ? {
@@ -92,14 +109,13 @@ export function useDartTaskDetailReads({
         )
       })
       .catch(() => {
-        if (!cancelled) {
+        if (!cancelled && isCurrentRead()) {
           setFull({
             status: 'error',
             message: taskProviderErrorText(undefined, 'dart.loadFailed')
           })
         }
       })
-    commentReadRef.current += 1
     const commentRead = commentReadRef.current
     void readPastDartWrites({
       captureEpoch,
@@ -108,12 +124,12 @@ export function useDartTaskDetailReads({
       read: (forced) => listDartComments(taskId, { sourceContext, force: forced })
     })
       .then(({ result, current }) => {
-        if (!cancelled && commentRead === commentReadRef.current) {
+        if (!cancelled && commentRead === commentReadRef.current && isCurrentRead()) {
           applyCommentsRead(result, current, false)
         }
       })
       .catch(() => {
-        if (!cancelled && commentRead === commentReadRef.current) {
+        if (!cancelled && commentRead === commentReadRef.current && isCurrentRead()) {
           setComments({
             status: 'error',
             message: taskProviderErrorText(undefined, 'dart.loadFailed')
@@ -123,8 +139,7 @@ export function useDartTaskDetailReads({
     return () => {
       cancelled = true
       identityRef.current = null
-      latestTaskReadRef.current += 1
-      commentReadRef.current += 1
+      taskIdRef.current = null
     }
   }, [
     taskId,
@@ -140,6 +155,7 @@ export function useDartTaskDetailReads({
     rowPatchRef,
     latestTaskReadRef,
     commentReadRef,
+    taskIdRef,
     setLoadedFor
   ])
 }
