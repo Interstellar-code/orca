@@ -145,6 +145,7 @@ function DartTaskDetailCommentsForTask({
         onCancelReply={cancelReply}
         onAddComment={onAddComment}
         reloadComments={reloadComments}
+        onRetry={onRetry}
         readLatestComments={readLatestComments}
         viewerName={viewerName}
         viewerEmail={viewerEmail}

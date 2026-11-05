@@ -231,6 +231,77 @@ it('matches the viewer email without a viewer name', async () => {
   expect(page.add).not.toHaveBeenCalled()
 })
 
+it('checks both viewer name and email identities before posting', async () => {
+  const page = setup(
+    [makeComment('Email identity', undefined, 'alex@example.com')],
+    'Alex Example',
+    'alex@example.com'
+  )
+  type('Email identity')
+  send()
+  await blocked()
+  expect(page.add).not.toHaveBeenCalled()
+})
+
+it('clears duplicate notice when the draft is edited', async () => {
+  const page = setup([makeComment('Already here')])
+  type('Already here')
+  send()
+  await blocked()
+  type('Changed text')
+  expect(screen.queryByText('A matching comment is already posted')).toBeNull()
+  expect(page.add).not.toHaveBeenCalled()
+})
+
+it('clears duplicate notice after explicit Post anyway use', async () => {
+  const page = setup([makeComment('Already here')])
+  type('Already here')
+  send()
+  await blocked()
+  fireEvent.click(screen.getByRole('button', { name: 'Post anyway' }))
+  await waitFor(() => expect(page.add).toHaveBeenCalledTimes(1))
+  expect(screen.queryByText('A matching comment is already posted')).toBeNull()
+})
+
+it('clears duplicate notice when the guarded read fails', async () => {
+  const page = setup([makeComment('Already here')])
+  type('Already here')
+  send()
+  await blocked()
+  page.fail(true)
+  fireEvent.click(screen.getByRole('button', { name: 'Post anyway' }))
+  await screen.findByText('Could not check comments. Retry before sending.')
+  expect(screen.queryByText('A matching comment is already posted')).toBeNull()
+})
+
+it('keeps a top-level composer uncancelled by Escape while posting', async () => {
+  const page = setup()
+  const gate = Promise.withResolvers<void>()
+  page.hold(gate.promise)
+  type('Top-level in flight')
+  send()
+  await waitFor(() => expect(page.add).toHaveBeenCalledTimes(1))
+  fireEvent.keyDown(screen.getByRole('textbox', { name: 'Comment' }), { key: 'Escape' })
+  expect(screen.getByRole('textbox', { name: 'Comment' })).toHaveProperty(
+    'value',
+    'Top-level in flight'
+  )
+  await act(async () => gate.resolve())
+})
+
+it('keeps a reply target when Cancel is pressed during its post', async () => {
+  const page = setup([makeComment('Parent P', undefined, 'Pat')])
+  const gate = Promise.withResolvers<void>()
+  page.hold(gate.promise)
+  reply('Parent P')
+  type('Reply in flight')
+  send()
+  await waitFor(() => expect(page.add).toHaveBeenCalledTimes(1))
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+  expect(screen.getByText('Replying to Pat')).toBeTruthy()
+  await act(async () => gate.resolve())
+})
+
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'], now: NOW })
   setUpRenderedDartDetail()

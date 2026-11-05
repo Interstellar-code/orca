@@ -114,10 +114,11 @@ export function listComments(
     const page = readDartPage(
       await dartRequest<unknown>(token, '/comments/list', {
         query: { task_id: args.taskId, limit: pageLimit(args.limit), offset: args.offset ?? 0 }
-      })
+      }),
+      true
     )
     const comments = page.results.flatMap((raw) => mapDartComment(raw) ?? [])
-    return { ok: true, comments, totalCount: countAfterDrops(page, comments.length) }
+    return { ok: true, comments, totalCount: page.count, rawCount: page.results.length }
   })
 }
 

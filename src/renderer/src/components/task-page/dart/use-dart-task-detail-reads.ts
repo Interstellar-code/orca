@@ -34,7 +34,7 @@ export function useDartCommentsRead(
   setComments: Dispatch<SetStateAction<DartDetailLoadState<DartCommentsView>>>
 ) {
   const applyCommentsRead = useCallback(
-    (result: DartClientResult<DartCommentPage>, current: boolean, _reload: boolean) => {
+    (result: DartClientResult<DartCommentPage>, current: boolean, reload: boolean) => {
       if (!current) {
         setComments((shown) =>
           shown.status === 'ready'
@@ -49,7 +49,7 @@ export function useDartCommentsRead(
           (local) => !result.comments.some((comment) => comment.id === local.id)
         )
       }
-      setComments(() => {
+      setComments((shown) => {
         if (result.ok) {
           return {
             status: 'ready',
@@ -59,7 +59,9 @@ export function useDartCommentsRead(
             )
           }
         }
-        return { status: 'error', message: taskProviderErrorMessage(result) }
+        return reload && shown.status === 'ready'
+          ? shown
+          : { status: 'error', message: taskProviderErrorMessage(result) }
       })
     },
     [localCommentsRef, setComments]
@@ -70,7 +72,8 @@ export function useDartDetailMetadata(
   identity: Identity | null,
   scope: DartReadScope,
   sourceContext: TaskSourceContext | null,
-  viewerScope: string
+  viewerScope: string,
+  reloadNonce: number
 ) {
   const fetchDartConfig = useAppStore((s) => s.fetchDartConfig)
   const [config, setConfig] = useState<DartWorkspaceConfig | null>(null)
@@ -109,7 +112,7 @@ export function useDartDetailMetadata(
     return () => {
       cancelled = true
     }
-  }, [identity, scope, sourceContext, fetchDartConfig, viewerScope])
+  }, [identity, scope, sourceContext, fetchDartConfig, viewerScope, reloadNonce])
   return { config, supportsWritesV2, detailViewer }
 }
 

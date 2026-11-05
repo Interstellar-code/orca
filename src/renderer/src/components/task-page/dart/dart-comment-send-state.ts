@@ -68,11 +68,17 @@ export function reconcileDartCommentRead(
   const current = getDartCommentSendState(draftKey)
   const now = Date.now()
   const expected = before.unknownSubmission ?? { body, parentId }
+  const priorIds = before.unknownSubmission?.priorIds
   const found = Boolean(
     expected.body.trim() &&
     before.notice?.kind === 'unknown' &&
     viewerIdentities.length > 0 &&
-    hasMatchingDartComment(comments, viewerIdentities, expected.body, expected.parentId) &&
+    hasMatchingDartComment(
+      priorIds ? comments.filter((comment) => !priorIds.includes(comment.id)) : comments,
+      viewerIdentities,
+      expected.body,
+      expected.parentId
+    ) &&
     current.notice === before.notice &&
     current.generation === before.generation &&
     (current.text ?? draftCommentText(draftKey)) === expected.body &&
@@ -104,7 +110,7 @@ export type DartCommentSendState = {
   saved: boolean
   inFlight: boolean
   duplicate: { body: string; parentId: string | null } | null
-  unknownSubmission: { body: string; parentId: string | null } | null
+  unknownSubmission: { body: string; parentId: string | null; priorIds?: string[] } | null
   refusalNotice: DartWriteNotice | null
   generation: number
   recheckFailed: boolean

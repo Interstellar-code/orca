@@ -1,5 +1,5 @@
 import type { DartComment } from '../../../../../shared/dart/dart-types'
-import { dartDraftKeyParts } from './dart-draft-store'
+import { dartDraftKeyParts, getDraft } from './dart-draft-store'
 import { getDartCommentSendState } from './dart-comment-send-state'
 
 /**
@@ -40,7 +40,11 @@ export function setDartReplyTarget(draftKey: string, comment: DartComment | null
     replyTargets.delete(draftKey)
     replyTargets.set(draftKey, comment)
     while (replyTargets.size > MAX_REPLY_TARGETS) {
-      const oldest = [...replyTargets.keys()].find((key) => !getDartCommentSendState(key).inFlight)
+      const oldest = [...replyTargets.keys()].find((key) => {
+        const state = getDartCommentSendState(key)
+        const text = state.text ?? getDraft(key)
+        return key !== draftKey && !state.inFlight && !(typeof text === 'string' && text.trim())
+      })
       if (oldest === undefined) {
         break
       }
@@ -60,5 +64,5 @@ export function clearDartReplyTargetsForHost(hostKey: string): void {
   }
 }
 
-// Memory only, like the drafts it belongs to; abandoned replies never grow unbounded.
+// Empty abandoned replies are bounded; targets with retained text must survive eviction.
 const MAX_REPLY_TARGETS = 20

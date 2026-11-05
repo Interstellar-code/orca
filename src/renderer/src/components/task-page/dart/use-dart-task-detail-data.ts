@@ -78,7 +78,8 @@ export function useDartTaskDetailData(
     identity,
     scope,
     sourceContext,
-    viewerScope
+    viewerScope,
+    reloadNonce
   )
   const scopedViewer = detailViewer?.scope === viewerScope ? detailViewer.viewer : null
   const viewer =
@@ -165,10 +166,11 @@ export function useDartTaskDetailData(
       identity,
       target: scope.target,
       onError: () =>
-        setComments({
-          status: 'error',
-          message: taskProviderErrorText(undefined, 'dart.loadFailed')
-        }),
+        setComments((shown) =>
+          shown.status === 'ready'
+            ? shown
+            : { status: 'error', message: taskProviderErrorText(undefined, 'dart.loadFailed') }
+        ),
       isLatestRead: () =>
         identityMatches(identityRef.current, identity) && reads.get(commentReadKey) === nextRead,
       applyCommentsRead
@@ -191,10 +193,11 @@ export function useDartTaskDetailData(
         identityMatches(identityRef.current, identity) &&
         reads.get(commentReadKey) === nextRead
       ) {
-        setComments({
-          status: 'error',
-          message: taskProviderErrorText(undefined, 'dart.loadFailed')
-        })
+        setComments((shown) =>
+          shown.status === 'ready'
+            ? shown
+            : { status: 'error', message: taskProviderErrorText(undefined, 'dart.loadFailed') }
+        )
       }
       throw error
     })
@@ -220,7 +223,7 @@ export function useDartTaskDetailData(
     if (!result.ok) {
       throw new Error(taskProviderErrorMessage(result))
     }
-    return result.comments
+    return [...withLocalComments(result, localCommentsRef.current).comments]
   }, [applyCommentsRead, commentReadKey, identity, scope.target])
 
   const appendLocalComment = useCallback<DartDetailCommentsApi['appendLocalComment']>(
@@ -228,7 +231,7 @@ export function useDartTaskDetailData(
       if (!identity) {
         return
       }
-      if (!identityMatches(identityRef.current, identity)) {
+      if (!identityMatches(identityRef.current, identity) || comment.taskId !== identity.taskId) {
         return
       }
       if (!localCommentsRef.current.some((local) => local.id === comment.id)) {

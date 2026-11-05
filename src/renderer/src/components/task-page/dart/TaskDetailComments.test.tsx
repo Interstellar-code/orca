@@ -194,7 +194,7 @@ it('checks later comment pages before posting', async () => {
   expect(page.host.count('dart.listComments')).toBeGreaterThanOrEqual(3)
 })
 
-it('checks the detail host and its viewer instead of the page host', async () => {
+it('checks and posts through the detail host instead of the page host', async () => {
   const page = openRenderedDartDetail({ detailEnv: 'comments-remote' })
   const textarea = await openComments()
   await screen.findByText('No comments yet.')

@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- Composer keeps duplicate checks, unknown-write recovery, and reply cancellation in one stateful interaction. */
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 import { LoaderCircle, Send } from 'lucide-react'
 import type { DartComment } from '../../../../../shared/dart/dart-types'
@@ -37,6 +38,7 @@ export function DartCommentComposer({
   appendLocalComment,
   readLatestComments,
   viewerName,
+  onRetry,
   viewerEmail = null
 }: {
   draftKey: string
@@ -47,6 +49,7 @@ export function DartCommentComposer({
   appendLocalComment: DartDetailCommentsApi['appendLocalComment']
   readLatestComments: () => Promise<DartComment[]>
   viewerName: string | null
+  onRetry?: () => void
   viewerEmail?: string | null
 }): React.JSX.Element {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -194,7 +197,10 @@ export function DartCommentComposer({
           if (current.generation === before.generation) {
             patchDartCommentSendState(draftKey, {
               notice: dartCommentUnknownNotice(),
-              unknownSubmission: { body: text, parentId }
+              unknownSubmission: {
+                parentId,
+                priorIds: comments.map(({ id }) => id)
+              }
             })
           }
           await reloadComments().catch(() => {})
@@ -314,9 +320,15 @@ export function DartCommentComposer({
               variant="outline"
               size="xs"
               disabled={submitting}
-              onClick={() =>
-                void (sendState.recheckFailed ? recheck() : submit({ postAnyway: false }))
-              }
+              onClick={() => {
+                if (sendState.recheckFailed) {
+                  void recheck()
+                } else if (!viewerName?.trim() && !viewerEmail?.trim()) {
+                  onRetry?.()
+                } else {
+                  void submit({ postAnyway: false })
+                }
+              }}
             >
               {translate('auto.components.task.page.dart.DartCommentComposer.retry', 'Retry')}
             </Button>

@@ -152,7 +152,14 @@ afterEach(() => {
 describe('useDartTaskDetailData', () => {
   it('reads config, capability and writes through the detail’s scope, not the page’s', async () => {
     const pageOnly = `page-only-${nextHost}`
-    const { hook, host, taskId, env } = await openReady({ detailEnv: pageOnly })
+    const page = openDetail({ detailEnv: pageOnly, userId: 'remote-user' })
+    const { host, taskId, env } = page
+    host.connection = {
+      connected: true,
+      viewer: { id: 'remote-user', name: 'Remote Viewer', email: 'remote@example.com' }
+    }
+    const hook = page.mount()
+    await waitFor(() => expect(hook.result.current.full.status).toBe('ready'))
 
     await waitFor(() =>
       expect(hook.result.current.config?.dartboards).toEqual([`Board of ${pageOnly}`])
@@ -166,7 +173,8 @@ describe('useDartTaskDetailData', () => {
     expect(host.tasks.get(taskId)?.status).toBe('Done')
     expect(runtime.host(env).count('dart.updateTask')).toBe(0)
     expect(runtime.host(env).count('dart.config')).toBe(0)
-    expect(hook.result.current.viewerName).toBeNull()
+    await waitFor(() => expect(hook.result.current.viewerName).toBe('Remote Viewer'))
+    expect(hook.result.current.viewerEmail).toBe('remote@example.com')
   })
 
   it('probes dart.writes.v2 on the detail’s host, whatever the page’s host has', async () => {
@@ -194,6 +202,22 @@ describe('useDartTaskDetailData', () => {
 
     const otherAccount = await openReady({ userId: 'user-b' })
     expect(otherAccount.hook.result.current.viewerName).toBeNull()
+  })
+
+  it('refreshes the detail host viewer when retrying after status was unavailable', async () => {
+    const page = openDetail({ detailEnv: `retry-viewer-${nextHost}`, userId: 'remote-user' })
+    page.host.connection = { connected: true, viewer: null }
+    const hook = page.mount()
+    await waitFor(() => expect(page.host.count('dart.status')).toBeGreaterThan(0))
+    expect(hook.result.current.viewerName).toBeNull()
+
+    page.host.connection = {
+      connected: true,
+      viewer: { id: 'remote-user', name: 'Recovered', email: 'recovered@example.com' }
+    }
+    act(() => hook.result.current.retry())
+    await waitFor(() => expect(hook.result.current.viewerName).toBe('Recovered'))
+    expect(hook.result.current.viewerEmail).toBe('recovered@example.com')
   })
 
   it('shows an edit at once, marks it pending and then shows what Dart returned', async () => {
@@ -407,14 +431,20 @@ describe('useDartTaskDetailData', () => {
   })
 
   it('keeps an appended comment until Dart lists it, then shows it once', async () => {
-    const { hook, comments } = await openReady()
-    const added = commentFixture('cAdded', 'Added')
+    const { hook, comments, taskId } = await openReady()
+    const added = { ...commentFixture('cAdded', 'Added'), taskId }
 
     act(() => hook.result.current.appendLocalComment(added))
     await act(async () => hook.result.current.reloadComments())
 
     const beforeListed = hook.result.current.comments
     expect(beforeListed.status === 'ready' && beforeListed.value.comments).toEqual([added])
+
+    let fresh: DartComment[] = []
+    await act(async () => {
+      fresh = await hook.result.current.readLatestComments()
+    })
+    expect(fresh).toEqual([added])
 
     comments.push(commentFixture('cOlder', 'Older'), added)
     await act(async () => hook.result.current.reloadComments())
@@ -425,6 +455,66 @@ describe('useDartTaskDetailData', () => {
       'cAdded'
     ])
     expect(listed.status === 'ready' && listed.value.totalCount).toBe(2)
+  })
+
+  it.each(['refused', 'malformed'] as const)(
+    'keeps previous and posted comments when a %s reload fails',
+    async (failure) => {
+      const page = openDetail()
+      page.comments.push(commentFixture('older', 'Older'))
+      const hook = page.mount()
+      await waitFor(() => expect(hook.result.current.comments.status).toBe('ready'))
+      await act(async () => {
+        await hook.result.current.onAddComment({ text: 'Posted' })
+      })
+      const posted = page.comments.find((comment) => comment.text === 'Posted')!
+      act(() => hook.result.current.appendLocalComment(posted))
+      const handle = page.host.handle.bind(page.host)
+      page.host.handle = async (method, params) => {
+        if (method === 'dart.listComments') {
+          return failure === 'refused'
+            ? { ok: false, error: 'Unavailable', errorCode: 'dart.loadFailed' }
+            : { ok: true, comments: [], totalCount: 1 }
+        }
+        return handle(method, params)
+      }
+
+      await act(async () => {
+        await expect(hook.result.current.reloadComments()).rejects.toThrow()
+      })
+      const shown = hook.result.current.comments
+      expect(
+        shown.status === 'ready' && shown.value.comments.map((comment) => comment.text)
+      ).toEqual(['Older', 'Posted'])
+    }
+  )
+  it('does not replace a newer comments reload with a superseded failure', async () => {
+    const { hook, host, comments } = await openReady()
+    const pending = Promise.withResolvers<object>()
+    const handle = host.handle.bind(host)
+    let first = true
+    host.handle = async (method, params) => {
+      if (method === 'dart.listComments' && first) {
+        first = false
+        return pending.promise
+      }
+      return handle(method, params)
+    }
+    let older: Promise<void> = Promise.resolve()
+    act(() => {
+      older = hook.result.current.reloadComments()
+      void older.catch(() => {})
+    })
+    comments.push(commentFixture('newer', 'Newer'))
+    await act(async () => hook.result.current.reloadComments())
+    await act(async () => {
+      pending.resolve({ ok: false, error: 'Unavailable', errorCode: 'dart.loadFailed' })
+      await expect(older).rejects.toThrow()
+    })
+    const shown = hook.result.current.comments
+    expect(shown.status === 'ready' && shown.value.comments.map((comment) => comment.text)).toEqual(
+      ['Newer']
+    )
   })
 
   it('shows the patched description from a targeted save and sends no description field', async () => {
