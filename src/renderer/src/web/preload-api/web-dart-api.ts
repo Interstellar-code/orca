@@ -42,6 +42,7 @@ const supportsWritesV2 = (): Promise<boolean> =>
 
 const PROVIDER_VERDICT_TTL_MS = 60_000
 const providerVerdictExpiry = new Map<string, number>()
+const providerProbesInFlight = new Map<string, Promise<boolean>>()
 
 // Why: only a positive verdict is cached so an in-place host upgrade is seen on the next call.
 async function hostSupportsDartProvider(): Promise<boolean> {
@@ -50,16 +51,26 @@ async function hostSupportsDartProvider(): Promise<boolean> {
   if (expiry !== undefined && Date.now() < expiry) {
     return true
   }
-  // A failed probe rethrows so a network error shows the offline state, not update-required.
-  const supported = await hostAdvertises(DART_PROVIDER_RUNTIME_CAPABILITY, 'throw')
-  if (supported) {
-    providerVerdictExpiry.set(environmentId, Date.now() + PROVIDER_VERDICT_TTL_MS)
+  const inFlight = providerProbesInFlight.get(environmentId)
+  if (inFlight) {
+    return inFlight
   }
-  return supported
+  // A failed probe rethrows so a network error shows the offline state, not update-required.
+  const probe = hostAdvertises(DART_PROVIDER_RUNTIME_CAPABILITY, 'throw')
+    .then((supported) => {
+      if (supported) {
+        providerVerdictExpiry.set(environmentId, Date.now() + PROVIDER_VERDICT_TTL_MS)
+      }
+      return supported
+    })
+    .finally(() => providerProbesInFlight.delete(environmentId))
+  providerProbesInFlight.set(environmentId, probe)
+  return probe
 }
 
 export function clearDartProviderVerdictCacheForTests(): void {
   providerVerdictExpiry.clear()
+  providerProbesInFlight.clear()
 }
 
 async function dartCall<M extends DartMethodName>(
@@ -68,7 +79,21 @@ async function dartCall<M extends DartMethodName>(
   timeoutMs = DART_READ_TIMEOUT_MS
 ): Promise<DartMethodContract[M]['reply']> {
   // Why: a host without the capability must be updated; its Dart calls are never sent.
-  if (!(await hostSupportsDartProvider())) {
+  let supported: boolean
+  try {
+    supported = await hostSupportsDartProvider()
+  } catch (error) {
+    // Nothing was sent, so a write is known not to have applied.
+    if (DART_WRITE_METHODS.has(method)) {
+      const message = error instanceof Error ? error.message : String(error)
+      return {
+        ...taskProviderFailure('dart.loadFailed', message),
+        outcome: 'notApplied'
+      } as DartMethodContract[M]['reply']
+    }
+    throw error
+  }
+  if (!supported) {
     if (method === 'dart.status') {
       throw new DartUpdateRequiredError()
     }

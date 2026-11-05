@@ -103,6 +103,70 @@ describe('web dart status capability gate', () => {
   })
 })
 
+describe('web dart provider probe', () => {
+  it('shares one in-flight cold probe across concurrent calls', async () => {
+    mocks.getRemoteRuntimeStatus.mockResolvedValue({ capabilities: ['dart.provider.v1'] })
+    mocks.callRuntimeEnvelope.mockResolvedValue({ ok: true, result: { ok: true } })
+    const api = createWebDartApi()
+    await Promise.all(Array.from({ length: 10 }, () => api.config()))
+    expect(mocks.getRemoteRuntimeStatus).toHaveBeenCalledTimes(1)
+    expect(mocks.callRuntimeEnvelope).toHaveBeenCalledTimes(10)
+  })
+
+  it('re-probes after the cached verdict expires', async () => {
+    vi.useFakeTimers()
+    try {
+      mocks.getRemoteRuntimeStatus.mockResolvedValue({ capabilities: ['dart.provider.v1'] })
+      mocks.callRuntimeEnvelope.mockResolvedValue({ ok: true, result: { ok: true } })
+      await createWebDartApi().config()
+      vi.advanceTimersByTime(59_000)
+      await createWebDartApi().config()
+      expect(mocks.getRemoteRuntimeStatus).toHaveBeenCalledTimes(1)
+      vi.advanceTimersByTime(2_000)
+      await createWebDartApi().config()
+      expect(mocks.getRemoteRuntimeStatus).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keys the cached verdict by host', async () => {
+    mocks.getRemoteRuntimeStatus.mockResolvedValue({ capabilities: ['dart.provider.v1'] })
+    mocks.callRuntimeEnvelope.mockResolvedValue({ ok: true, result: { ok: true } })
+    await createWebDartApi().config()
+    mocks.requireActiveEnvironment.mockReturnValue({ id: 'env-2' })
+    mocks.getRemoteRuntimeStatus.mockResolvedValue({ capabilities: [] })
+    await expect(createWebDartApi().config()).resolves.toMatchObject({ ok: false })
+    expect(mocks.getRemoteRuntimeStatus).toHaveBeenCalledTimes(2)
+    expect(mocks.callRuntimeEnvelope).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns notApplied without sending when a write cannot probe the host', async () => {
+    mocks.getRemoteRuntimeStatus.mockRejectedValue(new Error('offline'))
+    await expect(
+      createWebDartApi().addComment({ taskId: 'abcDEF123456', text: 'hi' } as never)
+    ).resolves.toMatchObject({ ok: false, outcome: 'notApplied' })
+    expect(mocks.callRuntimeEnvelope).not.toHaveBeenCalled()
+  })
+
+  it('returns notApplied without sending when the host switches mid-probe', async () => {
+    mocks.getRemoteRuntimeStatus.mockResolvedValue({ capabilities: ['dart.provider.v1'] })
+    mocks.assertActiveEnvironment.mockImplementation(() => {
+      throw new Error('environment changed')
+    })
+    await expect(createWebDartApi().createTask({ title: 't' } as never)).resolves.toMatchObject({
+      ok: false,
+      outcome: 'notApplied'
+    })
+    expect(mocks.callRuntimeEnvelope).not.toHaveBeenCalled()
+  })
+
+  it('still rejects a read whose probe fails', async () => {
+    mocks.getRemoteRuntimeStatus.mockRejectedValue(new Error('offline'))
+    await expect(createWebDartApi().config()).rejects.toThrow('offline')
+  })
+})
+
 describe('web dart writes', () => {
   beforeEach(() => {
     mocks.getRemoteRuntimeStatus.mockResolvedValue({ capabilities: ['dart.provider.v1'] })
