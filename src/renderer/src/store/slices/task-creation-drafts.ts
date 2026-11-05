@@ -66,6 +66,8 @@ export type TaskCreationDraftsSlice = {
   newJiraIssueDraft: NewJiraIssueDraft | null
   setNewJiraIssueDraft: (draft: NewJiraIssueDraft) => void
   clearNewJiraIssueDraft: () => void
+  dartCreateOwners: Record<string, { activeOwner: string | null; keys: Record<string, string> }>
+  setDartCreateOwner: (host: string, owner: string, key: string) => void
   dartCreateSessions: Record<string, DartCreateSession>
   patchDartCreateSession: (key: string, patch: Partial<DartCreateSession>) => void
   clearDartCreateSession: (key: string) => void
@@ -86,6 +88,17 @@ export const createTaskCreationDraftsSlice: StateCreator<
   newJiraIssueDraft: null,
   setNewJiraIssueDraft: (draft) => set({ newJiraIssueDraft: draft }),
   clearNewJiraIssueDraft: () => set({ newJiraIssueDraft: null }),
+  dartCreateOwners: {},
+  setDartCreateOwner: (host, owner, key) =>
+    set((state) => ({
+      dartCreateOwners: {
+        ...state.dartCreateOwners,
+        [host]: {
+          activeOwner: owner,
+          keys: { ...state.dartCreateOwners[host]?.keys, [owner]: key }
+        }
+      }
+    })),
   dartCreateSessions: {},
   patchDartCreateSession: (key, patch) =>
     set((state) => ({

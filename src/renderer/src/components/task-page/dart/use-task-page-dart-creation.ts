@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import type {
   DartConnectionStatus,
@@ -33,19 +33,40 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
   model: TModel
 ): TModel & DartCreateTaskModel {
   const { dartConnected, dartUpdateRequired, dartConfig, dartFilters, dartStatus } = model
+  const { setDartRefreshNonce, noteDartTaskCreated, openDartDetailPage } = model
   const environmentId = useAppStore((state) => state.settings?.activeRuntimeEnvironmentId)
   const scope = useMemo(
     () => getDartReadScope({ activeRuntimeEnvironmentId: environmentId }),
     [environmentId]
   )
   const hostKey = dartScopeHostKey(scope)
-  // ponytail: status has no stable account id; host ownership keeps viewer failures from clearing locks.
-  const key = JSON.stringify([hostKey, 'create'])
+  const ownerUserId = dartStatus.viewer?.id ?? null
+  const ownerRecord = useAppStore((state) => state.dartCreateOwners[hostKey])
+  const effectiveOwnerId = ownerUserId ?? ownerRecord?.activeOwner ?? null
+  const unknownKey = JSON.stringify([hostKey, 'create', null])
+  const hasUnknownSession = useAppStore((state) => Boolean(state.dartCreateSessions[unknownKey]))
+  const key = effectiveOwnerId
+    ? (ownerRecord?.keys[effectiveOwnerId] ??
+      (!ownerRecord?.activeOwner && hasUnknownSession
+        ? unknownKey
+        : JSON.stringify([hostKey, 'create', effectiveOwnerId])))
+    : unknownKey
   const session = useAppStore((state) => state.dartCreateSessions[key] ?? EMPTY_DART_CREATE_SESSION)
   const patchSession = useAppStore((state) => state.patchDartCreateSession)
   const clearSession = useAppStore((state) => state.clearDartCreateSession)
+  const setDartCreateOwner = useAppStore((state) => state.setDartCreateOwner)
+  useLayoutEffect(() => {
+    if (ownerUserId) {
+      setDartCreateOwner(hostKey, ownerUserId, key)
+    }
+  }, [hostKey, key, ownerUserId, setDartCreateOwner])
+  const activeKey = useRef(key)
+  activeKey.current = key
   const [openKey, setOpenKey] = useState<string | null>(null)
   const [createSupportsWritesV2, setCreateSupportsWritesV2] = useState(false)
+  useEffect(() => {
+    setOpenKey((current) => (current === key ? current : null))
+  }, [key])
   const mounted = useRef(true)
   useEffect(() => {
     mounted.current = true
@@ -153,10 +174,15 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
           const state = useAppStore.getState()
           const activeScope = getDartReadScope(state.settings)
           const activeHostKey = dartScopeHostKey(activeScope)
-          if (mounted.current && state.activeView === 'tasks' && hostKey === activeHostKey) {
-            model.noteDartTaskCreated(task)
-            model.setDartRefreshNonce((nonce) => nonce + 1)
-            model.openDartDetailPage(task)
+          if (
+            mounted.current &&
+            state.activeView === 'tasks' &&
+            hostKey === activeHostKey &&
+            activeKey.current === key
+          ) {
+            noteDartTaskCreated(task)
+            setDartRefreshNonce((nonce) => nonce + 1)
+            openDartDetailPage(task)
             setOpenKey(null)
           }
           if (mounted.current) {
@@ -168,7 +194,16 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
         }
       })
     },
-    [dartConfig, hostKey, key, model, patchSession, scope]
+    [
+      dartConfig,
+      hostKey,
+      key,
+      noteDartTaskCreated,
+      openDartDetailPage,
+      patchSession,
+      scope,
+      setDartRefreshNonce
+    ]
   )
   const createTask = useCallback<DartCreateTaskModel['createTask']>(
     async (input) => {
@@ -216,7 +251,7 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
     setOpenKey(null)
   }, [clearSession, key])
 
-  return Object.assign(model, {
+  return Object.assign({}, model, {
     createOpen: openKey === key,
     createSupportsWritesV2,
     createSubmitting: session.submitting,

@@ -21,14 +21,14 @@ const config: DartWorkspaceConfig = {
 }
 const realWindow = window
 
-function switchHost(environmentId: string | null, knownViewer = true): void {
+function switchHost(environmentId: string | null, knownViewer = true, account = viewer): void {
   const settings = {
     ...getDefaultSettings('/home/alex'),
     activeRuntimeEnvironmentId: environmentId
   }
   useAppStore.setState({
     settings,
-    dartStatus: { connected: true, viewer: knownViewer ? viewer : null },
+    dartStatus: { connected: true, viewer: knownViewer ? account : null },
     dartStatusContextKey: getDartReadScope(settings).contextKey
   })
 }
@@ -76,51 +76,67 @@ beforeEach(() => {
 })
 
 describe('Dart create session identity and lifetime', () => {
-  it.each([true, false])(
-    'retains unknown lock when known viewer starts as %s and flips',
-    async (knownViewer) => {
-      const { runtime, hook, openDraft, submit } = setup(knownViewer)
-      const host = runtime.host(null)
-      host.lostReplies.push({ ok: false, error: 'Lost reply', outcome: 'unknown' })
-      openDraft()
-      await act(async () => {
-        await submit()
-      })
-      act(() => switchHost(null, !knownViewer))
-      expect(hook.result.current.createOpen).toBe(true)
-      expect(hook.result.current.createDraft.title).toBe('Keep this draft')
-      expect(useAppStore.getState().dartCreateSessions['["local","create"]']?.unknown).toBe(true)
-      await act(async () => {
-        await submit()
-      })
-      expect(host.count('dart.createTask')).toBe(1)
-    }
-  )
-
-  it('keeps an unknown lock on A while B creates independently', async () => {
+  it('retains the known account lock when the viewer becomes unknown', async () => {
     const { runtime, hook, openDraft, submit } = setup()
-    runtime.host(null).lostReplies.push({ ok: false, error: 'Lost reply', outcome: 'unknown' })
+    const host = runtime.host(null)
+    host.lostReplies.push({ ok: false, error: 'Lost reply', outcome: 'unknown' })
     openDraft()
     await act(async () => {
       await submit()
     })
-    act(() => switchHost('host-b'))
-    expect(useAppStore.getState().dartCreateSessions['["runtime:host-b","create"]']).toBeUndefined()
-    openDraft('B draft')
+    act(() => switchHost(null, false))
+    expect(hook.result.current.createOpen).toBe(true)
+    expect(hook.result.current.createDraft.title).toBe('Keep this draft')
+    expect(
+      useAppStore.getState().dartCreateSessions[JSON.stringify(['local', 'create', 'user-a'])]
+        ?.unknown
+    ).toBe(true)
     await act(async () => {
       await submit()
     })
-    expect(runtime.host('host-b').count('dart.createTask')).toBe(1)
+    expect(host.count('dart.createTask')).toBe(1)
+  })
+
+  it('keeps A locked while B creates independently without leaking drafts', async () => {
+    const { runtime, hook, openDraft, submit } = setup()
+    const host = runtime.host(null)
+    host.lostReplies.push({ ok: false, error: 'Lost reply', outcome: 'unknown' })
+    openDraft()
+    await act(async () => {
+      await submit()
+    })
+    expect(host.count('dart.createTask')).toBe(1)
+    act(() => switchHost(null, true, { id: 'user-b', name: 'Blair Example' }))
+    expect(
+      useAppStore.getState().dartCreateSessions[JSON.stringify(['local', 'create', 'user-b'])]
+    ).toBeUndefined()
+    openDraft('B draft')
+    expect(hook.result.current.createDraft.title).toBe('B draft')
+    expect(
+      useAppStore.getState().dartCreateSessions[JSON.stringify(['local', 'create', 'user-b'])]
+        ?.draft.title
+    ).toBe('B draft')
+    await act(async () => {
+      await hook.result.current.createTask({ title: 'B draft', dartboard: 'Example/Platform' })
+    })
+    expect(host.count('dart.createTask')).toBe(2)
+    expect(
+      useAppStore.getState().dartCreateSessions[JSON.stringify(['local', 'create', 'user-b'])]
+    ).toBeUndefined()
+    expect(useAppStore.getState().dartCreateOwners['local']?.activeOwner).toBe('user-b')
     act(() => switchHost(null))
-    expect(useAppStore.getState().dartCreateSessions['["local","create"]']?.unknown).toBe(true)
+    expect(
+      useAppStore.getState().dartCreateSessions[JSON.stringify(['local', 'create', 'user-a'])]
+        ?.unknown
+    ).toBe(true)
     expect(hook.result.current.createDraft.title).toBe('Keep this draft')
     await act(async () => {
       await submit()
     })
-    expect(runtime.host(null).count('dart.createTask')).toBe(1)
+    expect(host.count('dart.createTask')).toBe(2)
   })
 
-  it('does not reopen a blank dialog after late success on another host', async () => {
+  it('does not open on B after late success on A', async () => {
     const { runtime, hook, opened, openDraft, submit } = setup()
     const release = runtime.host(null).hold('dart.createTask')
     openDraft()
@@ -129,15 +145,16 @@ describe('Dart create session identity and lifetime', () => {
       pending = submit()
     })
     await waitFor(() => expect(runtime.host(null).count('dart.createTask')).toBe(1))
-    act(() => switchHost('host-b'))
+    act(() => switchHost(null, true, { id: 'user-b', name: 'Blair Example' }))
     await act(async () => {
       release()
       await pending
     })
     expect(opened).not.toHaveBeenCalled()
-    act(() => switchHost(null))
     expect(hook.result.current.createOpen).toBe(false)
-    expect(useAppStore.getState().dartCreateSessions['["local","create"]']).toBeUndefined()
+    expect(
+      useAppStore.getState().dartCreateSessions[JSON.stringify(['local', 'create', 'user-a'])]
+    ).toBeUndefined()
   })
 
   it('keeps B open and intact when a late A create succeeds', async () => {
@@ -149,7 +166,7 @@ describe('Dart create session identity and lifetime', () => {
       pending = submit()
     })
     await waitFor(() => expect(runtime.host(null).count('dart.createTask')).toBe(1))
-    act(() => switchHost('host-b'))
+    act(() => switchHost(null, true, { id: 'user-b', name: 'Blair Example' }))
     openDraft('B draft')
     await act(async () => {
       release()
@@ -179,7 +196,10 @@ describe('Dart create session identity and lifetime', () => {
     expect(host.count('dart.listTasks')).toBe(1)
     expect(runtime.host('host-b').count('dart.listTasks')).toBe(0)
     act(() => switchHost(null))
-    expect(useAppStore.getState().dartCreateSessions['["local","create"]']?.unknown).toBe(true)
+    expect(
+      useAppStore.getState().dartCreateSessions[JSON.stringify(['local', 'create', 'user-a'])]
+        ?.unknown
+    ).toBe(true)
     expect(hook.result.current.createMatches[0]?.title).toBe('Keep this draft')
   })
 })

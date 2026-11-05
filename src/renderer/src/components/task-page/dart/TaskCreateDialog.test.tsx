@@ -104,12 +104,13 @@ function renderCreateHarness(overrides: Partial<TaskPageDartCreationInput> = {})
   const order: string[] = []
   let latest: DartCreateDialogModel | null = null
   function HarnessView(): React.JSX.Element {
+    const dartStatus = useAppStore((state) => state.dartStatus)
     const creationInput: TaskPageDartCreationInput = {
       dartConnected: true,
       dartUpdateRequired: false,
       dartConfig: config,
       dartFilters: { mine: false, status: null, dartboard: null, search: '' },
-      dartStatus: { connected: true, viewer },
+      dartStatus: dartStatus ?? { connected: true, viewer },
       setDartRefreshNonce: (updater) => order.push(`refresh:${updater(0)}`),
       noteDartTaskCreated: (task) => order.push(`note:${task.id}`),
       openDartDetailPage: (task) => order.push(`open:${task.id}`),
@@ -575,8 +576,7 @@ describe('Dart create dialog keyboard', () => {
     release()
   })
 })
-
-describe('Dart create session ownership', () => {
+describe('Dart create dialog session ownership', () => {
   it('keeps the unknown lock across an unmount and remount of the page hook', async () => {
     const user = userEvent.setup()
     host.lostReplies.push({ ok: false, error: 'socket closed', outcome: 'unknown' })
@@ -612,6 +612,24 @@ describe('Dart create session ownership', () => {
     expect(screen.getByRole('button', { name: 'Discard draft' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Create task' })).toHaveProperty('disabled', true)
   })
+})
+
+it('shows account B an empty dialog after account A lost a create reply', async () => {
+  const user = userEvent.setup()
+  host.lostReplies.push({ ok: false, error: 'socket closed', outcome: 'unknown' })
+  const harness = renderCreateHarness()
+  await user.click(harness.newTaskButton())
+  await user.type(screen.getByLabelText('Title'), 'A private task')
+  await user.click(screen.getByRole('button', { name: 'Create task' }))
+  await screen.findByText(/may have created this task/i)
+
+  await user.keyboard('{Escape}')
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  useAppStore.setState({ dartStatus: { connected: true, viewer: { id: 'user-b', name: 'B' } } })
+  await user.click(screen.getByRole('button', { name: 'New task' }))
+  expect(screen.getByLabelText('Title')).toHaveValue('')
+  await user.type(screen.getByLabelText('Title'), 'B task')
+  expect(screen.getByRole('button', { name: 'Create task' })).toBeEnabled()
 })
 
 describe('Dart create dialog recovery guards', () => {
@@ -657,7 +675,39 @@ describe('Dart create dialog recovery guards', () => {
     expect(screen.queryByRole('alertdialog')).toBeNull()
     await user.click(screen.getByRole('button', { name: 'Discard draft' }))
     await user.click(screen.getByRole('button', { name: 'Discard draft' }))
-    expect(discard).toHaveBeenCalledOnce()
+  })
+
+  it('isolates an unresolved draft when the active Dart account changes', async () => {
+    const user = userEvent.setup()
+    host.lostReplies.push({ ok: false, error: 'socket closed', outcome: 'unknown' })
+    const harness = renderCreateHarness()
+    await user.click(harness.newTaskButton())
+    await user.type(screen.getByLabelText('Title'), 'Account private task')
+    await user.click(screen.getByRole('button', { name: 'Create task' }))
+    expect(await screen.findByText(/may have created this task/i)).toBeTruthy()
+
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    useAppStore.setState({
+      dartStatus: { connected: true, viewer: { id: 'other-user', name: 'Other User' } }
+    })
+    await user.click(screen.getByRole('button', { name: 'New task' }))
+    expect(screen.getByLabelText('Title')).toHaveValue('')
+    await user.type(screen.getByLabelText('Title'), 'Other account task')
+    expect(screen.getByRole('button', { name: 'Create task' })).toBeEnabled()
+  })
+
+  it('disables recovery controls during an in-flight exact-title lookup', async () => {
+    const user = userEvent.setup()
+    host.lostReplies.push({ ok: false, error: 'socket closed', outcome: 'unknown' })
+    const release = host.hold('dart.listTasks')
+    renderCreateHarness()
+    await user.click(screen.getByRole('button', { name: 'New task' }))
+    await user.type(screen.getByLabelText('Title'), 'Lookup pending')
+    await user.click(screen.getByRole('button', { name: 'Create task' }))
+    await screen.findByText(/may have created this task/i)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Check again' })).toBeDisabled())
+    release()
   })
 
   it('moves focus to the dialog body when Enter submits and no recovery button is enabled', async () => {

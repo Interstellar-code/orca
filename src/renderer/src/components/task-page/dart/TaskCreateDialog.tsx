@@ -22,8 +22,9 @@ import { cn } from '@/lib/utils'
 import { dartTextTooLargeMessage } from '@/runtime/runtime-dart-write-client'
 import { dartCreateArgs } from './dart-create-request'
 import type { DartCreateTaskModel } from './dart-detail-contracts'
-import { DartTaskDetailNotice } from './TaskDetailNotice'
 import { DartCreateFields } from './TaskCreateDialogFields'
+import { TaskCreateDialogRecovery } from './TaskCreateDialogRecovery'
+import { DartDiscardDraftDialog } from './DartDiscardDraftDialog'
 
 export type DartCreateDialogModel = DartCreateTaskModel & {
   dartConfig: DartWorkspaceConfig | null
@@ -74,8 +75,14 @@ export function TaskPageDartCreateDialog({
     const timer = setTimeout(() => setShowPending(true), 200)
     return () => clearTimeout(timer)
   }, [createSubmitting])
+  useEffect(() => {
+    if (!createOpen) {
+      setDiscardOpen(false)
+    }
+  }, [createOpen])
   const blocked = createSubmitting || (model.createFieldsLocked ?? model.createUnresolved) === true
   const configUnavailable = !dartConfig || Boolean(model.dartConfigError)
+  const refused = createNotice?.kind === 'refused'
   const recoveryBlocked = createSubmitting || Boolean(model.createLookingUp) || configUnavailable
   useEffect(() => {
     if (blocked && focusWasInContentRef.current) {
@@ -108,6 +115,7 @@ export function TaskPageDartCreateDialog({
     !titleInvalid &&
     descriptionCheck.ok &&
     !blocked &&
+    !refused &&
     Boolean(dartConfig) &&
     !model.dartConfigError
   const submit = (): void => {
@@ -236,122 +244,26 @@ export function TaskPageDartCreateDialog({
             createSupportsWritesV2={createSupportsWritesV2}
             blocked={blocked}
           />
-          {createNotice || model.createUnresolved ? (
-            <div className="flex flex-col gap-2">
-              {createNotice ? (
-                <DartTaskDetailNotice
-                  notice={createNotice}
-                  dismissNotice={dismissCreateNotice}
-                  recheckNotice={checkAgain}
-                />
-              ) : null}
-              {model.createUnresolved && !createNotice ? (
-                <div className="flex items-center gap-2">
-                  <p role="status" className="min-w-0 flex-1 text-xs text-muted-foreground">
-                    {translate(
-                      'auto.components.task.page.dart.TaskCreateDialog.noticeHidden',
-                      'Dart may have created this task. Check before creating it again.'
-                    )}
-                  </p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="xs"
-                    disabled={recoveryBlocked}
-                    onClick={() => void checkAgain()}
-                  >
-                    {translate(
-                      'auto.components.task.page.dart.TaskCreateDialog.checkAgain',
-                      'Check again'
-                    )}
-                  </Button>
-                </div>
-              ) : null}
-              {createMatches.length ? (
-                <ul className="flex flex-col gap-1 rounded-md border border-border/50 p-2 text-xs">
-                  {createMatches.map((match) => (
-                    <li key={match.id} className="flex items-center gap-2">
-                      <Button
-                        type="button"
-                        variant="link"
-                        size="xs"
-                        className="min-w-0 justify-start"
-                        onClick={() => {
-                          closeCreate()
-                          openDartDetailPage(match)
-                        }}
-                      >
-                        <span className="truncate">{match.title}</span>
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="xs"
-                        onClick={() => model.claimCreateMatch?.(match)}
-                      >
-                        {translate(
-                          'auto.components.task.page.dart.TaskCreateDialog.thisIsMine',
-                          'This is mine'
-                        )}
-                      </Button>
-                      <span className="text-2xs text-muted-foreground">{match.status}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-              {createMatchesTruncated ? (
-                <p className="text-2xs text-muted-foreground">
-                  {translate(
-                    'auto.components.task.page.dart.TaskCreateDialog.truncated',
-                    'More tasks exist. Review them in Dart before creating another task.'
-                  )}
-                </p>
-              ) : null}
-              {model.createUnresolved ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  disabled={createSubmitting}
-                  onClick={() => setDiscardOpen(true)}
-                >
-                  {translate(
-                    'auto.components.task.page.dart.TaskCreateDialog.discardDraft',
-                    'Discard draft'
-                  )}
-                </Button>
-              ) : null}
-              {listChecked &&
-              (createMatches.length > 0 || createMatchesTruncated) &&
-              !canCreateAnyway ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={recoveryBlocked}
-                  onClick={dismissMatches}
-                >
-                  {translate(
-                    'auto.components.task.page.dart.TaskCreateDialog.noneMine',
-                    'None of these is mine'
-                  )}
-                </Button>
-              ) : null}
-              {canCreateAnyway ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={recoveryBlocked}
-                  onClick={() => void createAnyway()}
-                >
-                  {translate(
-                    'auto.components.task.page.dart.TaskCreateDialog.createAnyway',
-                    'Create anyway'
-                  )}
-                </Button>
-              ) : null}
-            </div>
-          ) : null}
+          <TaskCreateDialogRecovery
+            createNotice={createNotice}
+            createUnresolved={model.createUnresolved}
+            createMatches={createMatches}
+            createMatchesTruncated={createMatchesTruncated}
+            createLookingUp={model.createLookingUp}
+            createFieldsLocked={model.createFieldsLocked}
+            canCreateAnyway={canCreateAnyway}
+            claimCreateMatch={model.claimCreateMatch}
+            createSubmitting={createSubmitting}
+            recoveryBlocked={recoveryBlocked}
+            listChecked={listChecked}
+            closeCreate={closeCreate}
+            dismissCreateNotice={dismissCreateNotice}
+            checkAgain={checkAgain}
+            dismissMatches={dismissMatches}
+            createAnyway={createAnyway}
+            openDartDetailPage={openDartDetailPage}
+            onDiscard={() => setDiscardOpen(true)}
+          />
         </div>
         <DialogFooter>
           <Button
@@ -389,48 +301,12 @@ export function TaskPageDartCreateDialog({
             </span>
           </Button>
         </DialogFooter>
-        <Dialog open={discardOpen} onOpenChange={setDiscardOpen}>
-          <DialogContent role="alertdialog" size="compact">
-            <DialogHeader>
-              <DialogTitle size="compact">
-                {translate(
-                  'auto.components.task.page.dart.TaskCreateDialog.confirmDiscardTitle',
-                  'Discard draft?'
-                )}
-              </DialogTitle>
-              <DialogDescription size="compact">
-                {translate(
-                  'auto.components.task.page.dart.TaskCreateDialog.confirmDiscard',
-                  'Discard this draft? Dart may already have created the task.'
-                )}
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={createSubmitting}
-                onClick={() => setDiscardOpen(false)}
-              >
-                {translate('auto.components.task.page.dart.TaskCreateDialog.cancel', 'Cancel')}
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                disabled={createSubmitting}
-                onClick={() => {
-                  setDiscardOpen(false)
-                  model.discardCreateDraft?.()
-                }}
-              >
-                {translate(
-                  'auto.components.task.page.dart.TaskCreateDialog.discardDraft',
-                  'Discard draft'
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <DartDiscardDraftDialog
+          open={discardOpen}
+          submitting={createSubmitting}
+          onOpenChange={setDiscardOpen}
+          onDiscard={() => model.discardCreateDraft?.()}
+        />
       </DialogContent>
     </Dialog>
   )

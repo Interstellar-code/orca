@@ -6,9 +6,15 @@ import { dartListTasksForTarget } from '@/runtime/runtime-dart-client'
 import type { DartWriteResult } from '@/runtime/runtime-dart-write-client'
 import { useAppStore } from '@/store'
 import type { DartReadScope } from '@/store/slices/dart/dart-read-coordination'
+import { dartScopeHostKey } from '@/store/slices/dart/dart-task-identity'
 import { lookupDartCreateMatches } from './dart-create-lookup'
 
 let lookupSequence = 0
+
+function ownsDartCreateSession(key: string, scope: DartReadScope): boolean {
+  const owners = useAppStore.getState().dartCreateOwners[dartScopeHostKey(scope)]
+  return !owners?.activeOwner || owners.keys[owners.activeOwner] === key
+}
 
 export function dartCreateUnknownMessage(): string {
   return translate(
@@ -20,7 +26,7 @@ export function dartCreateUnknownMessage(): string {
 export async function checkDartCreateSession(key: string, scope: DartReadScope): Promise<void> {
   const store = useAppStore.getState()
   const current = store.dartCreateSessions[key]
-  if (!current) {
+  if (!current || !ownsDartCreateSession(key, scope)) {
     return
   }
   const sequence = ++lookupSequence
@@ -33,7 +39,14 @@ export async function checkDartCreateSession(key: string, scope: DartReadScope):
   const draft = current.lookupDraft ?? current.draft
   try {
     const lookup = await lookupDartCreateMatches(
-      (args) => dartListTasksForTarget(scope.target, args),
+      (args) => {
+        if (!ownsDartCreateSession(key, scope)) {
+          throw new Error(
+            'The Dart account changed. Return to the original account to check again.'
+          )
+        }
+        return dartListTasksForTarget(scope.target, args)
+      },
       draft.title.trim(),
       draft.dartboard
     )
@@ -73,7 +86,11 @@ export async function checkDartCreateSession(key: string, scope: DartReadScope):
         message: translate(
           'auto.components.task.page.dart.TaskCreateDialog.lookupFailed',
           'Could not check whether Dart created this task. {{error}} Try again.',
-          { error: taskProviderErrorMessage({ error }) }
+          {
+            error: taskProviderErrorMessage({
+              error: error instanceof Error ? error.message : error
+            })
+          }
         )
       }
     })
@@ -115,7 +132,9 @@ export async function submitDartCreate(
       matchesDismissed: false,
       notice: { kind: 'unknown', message: dartCreateUnknownMessage() }
     })
-    await checkDartCreateSession(deps.key, deps.scope)
+    if (ownsDartCreateSession(deps.key, deps.scope)) {
+      await checkDartCreateSession(deps.key, deps.scope)
+    }
   } else {
     store.patchDartCreateSession(deps.key, {
       submitting: false,
