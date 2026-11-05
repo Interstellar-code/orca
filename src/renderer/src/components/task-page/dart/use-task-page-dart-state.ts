@@ -95,6 +95,9 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
   )
   const accountViewerId = useAppStore((s) => dartScopeViewerId(s, pageScope))
   const { hostKey, accountKey } = dartAccountIdentity(pageScope, accountViewerId)
+  const configOwnerKey = JSON.stringify([hostKey, accountViewerId])
+  const configOwnerRef = useRef(configOwnerKey)
+  const configIsCurrent = configOwnerRef.current === configOwnerKey
   const shownRowsKeyRef = useRef<string | null>(null)
   const { clearPinsOnNewList, mergeListRead, noteDartTaskCreated } = useDartListPinnedRows({
     active,
@@ -130,7 +133,9 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
       return
     }
     let cancelled = false
+    configOwnerRef.current = configOwnerKey
     setDartConfigError(null)
+    setDartConfig(null)
     void actionsRef.current
       .fetchDartConfig({ force: dartRefreshNonce > 0 })
       .then((result) => {
@@ -156,7 +161,7 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
     return () => {
       cancelled = true
     }
-  }, [active, dartRefreshNonce])
+  }, [active, dartRefreshNonce, accountViewerId, configOwnerKey])
 
   const searchKey = dartFilters.search
   const listKey = JSON.stringify([
@@ -299,8 +304,8 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
   nextModel.dartTotalCount = dartTotalCount
   nextModel.dartLoading = dartLoading
   nextModel.dartError = dartError
-  nextModel.dartConfig = dartConfig
-  nextModel.dartConfigError = dartConfigError
+  nextModel.dartConfig = configIsCurrent && accountViewerId ? dartConfig : null
+  nextModel.dartConfigError = configIsCurrent && accountViewerId ? dartConfigError : null
   nextModel.getDartTaskWorkspaces = getDartTaskWorkspaces
   nextModel.noteDartTaskCreated = noteDartTaskCreated
   return nextModel

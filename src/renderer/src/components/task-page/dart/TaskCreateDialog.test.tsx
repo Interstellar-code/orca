@@ -14,6 +14,7 @@ import {
   installFakeDartRuntime,
   type FakeDartHost
 } from '@/store/slices/dart/dart-fake-runtime.test-support'
+import { getDartReadScope } from '@/store/slices/dart/dart-read-coordination'
 import type { DartCreateDraft } from './dart-detail-contracts'
 import { TaskPageDartCreateDialog, type DartCreateDialogModel } from './TaskCreateDialog'
 import {
@@ -73,12 +74,14 @@ function hideTaskFromLists(target: FakeDartHost, taskId: string): void {
 beforeEach(() => {
   setUpFakeRuntime()
   toastSuccess.mockClear()
+  const settings = { ...getDefaultSettings('/home/alex'), activeRuntimeEnvironmentId: null }
   useAppStore.setState({
     dartCreateSessions: {},
-    settings: { ...getDefaultSettings('/home/alex'), activeRuntimeEnvironmentId: null },
+    settings,
     persistedUIReady: true,
     activeView: 'tasks',
     dartStatus: { connected: true, viewer },
+    dartStatusContextKey: getDartReadScope(settings).contextKey,
     dartStatusChecked: true,
     dartUpdateRequired: false
   })
@@ -303,6 +306,19 @@ describe('Dart create dialog lookup regressions', () => {
   })
 })
 
+it('keeps creation disabled and explains a pending writes capability check', async () => {
+  const user = userEvent.setup()
+  const pending = Promise.withResolvers<boolean>()
+  vi.spyOn(window.api.dart, 'supportsWritesV2').mockReturnValue(pending.promise)
+  renderCreateHarness({ taskSource: 'dart' })
+  await user.click(screen.getByRole('button', { name: 'New task' }))
+  await user.type(screen.getByLabelText('Title'), 'Ship the fix')
+  expect(screen.getByText('Checking Dart capabilities before creating this task.')).toBeVisible()
+  expect(screen.getByRole('button', { name: 'Create task' })).toBeDisabled()
+  pending.resolve(true)
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Create task' })).toBeEnabled())
+})
+
 describe('Dart create dialog fields and keyboard order', () => {
   it('shows due date only when the host supports writes v2', async () => {
     const user = userEvent.setup()
@@ -420,6 +436,36 @@ describe('Dart create dialog with a lost reply', () => {
     await user.click(screen.getByRole('button', { name: 'None of these is mine' }))
     expect(await screen.findByRole('button', { name: 'Create anyway' })).toBeTruthy()
     expect(host.count('dart.createTask')).toBe(1)
+  })
+
+  it('claims a matching task, clears the draft and opens it without creating again', async () => {
+    const user = userEvent.setup()
+    host.lostReplies.push({ ok: false, error: 'socket closed', outcome: 'unknown' })
+    const harness = renderCreateHarness()
+    await user.click(harness.newTaskButton())
+    await user.type(screen.getByLabelText('Title'), 'Ship the fix')
+    await user.click(screen.getByRole('button', { name: 'Create task' }))
+    await user.click(await screen.findByRole('button', { name: 'This is mine' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(harness.order).toContain(`open:${CREATED_TASK_ID}`)
+    expect(host.count('dart.createTask')).toBe(1)
+    await user.click(harness.newTaskButton())
+    expect(screen.getByLabelText('Title')).toHaveValue('')
+  })
+
+  it('disables the match link while Create anyway is submitting', async () => {
+    const user = userEvent.setup()
+    host.lostReplies.push({ ok: false, error: 'socket closed', outcome: 'unknown' })
+    renderCreateHarness()
+    await user.click(screen.getByRole('button', { name: 'New task' }))
+    await user.type(screen.getByLabelText('Title'), 'Ship the fix')
+    await user.click(screen.getByRole('button', { name: 'Create task' }))
+    await user.click(await screen.findByRole('button', { name: 'None of these is mine' }))
+    const release = host.hold('dart.createTask')
+    await user.click(screen.getByRole('button', { name: 'Create anyway' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Ship the fix' })).toBeDisabled())
+    expect(screen.getByRole('button', { name: 'This is mine' })).toBeDisabled()
+    release()
   })
 
   it('offers Create anyway when the lookup found nothing of the same title', async () => {
@@ -614,6 +660,27 @@ describe('Dart create dialog session ownership', () => {
   })
 })
 
+it('closes the open dialog when the host or Dart account changes', async () => {
+  const user = userEvent.setup()
+  const harness = renderCreateHarness()
+  await user.click(harness.newTaskButton())
+  await user.type(screen.getByLabelText('Title'), 'Account A draft')
+  useAppStore.setState({ dartStatus: { connected: true, viewer: { id: 'user-b', name: 'B' } } })
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  await user.click(harness.newTaskButton())
+  expect(screen.getByLabelText('Title')).toHaveValue('')
+
+  const settings = { ...getDefaultSettings('/home/alex'), activeRuntimeEnvironmentId: 'host-b' }
+  useAppStore.setState({
+    settings,
+    dartStatus: { connected: true, viewer },
+    dartStatusContextKey: getDartReadScope(settings).contextKey
+  })
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  await user.click(harness.newTaskButton())
+  expect(screen.getByLabelText('Title')).toHaveValue('')
+})
+
 it('shows account B an empty dialog after account A lost a create reply', async () => {
   const user = userEvent.setup()
   host.lostReplies.push({ ok: false, error: 'socket closed', outcome: 'unknown' })
@@ -630,6 +697,23 @@ it('shows account B an empty dialog after account A lost a create reply', async 
   expect(screen.getByLabelText('Title')).toHaveValue('')
   await user.type(screen.getByLabelText('Title'), 'B task')
   expect(screen.getByRole('button', { name: 'Create task' })).toBeEnabled()
+})
+
+it('keeps ordinary create disabled when an unresolved draft becomes editable', async () => {
+  const user = userEvent.setup()
+  host.lostReplies.push({ ok: false, error: 'socket closed', outcome: 'unknown' })
+  const harness = renderCreateHarness()
+  await user.click(harness.newTaskButton())
+  await user.type(screen.getByLabelText('Title'), 'Ship the fix')
+  await user.click(screen.getByRole('button', { name: 'Create task' }))
+  await screen.findByRole('button', { name: 'This is mine' })
+  const key = JSON.stringify(['local', 'create', viewer.id])
+  useAppStore.getState().patchDartCreateSession(key, { editable: true, notice: null })
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Create task' })).toBeDisabled())
+  expect(
+    screen.getByRole('button', { name: 'Check again' }).querySelector('.animate-spin')
+  ).toBeNull()
+  expect(host.count('dart.createTask')).toBe(1)
 })
 
 describe('Dart create dialog recovery guards', () => {

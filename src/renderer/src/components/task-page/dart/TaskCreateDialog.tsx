@@ -34,6 +34,9 @@ export type DartCreateDialogModel = DartCreateTaskModel & {
   createUnresolved?: boolean
   createLookingUp?: boolean
   createFieldsLocked?: boolean
+  accountChecking?: boolean
+  retryAccountCheck?: () => Promise<void>
+  createWritesV2Pending?: boolean
   claimCreateMatch?: (task: DartTask) => void
   discardCreateDraft?: () => void
 }
@@ -83,7 +86,12 @@ export function TaskPageDartCreateDialog({
   const blocked = createSubmitting || (model.createFieldsLocked ?? model.createUnresolved) === true
   const configUnavailable = !dartConfig || Boolean(model.dartConfigError)
   const refused = createNotice?.kind === 'refused'
-  const recoveryBlocked = createSubmitting || Boolean(model.createLookingUp) || configUnavailable
+  const recoveryBlocked =
+    createSubmitting ||
+    Boolean(model.createLookingUp) ||
+    configUnavailable ||
+    Boolean(model.accountChecking) ||
+    Boolean(model.createWritesV2Pending)
   useEffect(() => {
     if (blocked && focusWasInContentRef.current) {
       const enabled = contentRef.current?.querySelector<HTMLButtonElement>('button:not([disabled])')
@@ -115,6 +123,8 @@ export function TaskPageDartCreateDialog({
     !titleInvalid &&
     descriptionCheck.ok &&
     !blocked &&
+    !model.createUnresolved &&
+    !model.createWritesV2Pending &&
     !refused &&
     Boolean(dartConfig) &&
     !model.dartConfigError
@@ -251,6 +261,9 @@ export function TaskPageDartCreateDialog({
             createMatchesTruncated={createMatchesTruncated}
             createLookingUp={model.createLookingUp}
             createFieldsLocked={model.createFieldsLocked}
+            accountChecking={model.accountChecking}
+            retryAccountCheck={model.retryAccountCheck}
+            createWritesV2Pending={model.createWritesV2Pending}
             canCreateAnyway={canCreateAnyway}
             claimCreateMatch={model.claimCreateMatch}
             createSubmitting={createSubmitting}

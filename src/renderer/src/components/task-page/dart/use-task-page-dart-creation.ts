@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
 import type {
   DartConnectionStatus,
@@ -6,14 +6,23 @@ import type {
   DartWorkspaceConfig
 } from '../../../../../shared/dart/dart-types'
 import { translate } from '@/i18n/i18n'
-import { dartSupportsWritesV2ForTarget } from '@/runtime/runtime-dart-write-client'
+import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
 import { useAppStore } from '@/store'
 import { getDartReadScope } from '@/store/slices/dart/dart-read-coordination'
-import { dartScopeHostKey } from '@/store/slices/dart/dart-task-identity'
+import { dartScopeHostKey, dartScopeViewerId } from '@/store/slices/dart/dart-task-identity'
 import { EMPTY_DART_CREATE_SESSION } from '@/store/slices/task-creation-drafts'
-import type { DartCreateDraft, DartCreateTaskModel } from './dart-detail-contracts'
+import type { DartCreateTaskModel } from './dart-detail-contracts'
 import { dartCreateArgs, dartCreateRefusal } from './dart-create-request'
 import { checkDartCreateSession, submitDartCreate } from './dart-create-submit'
+import {
+  useDartCreateAccountCheck,
+  useDartCreateCapabilities,
+  useDartCreateDiscardActions,
+  useDartCreateDraft,
+  useDartCreateMounted,
+  useDartCreateOpen,
+  useDartCreateOpenKey
+} from './use-dart-create-state'
 import type { DartListFilters } from './task-page-dart-list-model'
 
 export type TaskPageDartCreationInput = {
@@ -31,108 +40,93 @@ export type TaskPageDartCreationInput = {
 
 export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput>(
   model: TModel
-): TModel & DartCreateTaskModel {
+): TModel &
+  DartCreateTaskModel &
+  Partial<{
+    createFieldsLocked: boolean
+    accountChecking: boolean
+    retryAccountCheck(): Promise<void>
+    claimCreateMatch(task: DartTask): void
+    createWritesV2Pending: boolean
+  }> {
   const { dartConnected, dartUpdateRequired, dartConfig, dartFilters, dartStatus } = model
   const { setDartRefreshNonce, noteDartTaskCreated, openDartDetailPage } = model
   const environmentId = useAppStore((state) => state.settings?.activeRuntimeEnvironmentId)
+  const contextKey = useAppStore((state) => getProviderRuntimeContextKey(state.settings))
   const scope = useMemo(
     () => getDartReadScope({ activeRuntimeEnvironmentId: environmentId }),
-    [environmentId]
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- The context includes runtime session generation.
+    [environmentId, contextKey]
   )
   const hostKey = dartScopeHostKey(scope)
-  const ownerUserId = dartStatus.viewer?.id ?? null
+  const ownerUserId = useAppStore((state) => dartScopeViewerId(state, scope))
+  const hasCurrentViewer = useCallback(() => {
+    const state = useAppStore.getState()
+    const currentScope = getDartReadScope(state.settings)
+    return Boolean(
+      ownerUserId &&
+      currentScope.contextKey === scope.contextKey &&
+      dartScopeViewerId(state, currentScope) === ownerUserId
+    )
+  }, [ownerUserId, scope])
   const ownerRecord = useAppStore((state) => state.dartCreateOwners[hostKey])
-  const effectiveOwnerId = ownerUserId ?? ownerRecord?.activeOwner ?? null
   const unknownKey = JSON.stringify([hostKey, 'create', null])
   const hasUnknownSession = useAppStore((state) => Boolean(state.dartCreateSessions[unknownKey]))
-  const key = effectiveOwnerId
-    ? (ownerRecord?.keys[effectiveOwnerId] ??
+  const key = ownerUserId
+    ? (ownerRecord?.keys[ownerUserId] ??
       (!ownerRecord?.activeOwner && hasUnknownSession
         ? unknownKey
-        : JSON.stringify([hostKey, 'create', effectiveOwnerId])))
+        : JSON.stringify([hostKey, 'create', ownerUserId])))
     : unknownKey
   const session = useAppStore((state) => state.dartCreateSessions[key] ?? EMPTY_DART_CREATE_SESSION)
   const patchSession = useAppStore((state) => state.patchDartCreateSession)
-  const clearSession = useAppStore((state) => state.clearDartCreateSession)
   const setDartCreateOwner = useAppStore((state) => state.setDartCreateOwner)
   useLayoutEffect(() => {
-    if (ownerUserId) {
+    if (ownerUserId && hasCurrentViewer()) {
       setDartCreateOwner(hostKey, ownerUserId, key)
     }
-  }, [hostKey, key, ownerUserId, setDartCreateOwner])
+  }, [hasCurrentViewer, hostKey, key, ownerUserId, setDartCreateOwner])
   const activeKey = useRef(key)
   activeKey.current = key
-  const [openKey, setOpenKey] = useState<string | null>(null)
-  const [createSupportsWritesV2, setCreateSupportsWritesV2] = useState(false)
-  useEffect(() => {
-    setOpenKey((current) => (current === key ? current : null))
-  }, [key])
-  const mounted = useRef(true)
-  useEffect(() => {
-    mounted.current = true
-    return () => {
-      mounted.current = false
-    }
-  }, [])
-
-  useEffect(() => {
-    let cancelled = false
-    setCreateSupportsWritesV2(false)
-    if (model.taskSource === 'dart' && dartConnected) {
-      void dartSupportsWritesV2ForTarget(scope.target).then((supported) => {
-        if (!cancelled) {
-          setCreateSupportsWritesV2(supported)
-        }
-      })
-    }
-    return () => {
-      cancelled = true
-    }
-  }, [dartConnected, model.taskSource, scope])
-
-  const createDraft = useMemo(() => {
-    const board = dartFilters.dartboard ?? dartConfig?.dartboards[0] ?? ''
-    return session.draft.dartboard || !board
-      ? session.draft
-      : { ...session.draft, dartboard: board }
-  }, [dartConfig?.dartboards, dartFilters.dartboard, session.draft])
-  const setCreateDraft = useCallback(
-    (patch: Partial<DartCreateDraft>): void => {
-      const current = useAppStore.getState().dartCreateSessions[key]?.draft ?? createDraft
-      patchSession(key, {
-        draft: { ...current, dartboard: current.dartboard || createDraft.dartboard, ...patch }
-      })
-    },
-    [createDraft, key, patchSession]
-  )
-  const openCreate = useCallback((): void => {
-    if (!dartConnected || dartUpdateRequired) {
-      return
-    }
-    setCreateDraft({
-      dartboard: createDraft.dartboard,
-      assignee: createDraft.assignee || (dartFilters.mine ? (dartStatus.viewer?.name ?? '') : '')
-    })
-    setOpenKey(key)
-  }, [
-    createDraft,
+  const [openKey, setOpenKey] = useDartCreateOpenKey(key, hostKey, ownerUserId, unknownKey)
+  const { createSupportsWritesV2, createWritesV2Pending } = useDartCreateCapabilities(
+    model.taskSource,
     dartConnected,
-    dartFilters.mine,
-    dartStatus.viewer?.name,
-    dartUpdateRequired,
+    scope
+  )
+  const mounted = useDartCreateMounted()
+
+  const { createDraft, setCreateDraft } = useDartCreateDraft(
     key,
-    setCreateDraft
-  ])
-  const closeCreate = useCallback((): void => setOpenKey(null), [])
+    session.draft,
+    dartFilters.dartboard,
+    dartConfig?.dartboards
+  )
+  const openCreate = useDartCreateOpen(
+    key,
+    createDraft,
+    setCreateDraft,
+    setOpenKey,
+    dartConnected,
+    dartUpdateRequired,
+    dartFilters.mine,
+    ownerUserId,
+    dartStatus.viewer?.name
+  )
+  const closeCreate = useCallback((): void => setOpenKey(null), [setOpenKey])
   const dismissCreateNotice = useCallback(
     (): void => patchSession(key, { notice: null }),
     [key, patchSession]
   )
-  const dismissMatches = useCallback(
-    (): void => patchSession(key, { matchesDismissed: true }),
-    [key, patchSession]
-  )
+  const dismissMatches = useCallback((): void => {
+    if (hasCurrentViewer()) {
+      patchSession(key, { matchesDismissed: true })
+    }
+  }, [hasCurrentViewer, key, patchSession])
   const checkAgain = useCallback(async (): Promise<void> => {
+    if (!hasCurrentViewer()) {
+      return
+    }
     if (
       dartConfig &&
       !model.dartConfigError &&
@@ -140,18 +134,25 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
     ) {
       await checkDartCreateSession(key, scope)
     }
-  }, [dartConfig, model.dartConfigError, key, scope])
+  }, [dartConfig, hasCurrentViewer, model.dartConfigError, key, scope])
   const canCreateAnyway =
+    Boolean(ownerUserId) &&
+    !createWritesV2Pending &&
     Boolean(dartConfig) &&
     !model.dartConfigError &&
     session.unknown &&
     session.listChecked &&
     !session.lookingUp &&
     (session.matchesDismissed || (session.matches.length === 0 && !session.truncated))
-
   const submit = useCallback<DartCreateTaskModel['createTask']>(
     async (input) => {
+      if (!hasCurrentViewer()) {
+        return { ok: false, outcome: 'notApplied', error: 'A current Dart account is required.' }
+      }
       const title = typeof input.title === 'string' ? input.title.trim() : ''
+      if (createWritesV2Pending) {
+        return { ok: false, outcome: 'notApplied', error: 'Checking Dart capabilities.' }
+      }
       const board = typeof input.dartboard === 'string' ? input.dartboard : ''
       const refusal = dartCreateRefusal(
         title,
@@ -167,6 +168,9 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
       if (!dartConfig?.types.length) {
         delete args.type
       }
+      if (!createSupportsWritesV2) {
+        delete args.dueAt
+      }
       return submitDartCreate(args, {
         key,
         scope,
@@ -178,6 +182,7 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
             mounted.current &&
             state.activeView === 'tasks' &&
             hostKey === activeHostKey &&
+            dartScopeViewerId(state, activeScope) === ownerUserId &&
             activeKey.current === key
           ) {
             noteDartTaskCreated(task)
@@ -195,18 +200,27 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
       })
     },
     [
+      createSupportsWritesV2,
+      createWritesV2Pending,
       dartConfig,
+      hasCurrentViewer,
       hostKey,
       key,
+      mounted,
       noteDartTaskCreated,
       openDartDetailPage,
+      ownerUserId,
       patchSession,
       scope,
+      setOpenKey,
       setDartRefreshNonce
     ]
   )
   const createTask = useCallback<DartCreateTaskModel['createTask']>(
     async (input) => {
+      if (!hasCurrentViewer()) {
+        return { ok: false, outcome: 'notApplied', error: 'A current Dart account is required.' }
+      }
       if (useAppStore.getState().dartCreateSessions[key]?.unknown) {
         return {
           ok: false,
@@ -216,9 +230,15 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
       }
       return submit(input)
     },
-    [key, submit]
+    [hasCurrentViewer, key, submit]
   )
   const createAnyway = useCallback<DartCreateTaskModel['createAnyway']>(async () => {
+    if (!hasCurrentViewer()) {
+      return { ok: false, outcome: 'notApplied', error: 'A current Dart account is required.' }
+    }
+    if (createWritesV2Pending) {
+      return { ok: false, outcome: 'notApplied', error: 'Checking Dart capabilities.' }
+    }
     const current = useAppStore.getState().dartCreateSessions[key]
     if (
       !dartConfig ||
@@ -231,29 +251,27 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
       return { ok: false, outcome: 'notApplied', error: 'Create anyway needs a checked list.' }
     }
     return submit(dartCreateArgs(current.draft, createSupportsWritesV2))
-  }, [dartConfig, model.dartConfigError, createSupportsWritesV2, key, submit])
-  const claimCreateMatch = useCallback(
-    (task: DartTask): void => {
-      if (useAppStore.getState().dartCreateSessions[key]?.submitting) {
-        return
-      }
-      clearSession(key)
-      setOpenKey(null)
-      model.openDartDetailPage(task)
-    },
-    [clearSession, key, model]
+  }, [
+    dartConfig,
+    model.dartConfigError,
+    createSupportsWritesV2,
+    createWritesV2Pending,
+    hasCurrentViewer,
+    key,
+    submit
+  ])
+  const { claimCreateMatch, discardCreateDraft } = useDartCreateDiscardActions(
+    key,
+    hasCurrentViewer,
+    setOpenKey,
+    openDartDetailPage
   )
-  const discardCreateDraft = useCallback((): void => {
-    if (useAppStore.getState().dartCreateSessions[key]?.submitting) {
-      return
-    }
-    clearSession(key)
-    setOpenKey(null)
-  }, [clearSession, key])
 
+  const { retryAccountCheck, accountCheckNotice } = useDartCreateAccountCheck()
   return Object.assign({}, model, {
     createOpen: openKey === key,
     createSupportsWritesV2,
+    createWritesV2Pending,
     createSubmitting: session.submitting,
     openCreate,
     closeCreate,
@@ -261,9 +279,11 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
     createDraft,
     setCreateDraft,
     createUnresolved: session.unknown,
-    createFieldsLocked: session.unknown && !session.editable,
+    createFieldsLocked: session.unknown || !ownerUserId,
     createLookingUp: session.lookingUp,
-    createNotice: session.notice,
+    createNotice: ownerUserId ? session.notice : accountCheckNotice,
+    accountChecking: !ownerUserId,
+    retryAccountCheck,
     listChecked: session.listChecked,
     createMatches: session.matches,
     createMatchesTruncated: session.truncated,

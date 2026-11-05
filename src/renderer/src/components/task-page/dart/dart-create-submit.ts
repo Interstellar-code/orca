@@ -6,14 +6,24 @@ import { dartListTasksForTarget } from '@/runtime/runtime-dart-client'
 import type { DartWriteResult } from '@/runtime/runtime-dart-write-client'
 import { useAppStore } from '@/store'
 import type { DartReadScope } from '@/store/slices/dart/dart-read-coordination'
-import { dartScopeHostKey } from '@/store/slices/dart/dart-task-identity'
-import { lookupDartCreateMatches } from './dart-create-lookup'
+import {
+  dartAccountIdentity,
+  dartScopeHostKey,
+  dartScopeViewerId,
+  UNKNOWN_DART_ACCOUNT
+} from '@/store/slices/dart/dart-task-identity'
 
+import { lookupDartCreateMatches } from './dart-create-lookup'
 let lookupSequence = 0
 
 function ownsDartCreateSession(key: string, scope: DartReadScope): boolean {
-  const owners = useAppStore.getState().dartCreateOwners[dartScopeHostKey(scope)]
-  return !owners?.activeOwner || owners.keys[owners.activeOwner] === key
+  const state = useAppStore.getState()
+  const viewerId = dartScopeViewerId(state, scope)?.trim()
+  if (!viewerId) {
+    return false
+  }
+  const owners = state.dartCreateOwners[dartScopeHostKey(scope)]
+  return owners?.activeOwner === viewerId && owners.keys[viewerId] === key
 }
 
 export function dartCreateUnknownMessage(): string {
@@ -26,7 +36,25 @@ export function dartCreateUnknownMessage(): string {
 export async function checkDartCreateSession(key: string, scope: DartReadScope): Promise<void> {
   const store = useAppStore.getState()
   const current = store.dartCreateSessions[key]
-  if (!current || !ownsDartCreateSession(key, scope)) {
+  if (!current) {
+    return
+  }
+  const identity = dartAccountIdentity(scope, dartScopeViewerId(useAppStore.getState(), scope))
+  if (!identity.accountKey || identity.accountKey === UNKNOWN_DART_ACCOUNT) {
+    store.patchDartCreateSession(key, {
+      lookingUp: false,
+      listChecked: false,
+      notice: {
+        kind: 'unknown',
+        message: translate(
+          'auto.components.task.page.dart.TaskCreateDialog.accountNotReady',
+          'No Dart account is selected. Switch back to the original account to check again.'
+        )
+      }
+    })
+    return
+  }
+  if (!ownsDartCreateSession(key, scope)) {
     return
   }
   const sequence = ++lookupSequence
@@ -51,7 +79,7 @@ export async function checkDartCreateSession(key: string, scope: DartReadScope):
       draft.dartboard
     )
     const latest = useAppStore.getState().dartCreateSessions[key]
-    if (!latest || latest.lookupSequence !== sequence) {
+    if (!latest || latest.lookupSequence !== sequence || !ownsDartCreateSession(key, scope)) {
       return
     }
     if ('error' in lookup) {
@@ -74,7 +102,7 @@ export async function checkDartCreateSession(key: string, scope: DartReadScope):
     }
   } catch (error) {
     const latest = useAppStore.getState().dartCreateSessions[key]
-    if (!latest || latest.lookupSequence !== sequence) {
+    if (!latest || latest.lookupSequence !== sequence || !ownsDartCreateSession(key, scope)) {
       return
     }
     store.patchDartCreateSession(key, {
@@ -108,7 +136,28 @@ export async function submitDartCreate(
 ): Promise<DartWriteResult<{ task: DartTask }>> {
   const store = useAppStore.getState()
   const current = store.dartCreateSessions[deps.key]
-  if (current?.submitting) {
+  const viewerId = dartScopeViewerId(store, deps.scope)
+  if (!viewerId?.trim()) {
+    if (current) {
+      store.patchDartCreateSession(deps.key, {
+        submitting: false,
+        editable: false,
+        listChecked: false,
+        notice: {
+          kind: 'unknown',
+          message: translate(
+            'auto.components.task.page.dart.TaskCreateDialog.accountNotReady',
+            'No Dart account is selected. Switch back to the original account to create this task.'
+          )
+        }
+      })
+    }
+    return { ok: false, outcome: 'notApplied', error: 'Dart account is not ready.' }
+  }
+  if (!current || !ownsDartCreateSession(deps.key, deps.scope)) {
+    return { ok: false, outcome: 'notApplied', error: 'Dart create session is not active.' }
+  }
+  if (current.submitting) {
     return { ok: false, outcome: 'notApplied', error: 'A Dart create is already running.' }
   }
   store.patchDartCreateSession(deps.key, { submitting: true, notice: null, listChecked: false })

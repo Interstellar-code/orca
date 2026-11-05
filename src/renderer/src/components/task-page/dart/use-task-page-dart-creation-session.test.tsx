@@ -38,7 +38,7 @@ function setup(knownViewer = true) {
   const api = window.api
   vi.stubGlobal('window', realWindow)
   Object.assign(realWindow, { api })
-  useAppStore.setState({ dartCreateSessions: {}, activeView: 'tasks' })
+  useAppStore.setState({ dartCreateSessions: {}, dartCreateOwners: {}, activeView: 'tasks' })
   switchHost(null, knownViewer)
   const opened = vi.fn()
   const hook = renderHook(() => {
@@ -81,12 +81,15 @@ describe('Dart create session identity and lifetime', () => {
     const host = runtime.host(null)
     host.lostReplies.push({ ok: false, error: 'Lost reply', outcome: 'unknown' })
     openDraft()
+    await waitFor(() => expect(hook.result.current.createWritesV2Pending).toBe(false))
     await act(async () => {
       await submit()
     })
     act(() => switchHost(null, false))
     expect(hook.result.current.createOpen).toBe(true)
-    expect(hook.result.current.createDraft.title).toBe('Keep this draft')
+    expect(hook.result.current.createDraft.title).toBe('')
+    expect(hook.result.current.createFieldsLocked).toBe(true)
+    expect(hook.result.current.accountChecking).toBe(true)
     expect(
       useAppStore.getState().dartCreateSessions[JSON.stringify(['local', 'create', 'user-a'])]
         ?.unknown
@@ -95,6 +98,104 @@ describe('Dart create session identity and lifetime', () => {
       await submit()
     })
     expect(host.count('dart.createTask')).toBe(1)
+    act(() => switchHost(null))
+    expect(hook.result.current.createDraft.title).toBe('Keep this draft')
+  })
+
+  it('preserves the due date while a capability probe is pending', async () => {
+    const probe = Promise.withResolvers<boolean>()
+    const { hook, runtime, openDraft } = setup()
+    const host = runtime.host(null)
+    const supports = vi.spyOn(window.api.dart, 'supportsWritesV2').mockReturnValue(probe.promise)
+    act(() => switchHost('host-b'))
+    act(() => switchHost(null))
+    openDraft('Due-date draft')
+    act(() => hook.result.current.setCreateDraft({ dueAt: '2027-01-15' }))
+    expect(hook.result.current.createWritesV2Pending).toBe(true)
+    await act(async () => {
+      await hook.result.current.createTask({
+        title: 'Due-date draft',
+        dartboard: 'Example/Platform',
+        dueAt: '2027-01-15'
+      })
+      await hook.result.current.createAnyway()
+    })
+    expect(host.count('dart.createTask')).toBe(0)
+    expect(hook.result.current.createDraft.dueAt).toBe('2027-01-15')
+    await act(async () => {
+      probe.resolve(true)
+      await probe.promise
+    })
+    await act(async () => {
+      await hook.result.current.createTask({
+        title: 'Due-date draft',
+        dartboard: 'Example/Platform',
+        dueAt: '2027-01-15'
+      })
+    })
+    expect(
+      host.requests.find((request) => request.method === 'dart.createTask')?.params
+    ).toMatchObject({ dueAt: '2027-01-15' })
+    supports.mockRestore()
+  })
+
+  it('adopts an unowned draft only after checking the account', async () => {
+    const { hook, runtime, openDraft, submit } = setup(false)
+    openDraft('Unowned draft')
+    expect(hook.result.current.accountChecking).toBe(true)
+    await act(async () => {
+      await submit()
+      await hook.result.current.checkAgain()
+    })
+    expect(runtime.host(null).count('dart.createTask')).toBe(0)
+    expect(runtime.host(null).count('dart.listTasks')).toBe(0)
+    expect(useAppStore.getState().dartCreateOwners.local).toBeUndefined()
+    await act(async () => hook.result.current.retryAccountCheck!())
+    expect(hook.result.current.accountChecking).toBe(false)
+    expect(hook.result.current.createDraft.title).toBe('Unowned draft')
+    expect(useAppStore.getState().dartCreateOwners.local?.activeOwner).toBe('user-a')
+  })
+
+  it('does not register a stale host viewer or run actions without a current viewer', async () => {
+    const { runtime, hook, opened, openDraft, submit } = setup()
+    openDraft()
+    const staleCreate = hook.result.current.createTask
+    const staleCheck = hook.result.current.checkAgain
+    const staleAnyway = hook.result.current.createAnyway
+    const staleClaim = hook.result.current.claimCreateMatch
+    const task = {
+      id: 'task-1',
+      title: 'Existing',
+      htmlUrl: 'https://app.dartai.com/t/task-1',
+      status: 'To-do',
+      priority: 'Medium',
+      tags: []
+    }
+    act(() => {
+      const settings = { ...getDefaultSettings('/home/alex'), activeRuntimeEnvironmentId: 'host-b' }
+      useAppStore.setState({ settings })
+    })
+    expect(useAppStore.getState().dartCreateOwners['runtime:host-b']).toBeUndefined()
+    expect(hook.result.current.createOpen).toBe(false)
+    act(() => hook.result.current.openCreate())
+    expect(hook.result.current.accountChecking).toBe(true)
+    expect(hook.result.current.createFieldsLocked).toBe(true)
+    await act(async () => {
+      await submit()
+      await staleCreate({ title: 'Stale', dartboard: 'Example/Platform' })
+      await staleAnyway()
+      await staleCheck()
+      staleClaim!(task)
+      await hook.result.current.checkAgain()
+    })
+    expect(runtime.host(null).count('dart.createTask')).toBe(0)
+    expect(runtime.host('host-b').count('dart.createTask')).toBe(0)
+    expect(runtime.host('host-b').count('dart.listTasks')).toBe(0)
+    expect(opened).not.toHaveBeenCalled()
+    await act(async () => hook.result.current.retryAccountCheck!())
+    expect(runtime.host('host-b').count('dart.status')).toBe(1)
+    expect(hook.result.current.accountChecking).toBe(false)
+    expect(useAppStore.getState().dartCreateOwners['runtime:host-b']?.activeOwner).toBe('user-a')
   })
 
   it('keeps A locked while B creates independently without leaking drafts', async () => {
@@ -102,6 +203,7 @@ describe('Dart create session identity and lifetime', () => {
     const host = runtime.host(null)
     host.lostReplies.push({ ok: false, error: 'Lost reply', outcome: 'unknown' })
     openDraft()
+    await waitFor(() => expect(hook.result.current.createWritesV2Pending).toBe(false))
     await act(async () => {
       await submit()
     })
@@ -116,6 +218,7 @@ describe('Dart create session identity and lifetime', () => {
       useAppStore.getState().dartCreateSessions[JSON.stringify(['local', 'create', 'user-b'])]
         ?.draft.title
     ).toBe('B draft')
+    await waitFor(() => expect(hook.result.current.createWritesV2Pending).toBe(false))
     await act(async () => {
       await hook.result.current.createTask({ title: 'B draft', dartboard: 'Example/Platform' })
     })
@@ -140,6 +243,7 @@ describe('Dart create session identity and lifetime', () => {
     const { runtime, hook, opened, openDraft, submit } = setup()
     const release = runtime.host(null).hold('dart.createTask')
     openDraft()
+    await waitFor(() => expect(hook.result.current.createWritesV2Pending).toBe(false))
     let pending: Promise<unknown> = Promise.resolve()
     act(() => {
       pending = submit()
@@ -161,6 +265,7 @@ describe('Dart create session identity and lifetime', () => {
     const { runtime, hook, opened, openDraft, submit } = setup()
     const release = runtime.host(null).hold('dart.createTask')
     openDraft()
+    await waitFor(() => expect(hook.result.current.createWritesV2Pending).toBe(false))
     let pending: Promise<unknown> = Promise.resolve()
     act(() => {
       pending = submit()
@@ -183,6 +288,7 @@ describe('Dart create session identity and lifetime', () => {
     host.lostReplies.push({ ok: false, error: 'Lost reply', outcome: 'unknown' })
     const release = host.hold('dart.createTask')
     openDraft()
+    await waitFor(() => expect(hook.result.current.createWritesV2Pending).toBe(false))
     let pending: Promise<unknown> = Promise.resolve()
     act(() => {
       pending = submit()
@@ -193,9 +299,10 @@ describe('Dart create session identity and lifetime', () => {
       release()
       await pending
     })
-    expect(host.count('dart.listTasks')).toBe(1)
+    expect(host.count('dart.listTasks')).toBe(0)
     expect(runtime.host('host-b').count('dart.listTasks')).toBe(0)
     act(() => switchHost(null))
+    await act(async () => hook.result.current.checkAgain())
     expect(
       useAppStore.getState().dartCreateSessions[JSON.stringify(['local', 'create', 'user-a'])]
         ?.unknown

@@ -3,16 +3,26 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { state, listTasks, createTask } = vi.hoisted(() => {
   const dartCreateSessions: Record<string, DartCreateSession> = {}
-  return { state: { dartCreateSessions }, listTasks: vi.fn(), createTask: vi.fn() }
+  const dartCreateOwners: Record<string, { activeOwner: string; keys: Record<string, string> }> = {}
+  const dartStatus: { connected: boolean; viewer: { id: string; name: string } | null } = {
+    connected: true,
+    viewer: { id: 'u1', name: 'User 1' }
+  }
+  const dartStatusContextKey = ''
+  return {
+    state: { dartCreateSessions, dartCreateOwners, dartStatus, dartStatusContextKey },
+    listTasks: vi.fn(),
+    createTask: vi.fn()
+  }
 })
 
 vi.mock('@/store', () => ({
   useAppStore: {
     getState: () => ({
       dartCreateSessions: state.dartCreateSessions,
-      dartCreateOwners: {
-        [dartScopeHostKey(scope)]: { activeOwner: 'u1', keys: { u1: 'create' } }
-      },
+      dartCreateOwners: state.dartCreateOwners,
+      dartStatus: state.dartStatus,
+      dartStatusContextKey: state.dartStatusContextKey,
       patchDartCreateSession: (key: string, patch: Partial<DartCreateSession>) => {
         state.dartCreateSessions[key] = { ...state.dartCreateSessions[key], ...patch }
       },
@@ -61,6 +71,9 @@ const session = (draft: Partial<DartCreateSession['draft']> = {}): DartCreateSes
 
 beforeEach(() => {
   state.dartCreateSessions = { create: session() }
+  state.dartStatus = { connected: true, viewer: { id: 'u1', name: 'User 1' } }
+  state.dartCreateOwners[dartScopeHostKey(scope)] = { activeOwner: 'u1', keys: { u1: 'create' } }
+  state.dartStatusContextKey = scope.contextKey
   listTasks.mockReset()
   createTask.mockReset()
 })
@@ -121,6 +134,50 @@ describe('checkDartCreateSession', () => {
     expect(listTasks).toHaveBeenCalledWith(
       expect.objectContaining({ title: 'Submitted title', dartboard: 'Canonical board' })
     )
+  })
+
+  it('drops a stale lookup reply when the active owner changed during the list request', async () => {
+    const reply = Promise.withResolvers<{ ok: boolean; tasks: [] }>()
+    listTasks.mockReturnValueOnce(reply.promise)
+    const lookup = checkDartCreateSession('create', scope)
+    // Simulate owner handoff to another session before the list reply arrives.
+    state.dartCreateOwners[dartScopeHostKey(scope)] = { activeOwner: 'u2', keys: { u2: 'other' } }
+    reply.resolve({ ok: true, tasks: [] })
+    await lookup
+    expect(listTasks).toHaveBeenCalledOnce()
+    expect(state.dartCreateSessions.create).toMatchObject({
+      lookingUp: false,
+      listChecked: false,
+      matches: []
+    })
+  })
+
+  it('locks the unknown recovery state when the active Dart account is missing', async () => {
+    listTasks.mockResolvedValue({ ok: true, tasks: [] })
+    state.dartStatus = { connected: true, viewer: null }
+    await checkDartCreateSession('create', scope)
+    expect(listTasks).not.toHaveBeenCalled()
+    expect(state.dartCreateSessions.create).toMatchObject({
+      lookingUp: false,
+      listChecked: false,
+      notice: { kind: 'unknown' }
+    })
+  })
+
+  it('does not issue a create when the Dart viewer is missing', async () => {
+    state.dartStatus = { connected: true, viewer: null }
+    const result = await submitDartCreate(
+      { title: 'Draft title', dartboard: 'Board' },
+      { key: 'create', scope, onSuccess: vi.fn() }
+    )
+    expect(result).toMatchObject({ ok: false, outcome: 'notApplied' })
+    expect(createTask).not.toHaveBeenCalled()
+    expect(state.dartCreateSessions.create).toMatchObject({
+      submitting: false,
+      editable: false,
+      listChecked: false,
+      notice: { kind: 'unknown' }
+    })
   })
 
   it('rejects a concurrent create without issuing another write', async () => {

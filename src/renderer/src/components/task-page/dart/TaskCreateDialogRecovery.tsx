@@ -13,6 +13,9 @@ type TaskCreateDialogRecoveryProps = Pick<
   | 'createMatchesTruncated'
   | 'createLookingUp'
   | 'createFieldsLocked'
+  | 'accountChecking'
+  | 'retryAccountCheck'
+  | 'createWritesV2Pending'
   | 'canCreateAnyway'
   | 'claimCreateMatch'
   | 'discardCreateDraft'
@@ -35,7 +38,9 @@ export function TaskCreateDialogRecovery({
   createMatches,
   createMatchesTruncated,
   createLookingUp,
-  createFieldsLocked,
+  accountChecking,
+  retryAccountCheck,
+  createWritesV2Pending,
   canCreateAnyway,
   claimCreateMatch,
   createSubmitting,
@@ -49,13 +54,39 @@ export function TaskCreateDialogRecovery({
   openDartDetailPage,
   onDiscard
 }: TaskCreateDialogRecoveryProps): React.JSX.Element | null {
-  if (!createNotice && !createUnresolved) {
+  if (!createNotice && !createUnresolved && !accountChecking && !createWritesV2Pending) {
     return null
   }
 
   return (
     <div className="flex flex-col gap-2">
-      {createNotice ? (
+      {createWritesV2Pending ? (
+        <p role="status" className="text-xs text-muted-foreground">
+          {translate(
+            'auto.components.task.page.dart.TaskCreateDialog.checkingCapabilities',
+            'Checking Dart capabilities before creating this task.'
+          )}
+        </p>
+      ) : null}
+      {accountChecking ? (
+        <div role="status" className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="min-w-0 flex-1">
+            {translate(
+              'auto.components.task.page.dart.TaskCreateDialog.checkingAccount',
+              'Checking your Dart account.'
+            )}
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            disabled={createSubmitting}
+            onClick={() => void retryAccountCheck?.()}
+          >
+            {translate('auto.components.task.page.dart.TaskCreateDialog.retryAccount', 'Retry')}
+          </Button>
+        </div>
+      ) : createNotice ? (
         <DartTaskDetailNotice
           notice={createNotice}
           dismissNotice={dismissCreateNotice}
@@ -63,7 +94,7 @@ export function TaskCreateDialogRecovery({
           recheckNotice={checkAgain}
         />
       ) : null}
-      {createUnresolved && !createNotice ? (
+      {createUnresolved && !createNotice && !accountChecking ? (
         <div className="flex items-center gap-2">
           <p role="status" className="min-w-0 flex-1 text-xs text-muted-foreground">
             {translate(
@@ -78,7 +109,7 @@ export function TaskCreateDialogRecovery({
             disabled={recoveryBlocked}
             onClick={() => void checkAgain()}
           >
-            {createLookingUp || createFieldsLocked ? (
+            {createLookingUp ? (
               <LoaderCircle className="size-3.5 animate-spin motion-reduce:animate-none" />
             ) : null}
             {translate('auto.components.task.page.dart.TaskCreateDialog.checkAgain', 'Check again')}
@@ -94,6 +125,7 @@ export function TaskCreateDialogRecovery({
                 variant="link"
                 size="xs"
                 className="min-w-0 justify-start"
+                disabled={createSubmitting || accountChecking}
                 onClick={() => {
                   closeCreate()
                   openDartDetailPage(match)
@@ -101,7 +133,10 @@ export function TaskCreateDialogRecovery({
               >
                 <span className="truncate">{match.title}</span>
               </Button>
-              <Button disabled={createSubmitting} onClick={() => claimCreateMatch?.(match)}>
+              <Button
+                disabled={createSubmitting || accountChecking}
+                onClick={() => claimCreateMatch?.(match)}
+              >
                 {translate(
                   'auto.components.task.page.dart.TaskCreateDialog.thisIsMine',
                   'This is mine'
