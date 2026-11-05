@@ -19,7 +19,10 @@ import {
   FakeDartHost,
   installFakeDartRuntime
 } from '@/store/slices/dart/dart-fake-runtime.test-support'
-import { createWebDartApi } from '@/web/preload-api/web-dart-api'
+import {
+  clearDartProviderVerdictCacheForTests,
+  createWebDartApi
+} from '@/web/preload-api/web-dart-api'
 import TaskPage from './TaskPage'
 
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
@@ -187,6 +190,8 @@ const TRANSPORTS: Transport[] = [
 
 beforeEach(() => {
   runtime = installFakeDartRuntime()
+  // The web client caches a positive provider verdict per host id, and every test shares one.
+  clearDartProviderVerdictCacheForTests()
   remoteCapabilities.clear()
   probedSelectors.length = 0
   const api = window.api
@@ -367,8 +372,7 @@ describe('a host without dart.provider.v1', () => {
 })
 
 describe('a web-paired host without dart.provider.v1', () => {
-  // Gap: the web client never probes dart.provider.v1, so an old host gets dart.status and the page shows Connect Dart.
-  it.fails('shows the update-required state', async () => {
+  it('shows the update-required state', async () => {
     TRANSPORTS[1].open({ providerV1: false })
     renderPage()
 

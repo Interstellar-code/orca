@@ -20,9 +20,9 @@ Cross-task tests that only make sense once T1 to T6 are merged. They run on fake
 - A list read that began before a write and lands after it does not undo the write; a field changed in Dart while another field's write is pending is kept.
 - A plain folder workspace linked to a Dart task shows on the row, opens the task and saves edits.
 
-## Known gap (expected-fail test)
+## Web client without dart.provider.v1
 
-A web-paired host that predates `dart.provider.v1` never gets the update-required state: the web client sends `dart.status` without a capability probe, so the page offers Connect Dart. The test is `it.fails`; it turns red when the gap is fixed, and then becomes a plain `it`.
+A web-paired host that predates `dart.provider.v1` shows the update-required state and receives no Dart request (the web client probes the capability first; the positive verdict is cached 60 s per host, so tests clear it).
 
 ## Pass 2
 
