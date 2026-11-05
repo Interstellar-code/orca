@@ -13604,7 +13604,17 @@
               "updateRequiredBody": "{{message}} Dart stays off for this host; nothing falls back to this computer.",
               "connectedAs": "Connected with an authorization token",
               "disconnect": "Disconnect Dart",
-              "connectHelp": "Connect with your Dart authorization token. API access needs a Dart Premium plan or above."
+              "connectHelp": "Connect with your Dart authorization token. API access needs a Dart Premium plan or above.",
+              "cancelDisconnect": "Cancel",
+              "copyAllDrafts": "Copy all",
+              "copyDraftsFailed": "Could not copy the drafts. They are still saved here.",
+              "discardAndDisconnect": "Discard and disconnect",
+              "draftsCopied": "Copied",
+              "unsavedDraftsBody": "Drafts are kept only in memory. Disconnecting discards the ones made on this host.",
+              "unsavedDraftsTitle_one": "You have {{count}} unsaved Dart drafts",
+              "unsavedDraftsTitle_other": "You have {{count}} unsaved Dart drafts",
+              "unsavedDraftsTitleOne": "You have 1 unsaved Dart draft",
+              "unsavedDraftsTitle": "You have {{count}} unsaved Dart drafts"
             }
           }
         },
@@ -18716,13 +18726,22 @@
               "unassigned": "Unassigned",
               "due": "Due",
               "description": "Description",
-              "noDescription": "No description.",
               "linkedWorkspaces": "Linked workspaces",
               "noLinkedWorkspaces": "No workspace is linked to this task yet.",
               "commentsCount": "Comments · {{count}}",
               "comments": "Comments",
               "noComments": "No comments yet.",
-              "commentsTruncated": "Showing first {{shown}} of {{total}} comments."
+              "commentsTruncated": "Showing first {{shown}} of {{total}} comments.",
+              "assignToMe": "Assign to me",
+              "dartboard": "Dartboard",
+              "noDartboards": "No dartboards found.",
+              "none": "None",
+              "noOpenTask": "No Dart task is open.",
+              "noPeople": "No people found.",
+              "searchAssignees": "Search people",
+              "searchDartboards": "Search dartboards",
+              "size": "Size",
+              "start": "Start"
             },
             "TaskList": {
               "linkedWorkspaceCount_one": "{{count}} workspace linked to this task",
@@ -18749,6 +18768,91 @@
                   }
                 }
               }
+            },
+            "dart-task-write-queue": {
+              "fieldBlocked": "Dart may have applied an earlier change to this field. Check again or dismiss the notice before editing it.",
+              "mayHaveApplied": "Dart may have applied this change. Showing what Dart had when Orca last checked."
+            },
+            "DartDateField": {
+              "clear": "Clear {{label}}"
+            },
+            "DartDescription": {
+              "cancel": "Cancel",
+              "copied": "Copied",
+              "copy": "Copy",
+              "copyFailed": "Couldn't copy the text.",
+              "copyMyText": "Copy my text",
+              "discard": "Discard",
+              "discardHunk": "Discard this change",
+              "discardIt": "Discard it",
+              "discardPrompt": "Discard unsaved description changes?",
+              "draftsFull": "Orca is holding as many unsaved Dart drafts as it can. Copy and discard the oldest one, from task {{taskId}}, to start this one.",
+              "edit": "Edit",
+              "editingHint": "Editing · only the parts you change are sent to Dart",
+              "editorLabel": "Description (Markdown)",
+              "emptyBase": "An empty description can't be edited from Orca. Add one in Dart.",
+              "markResolved": "Mark resolved",
+              "noDescriptionYet": "No description yet. Add one in Dart.",
+              "nonUniqueAnchor": "This change can't be sent safely because the text it touches appears more than once. Edit a more specific passage, or edit it in Dart.",
+              "nowShowsYourText": "Dart now shows your text.",
+              "preSaveReadFailed": "Couldn't check Dart before saving.",
+              "preview": "Preview",
+              "save": "Save",
+              "saveBlocked": "Dart may have applied your last save. Check again or dismiss its notice to save again.",
+              "saving": "Saving…",
+              "shortcutMac": "Markdown · ⌘↵ to save",
+              "shortcutOther": "Markdown · Ctrl+Enter to save",
+              "unresolvedTitle": "Changes Orca couldn't apply. Type what you want to keep into the text above.",
+              "updateServer": "Update the remote Orca server to edit descriptions."
+            },
+            "DartDescriptionConflictDialog": {
+              "backToEditing": "Back to editing",
+              "body": "Nothing was saved and nothing was overwritten. Your text is below so you can copy it.",
+              "bodyUnknown": "Dart may have saved part of this change. Compare the texts below before continuing.",
+              "discard": "Discard my changes",
+              "latest": "Now in Dart",
+              "title": "This description changed in Dart while you were editing",
+              "unresolved": "Changes Orca couldn't apply",
+              "yourText": "Your text"
+            },
+            "DartDescriptionHunk": {
+              "dartVersion": "Dart's version when you started",
+              "noText": "(no text here)",
+              "removed": "(you removed this text)",
+              "yourVersion": "Your version"
+            },
+            "DartPropertyChips": {
+              "blockedHint": "Dart may have applied a change to this field. Check the notice above first."
+            },
+            "DartTagsPicker": {
+              "add": "Add tags",
+              "edit": "Edit tags",
+              "empty": "No tags found.",
+              "label": "Tags",
+              "search": "Search tags"
+            },
+            "DartTitleField": {
+              "label": "Title",
+              "required": "Title is required"
+            },
+            "TaskDetailNotice": {
+              "checkAgain": "Check again",
+              "checkedAt": "Last checked {{time}}",
+              "checking": "Checking…",
+              "dismiss": "Dismiss",
+              "fieldAssignee": "Assignee",
+              "fieldDartboard": "Dartboard",
+              "fieldDescription": "Description",
+              "fieldDueAt": "Due date",
+              "fieldPriority": "Priority",
+              "fieldSize": "Size",
+              "fieldStartAt": "Start date",
+              "fieldStatus": "Status",
+              "fieldTags": "Tags",
+              "fieldTitle": "Title",
+              "fieldType": "Type",
+              "refusedField": "{{field}} wasn't saved: {{message}}",
+              "unknownField": "{{field}}: {{message}}"
             }
           },
           "task": {
@@ -23440,12 +23544,17 @@
         "badRequest": "Dart rejected the request.",
         "retryAfter": "Retry after {{wait}}.",
         "rateLimited": "Dart is rate limiting requests. Try again shortly.",
-        "invalidTaskUrl": "Enter a valid Dart task URL."
+        "invalidTaskUrl": "Enter a valid Dart task URL.",
+        "descriptionPatchRefused": "Dart did not accept this change."
       }
     },
     "dart": {
       "updateRequired": "Update the remote Orca server to use Dart.",
-      "connectSuperseded": "Dart connection was superseded by a newer request."
+      "connectSuperseded": "Dart connection was superseded by a newer request.",
+      "requestTooLarge": "This change is too large to save to Dart from Orca. Shorten it or edit it in Dart.",
+      "textTooLargeKb": "This text is too large to save to Dart from Orca ({{size}} KB, limit {{limit}} KB). Shorten it or edit it in Dart.",
+      "textTooLongChars": "This text is too long to save to Dart from Orca ({{size}} characters, limit {{limit}}). Shorten it or edit it in Dart.",
+      "writesUpdateRequired": "Update the remote Orca server to edit this field in Dart."
     }
   },
   "editorConflicts": {
