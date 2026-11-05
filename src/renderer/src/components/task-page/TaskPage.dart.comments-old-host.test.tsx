@@ -32,12 +32,13 @@ vi.mock('./jira/Content', () => ({ TaskPageJiraContent: () => null }))
 vi.mock('./linear/Content', () => ({ TaskPageLinearContent: () => null }))
 
 // The web client's only outbound seam: it reaches the paired host through these two modules.
-const web = vi.hoisted(() => ({
-  host: null as null | FakeDartHost,
-  capabilities: [] as string[],
-  /** An older server has no `dart.*` methods at all. */
-  methodNotFound: false
-}))
+const web: { host: FakeDartHost | null; capabilities: string[]; methodNotFound: boolean } =
+  vi.hoisted(() => ({
+    host: null,
+    capabilities: [],
+    /** An older server has no `dart.*` methods at all. */
+    methodNotFound: false
+  }))
 vi.mock('@/web/preload-api/web-runtime-calls', () => ({
   getRemoteRuntimeStatus: async () => ({ capabilities: web.capabilities }),
   callRuntimeEnvelope: async (method: string, params: Parameters<FakeDartHost['handle']>[1]) =>

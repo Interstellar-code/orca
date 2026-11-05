@@ -10,6 +10,7 @@ import {
   DART_WRITES_V2_RUNTIME_CAPABILITY
 } from '../../../../shared/dart/dart-capabilities'
 import type { DartComment, DartTask, DartWorkspaceConfig } from '../../../../shared/dart/dart-types'
+import type { Worktree } from '../../../../shared/worktree/types'
 import type { TaskSourceContext } from '../../../../shared/task-source-context'
 import { installAppKeyboardRouter } from '@/lib/app-keyboard-router'
 import { createCompatibleRuntimeStatusResponse } from '@/runtime/runtime-compatibility-test-fixture'
@@ -33,12 +34,13 @@ vi.mock('./jira/Content', () => ({ TaskPageJiraContent: () => null }))
 vi.mock('./linear/Content', () => ({ TaskPageLinearContent: () => null }))
 
 // The web client's only outbound seam: it reaches the paired host through these two modules.
-const web = vi.hoisted(() => ({
-  host: null as null | FakeDartHost,
-  capabilities: [] as string[],
-  /** An older server has no `dart.*` methods at all. */
-  methodNotFound: false
-}))
+const web: { host: FakeDartHost | null; capabilities: string[]; methodNotFound: boolean } =
+  vi.hoisted(() => ({
+    host: null,
+    capabilities: [],
+    /** An older server has no `dart.*` methods at all. */
+    methodNotFound: false
+  }))
 vi.mock('@/web/preload-api/web-runtime-calls', () => ({
   getRemoteRuntimeStatus: async () => ({ capabilities: web.capabilities }),
   callRuntimeEnvelope: async (method: string, params: Parameters<FakeDartHost['handle']>[1]) =>
@@ -523,7 +525,7 @@ describe.each(TRANSPORTS)('reads and writes that cross over the $name', (transpo
 
 describe('a plain folder workspace linked to a Dart task', () => {
   function seedFolderWorkspace(): void {
-    const workspace = {
+    const workspace: Worktree = {
       id: 'folder-repo::/home/alex/notes',
       repoId: 'folder-repo',
       path: '/home/alex/notes',
@@ -538,6 +540,9 @@ describe('a plain folder workspace linked to a Dart task', () => {
       sortOrder: 0,
       lastActivityAt: 1,
       comment: '',
+      linkedIssue: null,
+      linkedPR: null,
+      linkedLinearIssue: null,
       linkedItems: [
         {
           provider: 'dart',
@@ -565,7 +570,7 @@ describe('a plain folder workspace linked to a Dart task', () => {
         }
       ],
       worktreesByRepo: { 'folder-repo': [workspace] }
-    } as never)
+    })
   }
 
   it.each(TRANSPORTS)(
@@ -599,14 +604,14 @@ function storeComments(host: FakeDartHost, seed: DartComment[] = []): DartCommen
     }
     if (method === 'dart.addComment') {
       host.requests.push({ method, params })
-      const posted = params as { taskId: string; text: string; parentId?: string }
+      const posted = params
       const comment: DartComment = {
         id: `posted${String(comments.length + 1).padStart(6, '0')}`,
-        taskId: posted.taskId,
+        taskId: posted.taskId ?? '',
         parentId: posted.parentId ?? null,
         htmlUrl: 'https://app.dartai.com/c/posted',
         author: VIEWER.name,
-        text: posted.text,
+        text: posted.text ?? '',
         createdAt: new Date(Date.UTC(2026, 10, 5, 12, comments.length)).toISOString()
       }
       comments.push(comment)
@@ -747,13 +752,12 @@ describe.each(TRANSPORTS)('creating a task over the $name', (transport) => {
     expect(
       [...host.tasks.values()].filter((t) => t.title === 'Brand new delivery task')
     ).toHaveLength(1)
-    const sheet = (await screen.findByRole('button', { name: 'Close Dart task preview' })).closest(
-      '[role="dialog"]'
-    ) as HTMLElement
+    const sheet = await screen.findByRole('dialog')
     await waitFor(() =>
-      expect(
-        (within(sheet).getByRole('textbox', { name: 'Title' }) as HTMLInputElement).value
-      ).toBe('Brand new delivery task')
+      expect(within(sheet).getByRole('textbox', { name: 'Title' })).toHaveProperty(
+        'value',
+        'Brand new delivery task'
+      )
     )
     await closeDetail()
     expect(listRow('Brand new delivery task')).toBeTruthy()

@@ -12,6 +12,7 @@ type RpcParams = {
   taskId?: string
   updates?: Record<string, unknown>
   text?: string
+  parentId?: string
   title?: string
   status?: string
 }
