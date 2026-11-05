@@ -18737,7 +18737,7 @@
               "draftKindComment": "comment",
               "readFailed": "Could not check comments. Retry before sending.",
               "viewerUnknown": "Cannot check for duplicate comments without the current Dart user. Retry after reconnecting.",
-              "duplicate": "This comment is already posted",
+              "duplicate": "A matching comment is already posted",
               "postAnyway": "Post anyway",
               "retry": "Retry"
             },

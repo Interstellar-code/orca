@@ -6,6 +6,7 @@ import type { DartComment } from '../../../../../shared/dart/dart-types'
 import { getScreenSubmitShortcutLabel } from '@/lib/screen-submit-shortcut'
 import { getShortcutPlatform } from '@/lib/shortcut-platform'
 import type { FakeDartHost } from '@/store/slices/dart/dart-fake-runtime.test-support'
+import { bumpDartEpochs } from '@/store/slices/dart/dart-task-identity'
 import { clearDraft, dartDraftKey, getDraft, setDraft } from './dart-draft-store'
 import {
   openRenderedDartDetail,
@@ -188,10 +189,170 @@ it('checks later comment pages before posting', async () => {
   }
   typeComment(textarea, 'Already posted')
   fireEvent.click(sendButton())
-  await screen.findByText('This comment is already posted')
+  await screen.findByText('A matching comment is already posted')
   expect(page.host.count('dart.addComment')).toBe(0)
   expect(page.host.count('dart.listComments')).toBeGreaterThanOrEqual(3)
 })
+
+it('checks the detail host and its viewer instead of the page host', async () => {
+  const page = openRenderedDartDetail({ detailEnv: 'comments-remote' })
+  const textarea = await openComments()
+  await screen.findByText('No comments yet.')
+  const otherHost = page.runtime.host(page.pageEnv)
+  const detailReads = page.host.count('dart.listComments')
+  const pageReads = otherHost.count('dart.listComments')
+  typeComment(textarea, 'On the detail host')
+  fireEvent.click(sendButton())
+  await waitFor(() => expect(page.host.count('dart.addComment')).toBe(1))
+  expect(page.host.count('dart.listComments')).toBeGreaterThan(detailReads)
+  expect(otherHost.count('dart.listComments')).toBe(pageReads)
+  expect(otherHost.count('dart.addComment')).toBe(0)
+})
+
+it('shows an error rather than a stuck skeleton when every initial comments read is stale', async () => {
+  const page = openRenderedDartDetail()
+  const other = page.addTask('stale')
+  await screen.findByText('No comments yet.')
+  const handle = page.host.handle.bind(page.host)
+  page.host.handle = async (method, params) => {
+    if (method === 'dart.listComments' && params.taskId === other.id) {
+      page.host.requests.push({ method, params })
+      bumpDartEpochs({
+        hostKey: `runtime:${page.detailEnv}`,
+        accountKey: 'user-a',
+        taskId: other.id
+      })
+      return { ok: true, comments: [commentFixture('stale', 'Stale result')], totalCount: 1 }
+    }
+    return handle(method, params)
+  }
+  page.showTask(other)
+  await screen.findByRole('alert')
+  expect(screen.queryByText('Stale result')).toBeNull()
+  expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy()
+})
+
+it.each(['pre-send', 'reload'])(
+  'drops a late %s comments read after switching tasks',
+  async (phase) => {
+    const page = openRenderedDartDetail()
+    const other = page.addTask('other')
+    const textarea = await openComments()
+    await screen.findByText('No comments yet.')
+    const handle = page.host.handle.bind(page.host)
+    const pending = Promise.withResolvers<object>()
+    let held = false
+    page.host.handle = async (method, params) => {
+      if (
+        method === 'dart.listComments' &&
+        params.taskId === page.task.id &&
+        !held &&
+        (phase === 'pre-send' || page.host.count('dart.addComment') > 0)
+      ) {
+        held = true
+        page.host.requests.push({ method, params })
+        return pending.promise
+      }
+      return handle(method, params)
+    }
+    typeComment(textarea, 'Write on A')
+    fireEvent.click(sendButton())
+    await waitFor(() => expect(held).toBe(true))
+    page.showTask(other)
+    await screen.findByText('No comments yet.')
+    await act(async () =>
+      pending.resolve({
+        ok: true,
+        comments: [commentFixture('late', 'Wrong task comment')],
+        totalCount: 1
+      })
+    )
+    expect(screen.queryByText('Wrong task comment')).toBeNull()
+    if (phase === 'pre-send') {
+      expect(page.host.count('dart.addComment')).toBe(0)
+    }
+  }
+)
+
+it('drops a late comments read after switching to another task', async () => {
+  const page = openRenderedDartDetail()
+  const other = page.addTask('late')
+  await screen.findByText('No comments yet.')
+  const handle = page.host.handle.bind(page.host)
+  const pending = Promise.withResolvers<object>()
+  page.host.handle = async (method, params) => {
+    if (method === 'dart.listComments' && params.taskId === other.id) {
+      page.host.requests.push({ method, params })
+      return pending.promise
+    }
+    return handle(method, params)
+  }
+  const before = page.host.count('dart.listComments')
+  page.showTask(other)
+  await waitFor(() => expect(page.host.count('dart.listComments')).toBeGreaterThan(before))
+  page.showTask(page.task)
+  await screen.findByText('No comments yet.')
+  await act(async () =>
+    pending.resolve({
+      ok: true,
+      comments: [commentFixture('late', 'Wrong task comment')],
+      totalCount: 1
+    })
+  )
+  expect(screen.queryByText('Wrong task comment')).toBeNull()
+})
+
+it('refuses an empty page while the server reports more comments', async () => {
+  const page = openRenderedDartDetail()
+  const textarea = await openComments()
+  await screen.findByText('No comments yet.')
+  const handle = page.host.handle.bind(page.host)
+  page.host.handle = async (method, params) => {
+    if (method === 'dart.listComments') {
+      page.host.requests.push({ method, params })
+      return { ok: true, comments: [], totalCount: 1 }
+    }
+    return handle(method, params)
+  }
+  typeComment(textarea, 'Do not post')
+  fireEvent.click(sendButton())
+  await screen.findByText('Could not check comments. Retry before sending.')
+  expect(page.host.count('dart.addComment')).toBe(0)
+  expect(textarea.value).toBe('Do not post')
+})
+
+it.each([0, 250])(
+  'refuses a failed comments read at offset %i without publishing partial results',
+  async (failedOffset) => {
+    const page = openRenderedDartDetail()
+    const textarea = await openComments()
+    await screen.findByText('No comments yet.')
+    const handle = page.host.handle.bind(page.host)
+    page.host.handle = async (method, params) => {
+      if (method === 'dart.listComments') {
+        page.host.requests.push({ method, params })
+        const offset = 'offset' in params && typeof params.offset === 'number' ? params.offset : 0
+        if (offset === failedOffset) {
+          return { ok: false, error: 'Read failed' }
+        }
+        return {
+          ok: true,
+          comments: Array.from({ length: 250 }, (_, index) =>
+            commentFixture(`partial-${index}`, `Partial ${index}`)
+          ),
+          totalCount: 251
+        }
+      }
+      return handle(method, params)
+    }
+    typeComment(textarea, 'Draft survives')
+    fireEvent.click(sendButton())
+    await screen.findByText('Could not check comments. Retry before sending.')
+    expect(page.host.count('dart.addComment')).toBe(0)
+    expect(textarea.value).toBe('Draft survives')
+    expect(screen.queryByText('Partial 0')).toBeNull()
+  }
+)
 
 describe('DartTaskDetailComments threads and stale reads', () => {
   it('renders nested replies depth first and keeps an orphan reply at the top level', async () => {
@@ -460,6 +621,7 @@ describe('DartTaskDetailComments reply target persistence', () => {
 
     page.showTask(other)
     await openComments()
+    await screen.findByText('Parent note')
     expect(screen.queryByText('Replying to Alex Example')).toBeNull()
 
     page.showTask(page.task)

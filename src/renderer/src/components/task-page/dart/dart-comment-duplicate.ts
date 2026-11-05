@@ -1,22 +1,31 @@
 import type { DartComment } from '../../../../../shared/dart/dart-types'
 
-export function hasRecentDartComment(
+function normalizeDartCommentText(value: string): string {
+  return value
+    .normalize('NFC')
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .join('\n')
+    .trim()
+}
+
+export function hasMatchingDartComment(
   comments: readonly DartComment[],
-  viewerName: string,
+  viewerIdentities: readonly string[],
   body: string,
-  parentId: string | null,
-  now: number
+  parentId: string | null
 ): boolean {
-  return comments.some((comment) => {
-    const created = comment.createdAt ? Date.parse(comment.createdAt) : Number.NaN
-    return (
-      comment.author === viewerName &&
-      comment.text.trim() === body.trim() &&
-      (comment.parentId ?? null) === parentId &&
-      created <= now &&
-      created >= now - 10 * 60 * 1000
-    )
-  })
+  const identities = new Set(
+    viewerIdentities.map((identity) => identity.trim().toLowerCase()).filter(Boolean)
+  )
+  const normalizedBody = normalizeDartCommentText(body)
+  return comments.some(
+    (comment) =>
+      identities.has(comment.author.trim().toLowerCase()) &&
+      normalizeDartCommentText(comment.text) === normalizedBody &&
+      (comment.parentId ?? null) === parentId
+  )
 }
 
 export function canSubmitDartComment(
@@ -25,6 +34,9 @@ export function canSubmitDartComment(
   parentId: string | null,
   postAnyway: boolean
 ): boolean {
-  const matches = duplicate?.body === body && duplicate.parentId === parentId
+  const matches =
+    duplicate !== null &&
+    normalizeDartCommentText(duplicate.body) === normalizeDartCommentText(body) &&
+    duplicate.parentId === parentId
   return postAnyway === matches
 }

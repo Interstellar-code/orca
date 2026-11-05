@@ -28,7 +28,11 @@ const makeComment = (text: string, parentId?: string, author = 'Alex Example'): 
   createdAt: new Date(NOW - 60_000).toISOString()
 })
 
-function setup(initial: DartComment[] = [], viewerName: string | null = 'Alex Example') {
+function setup(
+  initial: DartComment[] = [],
+  viewerName: string | null = 'Alex Example',
+  viewerEmail: string | null = null
+) {
   const draftKey = dartDraftKey(
     { hostKey: 'runtime:test', accountKey: 'user-a' },
     `task-${nextKey++}`,
@@ -65,6 +69,7 @@ function setup(initial: DartComment[] = [], viewerName: string | null = 'Alex Ex
     appendLocalComment: append,
     readLatestComments: read,
     viewerName,
+    viewerEmail,
     draftKey,
     onRetry: () => {}
   })
@@ -101,7 +106,7 @@ function send() {
   fireEvent.click(screen.getByRole('button', { name: 'Send comment' }))
 }
 async function blocked() {
-  await screen.findByText('This comment is already posted')
+  await screen.findByText('A matching comment is already posted')
   expect(screen.getByRole('button', { name: 'Post anyway' })).toBeTruthy()
 }
 function reply(text: string) {
@@ -111,6 +116,120 @@ function reply(text: string) {
   }
   fireEvent.click(within(article).getByRole('button', { name: 'Reply' }))
 }
+it('sends again after checking an unknown post that did not land', async () => {
+  const page = setup()
+  page.add.mockResolvedValueOnce(unknown)
+  type('Not landed')
+  send()
+  await screen.findByText('Not sure it posted')
+  fireEvent.click(screen.getByRole('button', { name: 'Check again' }))
+  await waitFor(() => expect(page.read).toHaveBeenCalledTimes(2))
+  send()
+  await waitFor(() => expect(page.add).toHaveBeenCalledTimes(2))
+  expect(page.read).toHaveBeenCalledTimes(3)
+})
+
+it('Check again matches normalized reply text only under the original parent', async () => {
+  const page = setup([
+    makeComment('Parent P', undefined, 'Pat'),
+    makeComment('Parent Q', undefined, 'Quinn')
+  ])
+  page.add.mockResolvedValueOnce(unknown)
+  reply('Parent P')
+  type('Cafe\u0301\nsecond')
+  send()
+  await screen.findByText('Not sure it posted')
+  page.read.mockResolvedValueOnce([makeComment('Café  \r\nsecond ', 'Parent Q-root')])
+  fireEvent.click(screen.getByRole('button', { name: 'Check again' }))
+  await waitFor(() => expect(page.read).toHaveBeenCalledTimes(2))
+  expect(screen.getByRole('textbox', { name: 'Comment' })).toHaveProperty(
+    'value',
+    'Cafe\u0301\nsecond'
+  )
+  page.read.mockResolvedValueOnce([makeComment('Café  \r\nsecond ', 'Parent P-root')])
+  fireEvent.click(screen.getByRole('button', { name: 'Check again' }))
+  await waitFor(() =>
+    expect(screen.getByRole('textbox', { name: 'Comment' })).toHaveProperty('value', '')
+  )
+  expect(page.add).toHaveBeenCalledTimes(1)
+})
+
+it('Post anyway rechecks and refuses to post if its fresh read fails', async () => {
+  const page = setup([makeComment('Already here')])
+  type('Already here')
+  send()
+  await blocked()
+  page.fail(true)
+  fireEvent.click(screen.getByRole('button', { name: 'Post anyway' }))
+  await screen.findByText('Could not check comments. Retry before sending.')
+  expect(page.read).toHaveBeenCalledTimes(2)
+  expect(page.add).not.toHaveBeenCalled()
+})
+
+it('keeps the reply target fixed while its POST is in flight', async () => {
+  const page = setup([
+    makeComment('Parent P', undefined, 'Pat'),
+    makeComment('Parent Q', undefined, 'Quinn')
+  ])
+  const gate = Promise.withResolvers<void>()
+  page.hold(gate.promise)
+  reply('Parent P')
+  type('Pending reply')
+  send()
+  await waitFor(() => expect(page.add).toHaveBeenCalledTimes(1))
+  const article = screen.getByText('Parent Q').closest('article')
+  if (!article) {
+    throw new Error('Missing comment')
+  }
+  expect(within(article).getByRole('button', { name: 'Reply' }).hasAttribute('disabled')).toBe(true)
+  fireEvent.keyDown(screen.getByRole('textbox', { name: 'Comment' }), { key: 'Escape' })
+  expect(screen.getByText('Replying to Pat')).toBeTruthy()
+  await act(async () => gate.resolve())
+})
+
+it('Check again after an unknown write that did not land never sends a new post', async () => {
+  const page = setup()
+  page.add.mockResolvedValueOnce(unknown)
+  type('Not landed')
+  send()
+  await screen.findByText('Not sure it posted')
+  fireEvent.click(screen.getByRole('button', { name: 'Check again' }))
+  await waitFor(() => expect(page.read).toHaveBeenCalledTimes(2))
+  expect(page.add).toHaveBeenCalledTimes(1)
+  expect(screen.getByRole('textbox', { name: 'Comment' })).toHaveProperty('value', 'Not landed')
+})
+
+it('checks the original reply after changing targets and preserves the new draft', async () => {
+  const page = setup([
+    makeComment('Parent P', undefined, 'Pat'),
+    makeComment('Parent Q', undefined, 'Quinn')
+  ])
+  reply('Parent P')
+  page.unknown()
+  type('Original reply')
+  send()
+  await screen.findByText('Not sure it posted')
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+  reply('Parent Q')
+  type('New reply')
+  fireEvent.click(screen.getByRole('button', { name: 'Check again' }))
+  await waitFor(() => expect(page.read).toHaveBeenCalledTimes(2))
+  expect(page.add).toHaveBeenCalledTimes(1)
+  expect(screen.getByRole('textbox', { name: 'Comment' })).toHaveProperty('value', 'New reply')
+  expect(screen.getByText('Replying to Quinn')).toBeTruthy()
+})
+
+it('matches the viewer email without a viewer name', async () => {
+  const page = setup(
+    [makeComment('Email match', undefined, 'USER@EXAMPLE.COM')],
+    null,
+    'user@example.com'
+  )
+  type('Email match')
+  send()
+  await blocked()
+  expect(page.add).not.toHaveBeenCalled()
+})
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'], now: NOW })
@@ -137,8 +256,10 @@ it('P7 keeps an unknown result after a failed check and never posts blindly', as
   await screen.findByText('Could not check comments. Retry before sending.')
   expect(page.add).toHaveBeenCalledTimes(1)
   page.fail(false)
-  send()
-  await blocked()
+  fireEvent.click(screen.getByRole('button', { name: 'Check again' }))
+  await waitFor(() =>
+    expect(screen.getByRole('textbox', { name: 'Comment' })).toHaveProperty('value', '')
+  )
   expect(page.add).toHaveBeenCalledTimes(1)
 })
 
@@ -291,8 +412,9 @@ it('requires an explicit Post anyway for an identical recent comment', async () 
   expect(page.add).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: 'Post anyway' }))
   await waitFor(() => expect(page.add).toHaveBeenCalledTimes(1))
-  expect(page.append).toHaveBeenCalledTimes(1)
-  expect(page.reload).toHaveBeenCalledTimes(1)
+  await waitFor(() => expect(page.append).toHaveBeenCalledTimes(1))
+  await waitFor(() => expect(page.reload).toHaveBeenCalledTimes(1))
+  expect(page.read).toHaveBeenCalledTimes(2)
 })
 
 it('Check again finds a lost-reply comment and clears the draft without resending', async () => {
@@ -335,29 +457,28 @@ it('P4 keeps a late task A result off task B and still guards A after return', a
   expect(page.host.count('dart.addComment')).toBe(1)
 })
 
-it('matches only the viewer, parent, trimmed text and ten-minute window', async () => {
+it('matches the viewer and parent at any age after normalizing line endings, Unicode and whitespace', async () => {
   const page = setup([
-    { ...makeComment('Same', undefined, 'Another user'), createdAt: new Date(NOW).toISOString() },
-    { ...makeComment('Same'), id: 'old', createdAt: new Date(NOW - 600_001).toISOString() },
-    makeComment('Same', 'other-parent'),
-    { ...makeComment('  Same  '), id: 'boundary', createdAt: new Date(NOW - 600_000).toISOString() }
+    {
+      ...makeComment('  Café  \r\nsecond line\t', undefined, 'ALEX EXAMPLE'),
+      createdAt: new Date(NOW - 86_400_000).toISOString()
+    }
   ])
-  type('Same')
+  type('Cafe\u0301\nsecond line')
   send()
   await blocked()
   expect(page.add).not.toHaveBeenCalled()
 })
 
-it('allows other authors, other parents and comments older than ten minutes', async () => {
+it('allows matching text by another author or under another parent', async () => {
   const page = setup([
     makeComment('Same', undefined, 'Another user'),
-    { ...makeComment('Same'), id: 'old', createdAt: new Date(NOW - 600_001).toISOString() },
     makeComment('Same', 'other-parent')
   ])
   type('Same')
   send()
   await waitFor(() => expect(page.add).toHaveBeenCalledTimes(1))
-  expect(screen.queryByText('This comment is already posted')).toBeNull()
+  expect(screen.queryByText('A matching comment is already posted')).toBeNull()
 })
 
 it('refuses to send when the current viewer is unknown', async () => {

@@ -1,28 +1,128 @@
-import { useEffect, useRef, type Dispatch, type RefObject, type SetStateAction } from 'react'
-import type { DartCommentPage, DartTask } from '../../../../../shared/dart/dart-types'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type RefObject,
+  type SetStateAction
+} from 'react'
+import type {
+  DartComment,
+  DartCommentPage,
+  DartTask,
+  DartUser,
+  DartWorkspaceConfig
+} from '../../../../../shared/dart/dart-types'
+import type { RuntimeClientTarget } from '../../../../../shared/runtime-client-target'
 import type { TaskSourceContext } from '../../../../../shared/task-source-context'
 import { taskProviderErrorMessage, taskProviderErrorText } from '@/lib/task-provider-error-copy'
-import type { DartClientResult } from '@/runtime/runtime-dart-client'
+import { dartStatusForTarget, type DartClientResult } from '@/runtime/runtime-dart-client'
+import { dartSupportsWritesV2ForTarget } from '@/runtime/runtime-dart-write-client'
+import { useAppStore } from '@/store'
+import type { DartReadScope } from '@/store/slices/dart/dart-read-coordination'
 import { captureDartEpoch, type DartEpochSnapshot } from '@/store/slices/dart/dart-task-identity'
-import { readPastDartWrites } from './dart-stale-read'
+import { readPastDartWrites, withLocalComments } from './dart-stale-read'
+import { readAllDartComments } from './dart-comment-reload'
 import { pendingDartPatches } from './dart-task-write-queue'
 import type { DartCommentsView, DartDetailLoadState } from './TaskDetailView'
 const LOADING_STATE = { status: 'loading' } as const
 
 type Identity = { hostKey: string; accountKey: string; taskId: string }
+export function useDartCommentsRead(
+  localCommentsRef: RefObject<DartComment[]>,
+  setComments: Dispatch<SetStateAction<DartDetailLoadState<DartCommentsView>>>
+) {
+  const applyCommentsRead = useCallback(
+    (result: DartClientResult<DartCommentPage>, current: boolean, _reload: boolean) => {
+      if (!current) {
+        setComments((shown) =>
+          shown.status === 'ready'
+            ? shown
+            : { status: 'error', message: taskProviderErrorText(undefined, 'dart.loadFailed') }
+        )
+        return
+      }
+      if (result.ok) {
+        // Once Dart lists a comment its order wins; until then a just-added one must not vanish.
+        localCommentsRef.current = localCommentsRef.current.filter(
+          (local) => !result.comments.some((comment) => comment.id === local.id)
+        )
+      }
+      setComments(() => {
+        if (result.ok) {
+          return {
+            status: 'ready',
+            value: withLocalComments(
+              { comments: result.comments, totalCount: result.totalCount },
+              localCommentsRef.current
+            )
+          }
+        }
+        return { status: 'error', message: taskProviderErrorMessage(result) }
+      })
+    },
+    [localCommentsRef, setComments]
+  )
+  return applyCommentsRead
+}
+export function useDartDetailMetadata(
+  identity: Identity | null,
+  scope: DartReadScope,
+  sourceContext: TaskSourceContext | null,
+  viewerScope: string
+) {
+  const fetchDartConfig = useAppStore((s) => s.fetchDartConfig)
+  const [config, setConfig] = useState<DartWorkspaceConfig | null>(null)
+  const [supportsWritesV2, setSupportsWritesV2] = useState(false)
+  const [detailViewer, setDetailViewer] = useState<{
+    scope: string
+    viewer: DartUser | null
+  } | null>(null)
+  useEffect(() => {
+    if (!identity) {
+      return
+    }
+    let cancelled = false
+    setConfig(null)
+    setSupportsWritesV2(false)
+    setDetailViewer(null)
+    void dartStatusForTarget(scope.target)
+      .then((status) => {
+        if (!cancelled) {
+          setDetailViewer({ scope: viewerScope, viewer: status.viewer ?? null })
+        }
+      })
+      .catch(() => {})
+    void fetchDartConfig({ sourceContext })
+      .then((result) => {
+        if (!cancelled && result.ok) {
+          setConfig(result.config)
+        }
+      })
+      .catch(() => {})
+    void dartSupportsWritesV2ForTarget(scope.target).then((supported) => {
+      if (!cancelled) {
+        setSupportsWritesV2(supported)
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [identity, scope, sourceContext, fetchDartConfig, viewerScope])
+  return { config, supportsWritesV2, detailViewer }
+}
+
 type Options = {
   taskId: string | null
   identity: Identity | null
   sourceContext: TaskSourceContext | null
   reloadNonce: number
+  target: RuntimeClientTarget
   fetchDartTask: (
     taskId: string,
     options: { sourceContext: TaskSourceContext | null; force: boolean }
   ) => Promise<DartClientResult<{ task: DartTask }>>
-  listDartComments: (
-    taskId: string,
-    options: { sourceContext: TaskSourceContext | null; force: boolean }
-  ) => Promise<DartClientResult<DartCommentPage>>
   setFull: Dispatch<SetStateAction<DartDetailLoadState<DartTask>>>
   setComments: Dispatch<SetStateAction<DartDetailLoadState<DartCommentsView>>>
   applyCommentsRead: (
@@ -50,8 +150,8 @@ export function useDartTaskDetailReads({
   identity,
   sourceContext,
   reloadNonce,
+  target,
   fetchDartTask,
-  listDartComments,
   setFull,
   setComments,
   applyCommentsRead,
@@ -138,7 +238,7 @@ export function useDartTaskDetailReads({
       captureEpoch,
       cancelled: isCancelled,
       force,
-      read: (forced) => listDartComments(taskId, { sourceContext, force: forced })
+      read: () => readAllDartComments(target, taskId)
     })
       .then(({ result, current }) => {
         if (
@@ -173,8 +273,8 @@ export function useDartTaskDetailReads({
     identity,
     sourceContext,
     reloadNonce,
+    target,
     fetchDartTask,
-    listDartComments,
     applyCommentsRead,
     setFull,
     setComments,

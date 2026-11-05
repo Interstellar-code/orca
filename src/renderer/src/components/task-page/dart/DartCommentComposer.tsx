@@ -7,17 +7,13 @@ import { ImeTextarea } from '@/lib/ime-text-field'
 import { hasBoundedCommentBodyText } from '@/lib/comment-body-submit-state'
 import { useDartCommentReplyEscape } from './use-dart-comment-reply-escape'
 import { getScreenSubmitShortcutLabel, isScreenSubmitShortcut } from '@/lib/screen-submit-shortcut'
-import { useAppStore } from '@/store'
 import {
   beginDartCommentSend,
   clearCompletedDartComment,
-  clearDartCommentSendState,
   dartCommentReadFailedNotice,
   dartCommentViewerUnknownNotice,
   dartCommentRefusedNotice,
   dartCommentUnknownNotice,
-  dartDraftsFullWarning,
-  dartFullDraftCopyText,
   endDartCommentSend,
   draftCommentText,
   getDartCommentSendState,
@@ -26,11 +22,11 @@ import {
   reconcileDartCommentRead,
   subscribeDartCommentSendState
 } from './dart-comment-send-state'
-import { canSubmitDartComment, hasRecentDartComment } from './dart-comment-duplicate'
-import { clearDraft, oldestDirtyDraft, setDraft } from './dart-draft-store'
-import { setDartReplyTarget } from './dart-reply-target-store'
+import { canSubmitDartComment, hasMatchingDartComment } from './dart-comment-duplicate'
+import { clearDraft, setDraft } from './dart-draft-store'
 import type { DartDetailCommentsApi } from './dart-detail-contracts'
 import { DartTaskDetailNotice } from './TaskDetailNotice'
+import { DartCommentDraftWarning } from './DartCommentDraftWarning'
 
 export function DartCommentComposer({
   draftKey,
@@ -40,7 +36,8 @@ export function DartCommentComposer({
   reloadComments,
   appendLocalComment,
   readLatestComments,
-  viewerName
+  viewerName,
+  viewerEmail = null
 }: {
   draftKey: string
   replyTo: DartComment | null
@@ -50,6 +47,7 @@ export function DartCommentComposer({
   appendLocalComment: DartDetailCommentsApi['appendLocalComment']
   readLatestComments: () => Promise<DartComment[]>
   viewerName: string | null
+  viewerEmail?: string | null
 }): React.JSX.Element {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -60,15 +58,11 @@ export function DartCommentComposer({
   currentReplyId.current = replyTo?.id ?? null
   const currentDraftKey = useRef(draftKey)
   currentDraftKey.current = draftKey
-  const currentContext = useRef({ viewerName, onAddComment, readLatestComments })
-  currentContext.current = { viewerName, onAddComment, readLatestComments }
-  const oldest = sendState.saved ? null : oldestDirtyDraft()
-  const draftsFullWarning = useAppStore((state) =>
-    oldest ? dartDraftsFullWarning(state, oldest) : null
-  )
+  const currentContext = useRef({ viewerName, viewerEmail, onAddComment, readLatestComments })
+  currentContext.current = { viewerName, viewerEmail, onAddComment, readLatestComments }
   const submitting = sendState.inFlight
   const text = sendState.text ?? draftCommentText(draftKey)
-  useDartCommentReplyEscape(rootRef, textareaRef, replyTo, onCancelReply)
+  useDartCommentReplyEscape(rootRef, textareaRef, replyTo, onCancelReply, submitting)
   useEffect(() => {
     mountedRef.current = true
     return () => {
@@ -83,7 +77,7 @@ export function DartCommentComposer({
     }
     const nextReplyId = replyTo?.id ?? null
     if (previousReplyId.current !== nextReplyId) {
-      patchDartCommentSendState(draftKey, { duplicate: null, notice: null })
+      patchDartCommentSendState(draftKey, { duplicate: null })
     }
     previousReplyId.current = nextReplyId
   }, [draftKey, replyTo])
@@ -104,7 +98,7 @@ export function DartCommentComposer({
   const updateText = useCallback(
     (next: string): void => {
       persistDraft(next)
-      patchDartCommentSendState(draftKey, { duplicate: null, refusalNotice: null, notice: null })
+      patchDartCommentSendState(draftKey, { duplicate: null, refusalNotice: null })
     },
     [draftKey, persistDraft]
   )
@@ -116,8 +110,14 @@ export function DartCommentComposer({
       if (before.inFlight || submission.status === 'empty') {
         return
       }
+      if (before.recheckFailed) {
+        patchDartCommentSendState(draftKey, { recheckFailed: false })
+      }
       if (submission.status === 'refused') {
-        patchDartCommentSendState(draftKey, { refusalNotice: submission.notice })
+        patchDartCommentSendState(draftKey, {
+          refusalNotice: submission.notice,
+          recheckFailed: false
+        })
         return
       }
       const parentId = replyTo?.id ?? null
@@ -128,8 +128,14 @@ export function DartCommentComposer({
         return
       }
       try {
-        if (!viewerName) {
-          patchDartCommentSendState(draftKey, { refusalNotice: dartCommentViewerUnknownNotice() })
+        const viewerIdentities = [viewerName, viewerEmail].filter(
+          (value): value is string => !!value?.trim()
+        )
+        if (viewerIdentities.length === 0) {
+          patchDartCommentSendState(draftKey, {
+            refusalNotice: dartCommentViewerUnknownNotice(),
+            recheckFailed: false
+          })
           return
         }
         let comments: DartComment[]
@@ -138,7 +144,8 @@ export function DartCommentComposer({
         } catch {
           patchDartCommentSendState(draftKey, {
             duplicate: null,
-            refusalNotice: dartCommentReadFailedNotice()
+            refusalNotice: dartCommentReadFailedNotice(),
+            recheckFailed: false
           })
           return
         }
@@ -148,6 +155,7 @@ export function DartCommentComposer({
           currentDraftKey.current !== draftKey ||
           latest.generation !== before.generation ||
           currentContext.current.viewerName !== viewerName ||
+          currentContext.current.viewerEmail !== viewerEmail ||
           currentContext.current.onAddComment !== onAddComment ||
           currentContext.current.readLatestComments !== readLatestComments ||
           (latest.text ?? draftCommentText(draftKey)) !== text ||
@@ -157,7 +165,7 @@ export function DartCommentComposer({
         }
         if (
           !postAnyway &&
-          hasRecentDartComment(comments, viewerName, submission.body, parentId, Date.now())
+          hasMatchingDartComment(comments, viewerIdentities, submission.body, parentId)
         ) {
           patchDartCommentSendState(draftKey, {
             duplicate: { body: submission.body, parentId },
@@ -178,13 +186,16 @@ export function DartCommentComposer({
             currentReplyId.current === parentId &&
             currentDraftKey.current === draftKey
           ) {
-            clearCompletedDartComment(draftKey)
+            clearCompletedDartComment(draftKey, parentId)
           }
           appendLocalComment(result.comment)
           await reloadComments().catch(() => {})
         } else if (result.outcome === 'unknown') {
           if (current.generation === before.generation) {
-            patchDartCommentSendState(draftKey, { notice: dartCommentUnknownNotice() })
+            patchDartCommentSendState(draftKey, {
+              notice: dartCommentUnknownNotice(),
+              unknownSubmission: { body: text, parentId }
+            })
           }
           await reloadComments().catch(() => {})
         } else {
@@ -202,41 +213,64 @@ export function DartCommentComposer({
       reloadComments,
       replyTo,
       text,
-      viewerName
+      viewerName,
+      viewerEmail
     ]
   )
 
   const recheck = useCallback(async (): Promise<void> => {
     const before = getDartCommentSendState(draftKey)
-    const body = before.text ?? draftCommentText(draftKey)
-    const parentId = currentReplyId.current
+    const body = before.unknownSubmission?.body ?? before.text ?? draftCommentText(draftKey)
+    const parentId = before.unknownSubmission
+      ? before.unknownSubmission.parentId
+      : currentReplyId.current
+    const viewerIdentities = [viewerName, viewerEmail].filter(
+      (value): value is string => !!value?.trim()
+    )
     try {
       const comments = await readLatestComments()
       if (
         !mountedRef.current ||
         currentDraftKey.current !== draftKey ||
+        getDartCommentSendState(draftKey).generation !== before.generation ||
+        getDartCommentSendState(draftKey).notice !== before.notice ||
         currentContext.current.viewerName !== viewerName ||
+        currentContext.current.viewerEmail !== viewerEmail ||
         currentContext.current.readLatestComments !== readLatestComments
       ) {
         return
       }
+      patchDartCommentSendState(draftKey, { recheckFailed: false })
       if (
         reconcileDartCommentRead(
           draftKey,
           before,
           body,
           parentId,
-          viewerName,
+          viewerIdentities,
           comments,
           currentReplyId.current
         )
       ) {
-        clearCompletedDartComment(draftKey)
+        clearCompletedDartComment(draftKey, parentId)
       }
     } catch {
-      patchDartCommentSendState(draftKey, { refusalNotice: dartCommentReadFailedNotice() })
+      if (
+        mountedRef.current &&
+        currentDraftKey.current === draftKey &&
+        currentContext.current.viewerName === viewerName &&
+        currentContext.current.viewerEmail === viewerEmail &&
+        currentContext.current.readLatestComments === readLatestComments &&
+        getDartCommentSendState(draftKey).generation === before.generation &&
+        getDartCommentSendState(draftKey).notice === before.notice
+      ) {
+        patchDartCommentSendState(draftKey, {
+          refusalNotice: dartCommentReadFailedNotice(),
+          recheckFailed: true
+        })
+      }
     }
-  }, [draftKey, readLatestComments, viewerName])
+  }, [draftKey, readLatestComments, viewerName, viewerEmail])
 
   const replyAuthor = replyTo?.author
   const canSend = hasBoundedCommentBodyText(text)
@@ -280,7 +314,9 @@ export function DartCommentComposer({
               variant="outline"
               size="xs"
               disabled={submitting}
-              onClick={() => void submit({ postAnyway: false })}
+              onClick={() =>
+                void (sendState.recheckFailed ? recheck() : submit({ postAnyway: false }))
+              }
             >
               {translate('auto.components.task.page.dart.DartCommentComposer.retry', 'Retry')}
             </Button>
@@ -300,7 +336,7 @@ export function DartCommentComposer({
           <p>
             {translate(
               'auto.components.task.page.dart.DartCommentComposer.duplicate',
-              'This comment is already posted'
+              'A matching comment is already posted'
             )}
           </p>
           <Button
@@ -317,43 +353,7 @@ export function DartCommentComposer({
           </Button>
         </div>
       ) : null}
-      {oldest ? (
-        <div
-          role="alert"
-          className="flex items-start justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive"
-        >
-          <span className="min-w-0 break-words">{draftsFullWarning}</span>
-          <span className="flex flex-none gap-1">
-            <Button
-              type="button"
-              variant="outline"
-              size="xs"
-              onClick={() => {
-                void window.api.ui?.writeClipboardText(dartFullDraftCopyText(oldest))
-              }}
-            >
-              {translate('auto.components.task.page.dart.DartCommentComposer.copyOldest', 'Copy')}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              onClick={() => {
-                clearDraft(oldest.key)
-                // That draft's own state must not resurrect text the store no longer has.
-                clearDartCommentSendState(oldest.key)
-                setDartReplyTarget(oldest.key, null)
-                persistDraft(text)
-              }}
-            >
-              {translate(
-                'auto.components.task.page.dart.DartCommentComposer.discardOldest',
-                'Discard it'
-              )}
-            </Button>
-          </span>
-        </div>
-      ) : null}
+      <DartCommentDraftWarning saved={sendState.saved} onDiscard={() => persistDraft(text)} />
       <div className="flex items-end gap-2">
         <ImeTextarea
           ref={textareaRef}

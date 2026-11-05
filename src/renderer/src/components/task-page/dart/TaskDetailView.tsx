@@ -31,6 +31,7 @@ export type DartTaskDetailViewProps = {
   commentsApi: DartDetailCommentsApi & {
     readLatestComments(): Promise<DartComment[]>
     viewerName: string | null
+    viewerEmail?: string | null
   }
   descriptionApi: DartDetailDescriptionApi
   notice: DartNoticeApi

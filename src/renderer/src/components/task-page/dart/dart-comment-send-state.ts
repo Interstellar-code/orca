@@ -17,20 +17,27 @@ import {
   type DartDraftValue
 } from './dart-draft-store'
 import { clearDraft } from './dart-draft-store'
-import { setDartReplyTarget } from './dart-reply-target-store'
-import { hasRecentDartComment } from './dart-comment-duplicate'
+import { getDartReplyTarget, setDartReplyTarget } from './dart-reply-target-store'
+import { hasMatchingDartComment } from './dart-comment-duplicate'
 import type { DartWriteNotice } from './dart-detail-contracts'
 
-export function clearCompletedDartComment(draftKey: string): void {
+export function clearCompletedDartComment(draftKey: string, sentParentId?: string | null): void {
   clearDraft(draftKey)
-  setDartReplyTarget(draftKey, null)
+  const target = getDartReplyTarget(draftKey)
+  if (sentParentId === undefined || (target?.id ?? null) === sentParentId) {
+    setDartReplyTarget(draftKey, null)
+  }
   patchDartCommentSendState(draftKey, {
     text: null,
     saved: true,
+    duplicate: null,
     notice: null,
-    refusalNotice: null
+    unknownSubmission: null,
+    refusalNotice: null,
+    recheckFailed: false
   })
 }
+
 export function dartCommentViewerUnknownNotice(): DartWriteNotice {
   return {
     kind: 'refused',
@@ -54,25 +61,28 @@ export function reconcileDartCommentRead(
   before: DartCommentSendState,
   body: string,
   parentId: string | null,
-  viewerName: string | null,
+  viewerIdentities: readonly string[],
   comments: readonly DartComment[],
   currentParentId: string | null
 ): boolean {
   const current = getDartCommentSendState(draftKey)
   const now = Date.now()
+  const expected = before.unknownSubmission ?? { body, parentId }
   const found = Boolean(
-    body.trim() &&
+    expected.body.trim() &&
     before.notice?.kind === 'unknown' &&
-    viewerName &&
-    hasRecentDartComment(comments, viewerName, body, parentId, now) &&
+    viewerIdentities.length > 0 &&
+    hasMatchingDartComment(comments, viewerIdentities, expected.body, expected.parentId) &&
     current.notice === before.notice &&
     current.generation === before.generation &&
-    (current.text ?? draftCommentText(draftKey)) === body &&
-    currentParentId === parentId
+    (current.text ?? draftCommentText(draftKey)) === expected.body &&
+    (before.unknownSubmission !== null || currentParentId === expected.parentId)
   )
   if (!found) {
     patchDartCommentSendState(draftKey, (latest) => ({
-      ...(latest.notice?.kind === 'unknown'
+      ...(latest.notice?.kind === 'unknown' &&
+      latest.notice === before.notice &&
+      latest.generation === before.generation
         ? { notice: { ...latest.notice, checkedAt: now } }
         : {}),
       refusalNotice: null
@@ -94,8 +104,10 @@ export type DartCommentSendState = {
   saved: boolean
   inFlight: boolean
   duplicate: { body: string; parentId: string | null } | null
+  unknownSubmission: { body: string; parentId: string | null } | null
   refusalNotice: DartWriteNotice | null
   generation: number
+  recheckFailed: boolean
   notice: DartWriteNotice | null
 }
 
@@ -104,6 +116,8 @@ const EMPTY_STATE: DartCommentSendState = {
   saved: true,
   inFlight: false,
   duplicate: null,
+  unknownSubmission: null,
+  recheckFailed: false,
   refusalNotice: null,
   generation: 0,
   notice: null

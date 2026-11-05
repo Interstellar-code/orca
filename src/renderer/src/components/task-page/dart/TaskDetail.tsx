@@ -94,6 +94,7 @@ export function TaskPageDartTaskDetail({
               appendLocalComment: data.appendLocalComment,
               readLatestComments: data.readLatestComments,
               viewerName: data.viewerName,
+              viewerEmail: data.viewerEmail,
               draftKey: data.commentDraftKey
             }}
             descriptionApi={{

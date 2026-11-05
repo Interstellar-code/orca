@@ -1,6 +1,5 @@
 import type { DartComment, DartCommentPage } from '../../../../../shared/dart/dart-types'
 import type { RuntimeClientTarget } from '../../../../../shared/runtime-client-target'
-import type { TaskSourceContext } from '../../../../../shared/task-source-context'
 import { taskProviderErrorMessage, taskProviderErrorText } from '@/lib/task-provider-error-copy'
 import { dartListCommentsForTarget, type DartClientResult } from '@/runtime/runtime-dart-client'
 import { captureDartEpoch, type DartTaskIdentity } from '@/store/slices/dart/dart-task-identity'
@@ -39,12 +38,9 @@ export async function readAllDartComments(
 
 export async function reloadDartComments(args: {
   identity: DartTaskIdentity
-  sourceContext: TaskSourceContext | null
-  listDartComments: (
-    taskId: string,
-    options: { sourceContext: TaskSourceContext | null; force: boolean }
-  ) => Promise<DartClientResult<DartCommentPage>>
+  target: RuntimeClientTarget
   isLatestRead: () => boolean
+  onError: () => void
   applyCommentsRead: (
     result: DartClientResult<DartCommentPage>,
     current: boolean,
@@ -54,12 +50,11 @@ export async function reloadDartComments(args: {
   const read = await readPastDartWrites({
     captureEpoch: () => captureDartEpoch(args.identity),
     force: true,
-    read: () =>
-      args.listDartComments(args.identity.taskId, {
-        sourceContext: args.sourceContext,
-        force: true
-      })
+    read: () => readAllDartComments(args.target, args.identity.taskId)
   }).catch(() => null)
+  if (!read && args.isLatestRead()) {
+    args.onError()
+  }
   if (read && args.isLatestRead()) {
     args.applyCommentsRead(read.result, read.current, true)
     if (!read.result.ok) {

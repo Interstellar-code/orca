@@ -10,12 +10,13 @@ export function useDartCommentReplyEscape(
   rootRef: RefObject<HTMLDivElement | null>,
   textareaRef: RefObject<HTMLTextAreaElement | null>,
   replyTo: DartComment | null,
-  onCancelReply: () => void
+  onCancelReply: () => void,
+  inFlight: boolean
 ): void {
   // Radix dismisses the sheet from a capture listener that runs before the textarea's own keydown;
   // this window listener runs earlier still, so vetoing cancels the reply, not the sheet.
   useEffect(() => {
-    if (!replyTo) {
+    if (!replyTo && !inFlight) {
       return
     }
     const onKeyDown = (event: KeyboardEvent): void => {
@@ -33,10 +34,12 @@ export function useDartCommentReplyEscape(
       }
       event.preventDefault()
       event.stopPropagation()
-      onCancelReply()
-      textareaRef.current?.focus()
+      if (!inFlight && replyTo) {
+        onCancelReply()
+        textareaRef.current?.focus()
+      }
     }
     window.addEventListener('keydown', onKeyDown, { capture: true })
     return () => window.removeEventListener('keydown', onKeyDown, { capture: true })
-  }, [onCancelReply, replyTo, rootRef, textareaRef])
+  }, [inFlight, onCancelReply, replyTo, rootRef, textareaRef])
 }
