@@ -76,8 +76,14 @@ export function clearDartProviderVerdictCacheForTests(): void {
 async function dartCall<M extends DartMethodName>(
   method: M,
   params?: DartMethodContract[M]['params'],
+  timeoutMs?: number
+): Promise<DartMethodContract[M]['reply']>
+// Why: the overload fixes each method's reply type; the body only forwards what the host sent.
+async function dartCall(
+  method: DartMethodName,
+  params?: unknown,
   timeoutMs = DART_READ_TIMEOUT_MS
-): Promise<DartMethodContract[M]['reply']> {
+): Promise<unknown> {
   // Why: a host without the capability must be updated; its Dart calls are never sent.
   let supported: boolean
   try {
@@ -86,11 +92,7 @@ async function dartCall<M extends DartMethodName>(
     // Nothing was sent, so a write is known not to have applied.
     if (DART_WRITE_METHODS.has(method)) {
       const message = error instanceof Error ? error.message : String(error)
-      return {
-        ok: false,
-        error: message,
-        outcome: 'notApplied'
-      } as DartMethodContract[M]['reply']
+      return { ok: false, error: message, outcome: 'notApplied' }
     }
     throw error
   }
@@ -99,16 +101,9 @@ async function dartCall<M extends DartMethodName>(
       throw new DartUpdateRequiredError()
     }
     const failure = { ok: false as const, error: dartUpdateRequiredMessage() }
-    // SAFETY: every Dart reply type admits the contract failure shape.
-    return (
-      DART_WRITE_METHODS.has(method) ? { ...failure, outcome: 'notApplied' } : failure
-    ) as DartMethodContract[M]['reply']
+    return DART_WRITE_METHODS.has(method) ? { ...failure, outcome: 'notApplied' } : failure
   }
-  const response = await callRuntimeEnvelope<DartMethodContract[M]['reply']>(
-    method,
-    params,
-    timeoutMs
-  )
+  const response = await callRuntimeEnvelope(method, params, timeoutMs)
   if (response.ok) {
     return response.result
   }

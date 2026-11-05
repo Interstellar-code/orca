@@ -69,21 +69,22 @@ describe('web dart status capability gate', () => {
       .status()
       .catch((e: unknown) => e)
     expect(error).toMatchObject({ message: 'offline' })
-    expect((error as Error).name).not.toBe('DartUpdateRequiredError')
+    expect(error).not.toMatchObject({ name: 'DartUpdateRequiredError' })
     expect(mocks.callRuntimeEnvelope).not.toHaveBeenCalled()
   })
 
   it('sends nothing from any other method to a host without dart.provider.v1', async () => {
     mocks.getRemoteRuntimeStatus.mockResolvedValue({ capabilities: [] })
     const api = createWebDartApi()
-    await expect(api.listTasks({} as never)).resolves.toMatchObject({ ok: false })
-    await expect(api.getTask({ taskId: 'abcDEF123456' } as never)).resolves.toMatchObject({
+    await expect(api.listTasks({})).resolves.toMatchObject({ ok: false })
+    await expect(api.getTask({ taskId: 'abcDEF123456' })).resolves.toMatchObject({
       ok: false
     })
     await expect(api.connect({ apiToken: 't' })).resolves.toMatchObject({ ok: false })
-    await expect(
-      api.updateTask({ taskId: 'abcDEF123456', updates: {} } as never)
-    ).resolves.toMatchObject({ ok: false, outcome: 'notApplied' })
+    await expect(api.updateTask({ taskId: 'abcDEF123456', updates: {} })).resolves.toMatchObject({
+      ok: false,
+      outcome: 'notApplied'
+    })
     expect(mocks.callRuntimeEnvelope).not.toHaveBeenCalled()
   })
 
@@ -144,7 +145,7 @@ describe('web dart provider probe', () => {
   it('returns notApplied without sending when a write cannot probe the host', async () => {
     mocks.getRemoteRuntimeStatus.mockRejectedValue(new Error('offline'))
     await expect(
-      createWebDartApi().addComment({ taskId: 'abcDEF123456', text: 'hi' } as never)
+      createWebDartApi().addComment({ taskId: 'abcDEF123456', text: 'hi' })
     ).resolves.toEqual({ ok: false, error: 'offline', outcome: 'notApplied' })
     expect(mocks.callRuntimeEnvelope).not.toHaveBeenCalled()
   })
@@ -154,7 +155,7 @@ describe('web dart provider probe', () => {
     mocks.assertActiveEnvironment.mockImplementation(() => {
       throw new Error('environment changed')
     })
-    await expect(createWebDartApi().createTask({ title: 't' } as never)).resolves.toEqual({
+    await expect(createWebDartApi().createTask({ title: 't' })).resolves.toEqual({
       ok: false,
       error: 'environment changed',
       outcome: 'notApplied'
