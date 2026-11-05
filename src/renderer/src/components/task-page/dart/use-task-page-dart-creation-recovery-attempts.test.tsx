@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DartWorkspaceConfig } from '../../../../../shared/dart/dart-types'
 import { getDefaultSettings } from '../../../../../shared/constants'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
 import { useAppStore } from '@/store'
 import {
   installFakeDartRuntime,
@@ -81,8 +82,10 @@ function renderDialog(initial: DartWorkspaceConfig | null = config) {
     const dartStatus = useAppStore((s) => s.dartStatus)
     const current = useAppStore((s) => s.dartStatusContextKey)
     const settings = useAppStore((s) => s.settings)
+    const providerRuntimeContextKey = useAppStore((s) => getProviderRuntimeContextKey(s.settings))
     const dartConnected = current === getDartReadScope(settings).contextKey && dartStatus.connected
     const hook = useTaskPageDartCreation({
+      providerRuntimeContextKey,
       taskSource: 'dart',
       dartConnected,
       dartUpdateRequired: false,
@@ -93,7 +96,7 @@ function renderDialog(initial: DartWorkspaceConfig | null = config) {
       noteDartTaskCreated: vi.fn(),
       openDartDetailPage: vi.fn()
     })
-    const model = { ...hook, dartConfig: cfg } as DartCreateDialogModel
+    const model: DartCreateDialogModel = { ...hook, dartConfig: cfg }
     latest = model
     return (
       <>
@@ -112,7 +115,7 @@ function renderDialog(initial: DartWorkspaceConfig | null = config) {
 }
 const tick = () =>
   act(async () => {
-    await new Promise((r) => setTimeout(r, 20))
+    await Promise.resolve()
   })
 type U = ReturnType<typeof userEvent.setup>
 const newTask = (u: U) => u.click(screen.getByRole('button', { name: 'New task', hidden: true }))
@@ -130,33 +133,48 @@ async function send401(u: U, code = 'dart.unauthorized') {
 const lists = () =>
   host.requests
     .filter((r) => r.method === 'dart.listTasks')
-    .map((r) => `${r.params.title}|${(r.params as { dartboard?: string }).dartboard ?? ''}`)
+    .map(
+      (r) =>
+        `${r.params.title}|${'dartboard' in r.params && typeof r.params.dartboard === 'string' ? r.params.dartboard : ''}`
+    )
+type HostParams = Parameters<FakeDartHost['handle']>[1]
+const createdTaskId = (reply: object): string | null =>
+  'ok' in reply &&
+  reply.ok === true &&
+  'task' in reply &&
+  typeof reply.task === 'object' &&
+  reply.task !== null &&
+  'id' in reply.task &&
+  typeof reply.task.id === 'string'
+    ? reply.task.id
+    : null
 const lostOnce = () => {
   const orig = host.handle.bind(host)
-  host.handle = (async (m: string, p: never) => {
-    const r = (await orig(m, p)) as { ok?: boolean; task?: { id: string } }
-    if (m === 'dart.createTask' && r.ok) {
-      host.tasks.delete(r.task!.id)
+  host.handle = async (m: string, p: HostParams) => {
+    const r = await orig(m, p)
+    const id = m === 'dart.createTask' ? createdTaskId(r) : null
+    if (id) {
+      host.tasks.delete(id)
       return { ok: false, error: 'Lost', outcome: 'unknown' }
     }
     return r
-  }) as never
+  }
 }
-const truncate = (when: (p: { title?: string }) => boolean) => {
+const truncate = (when: (p: HostParams) => boolean) => {
   const orig = host.handle.bind(host)
-  host.handle = (async (m: string, p: { title?: string }) => {
-    const r = (await orig(m, p as never)) as { ok?: boolean }
-    return m === 'dart.listTasks' && when(p) && r.ok ? { ...r, totalCount: 500 } : r
-  }) as never
+  host.handle = async (m: string, p: HostParams) => {
+    const r = await orig(m, p)
+    return m === 'dart.listTasks' && when(p) && 'ok' in r && r.ok ? { ...r, totalCount: 500 } : r
+  }
 }
-const failList = (when: (p: { title?: string }) => boolean) => {
+const failList = (when: (p: HostParams) => boolean) => {
   const orig = host.handle.bind(host)
-  host.handle = (async (m: string, p: { title?: string }) => {
+  host.handle = async (m: string, p: HostParams) => {
     if (m === 'dart.listTasks' && when(p)) {
       return { ok: false, error: 'List down' }
     }
-    return orig(m, p as never)
-  }) as never
+    return orig(m, p)
+  }
 }
 async function twoAttempts(u: U, first: string, second: string) {
   lostOnce()
@@ -195,10 +213,8 @@ describe('dart create recovery attempts', () => {
     await act(async () => {
       await latest.createAnyway()
     })
-    const creates = host.requests.filter((r) => r.method === 'dart.createTask') as {
-      params: { dartboard?: string }
-    }[]
-    expect(creates.every((c) => c.params.dartboard === 'A')).toBe(true)
+    const creates = host.requests.filter((r) => r.method === 'dart.createTask')
+    expect(creates.every((c) => 'dartboard' in c.params && c.params.dartboard === 'A')).toBe(true)
   })
   it('pAllAttempts: three uncertain attempts are all searched', async () => {
     const u = userEvent.setup()
@@ -352,7 +368,6 @@ describe('dart create recovery attempts', () => {
     })
     await act(async () => {
       release()
-      await new Promise((r) => setTimeout(r, 20))
     })
     expect(useAppStore.getState().dartStatus.viewer?.id).toBe('user-a')
     act(() => switchTo(null, null))
@@ -370,7 +385,6 @@ describe('dart create recovery attempts', () => {
     await tick()
     await act(async () => {
       release()
-      await new Promise((r) => setTimeout(r, 20))
     })
     expect(latest.createTokenRejected).toBe(false)
     act(() => switchTo(null, null))

@@ -4,6 +4,7 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DartTask, DartWorkspaceConfig } from '../../../../../shared/dart/dart-types'
 import type { TaskSourceContext } from '../../../../../shared/task-source-context'
+import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
 import { useAppStore } from '@/store'
 import type { DartClientResult } from '@/runtime/runtime-dart-client'
 import {
@@ -15,6 +16,8 @@ import { bumpDartEpochs } from '@/store/slices/dart/dart-task-identity'
 import { useDartTaskDetailData } from './use-dart-task-detail-data'
 import { useTaskPageDartState, type TaskPageDartStateInput } from './use-task-page-dart-state'
 
+type PageInput = Omit<TaskPageDartStateInput, 'providerRuntimeContextKey'>
+
 const viewer = { id: 'uSeR1d2e3f4g', name: 'Alex Example' }
 const task: DartTask = {
   id: 'aB3dE5gH7jK9',
@@ -23,7 +26,7 @@ const task: DartTask = {
   tags: []
 }
 
-function setup(overrides: Partial<TaskPageDartStateInput> = {}) {
+function setup(overrides: Partial<PageInput> = {}) {
   const settings = useAppStore.getState().settings
   useAppStore.setState({
     dartStatus: { connected: true, viewer },
@@ -32,7 +35,7 @@ function setup(overrides: Partial<TaskPageDartStateInput> = {}) {
   const listDartTasks = vi.fn(() =>
     Promise.resolve({ ok: true as const, tasks: [task], totalCount: 1 })
   )
-  const input: TaskPageDartStateInput = {
+  const input: PageInput = {
     taskSource: 'dart',
     dartConnected: true,
     dartStatus: { connected: true, viewer },
@@ -56,7 +59,12 @@ function setup(overrides: Partial<TaskPageDartStateInput> = {}) {
     ),
     ...overrides
   }
-  const hook = renderHook(() => useTaskPageDartState({ ...input }))
+  const hook = renderHook(() =>
+    useTaskPageDartState({
+      ...input,
+      providerRuntimeContextKey: useAppStore((s) => getProviderRuntimeContextKey(s.settings))
+    })
+  )
   return { listDartTasks, hook }
 }
 
@@ -234,7 +242,7 @@ describe('useTaskPageDartState with the write queue', () => {
     }
     const row = dartTaskFixture(taskId)
     const state = useAppStore.getState()
-    const input: TaskPageDartStateInput = {
+    const input: PageInput = {
       taskSource: 'dart',
       dartConnected: true,
       dartStatus: { connected: true, viewer: fakeViewer },
@@ -244,10 +252,13 @@ describe('useTaskPageDartState with the write queue', () => {
       fetchDartTask: state.fetchDartTask,
       fetchDartConfig: state.fetchDartConfig
     }
-    const hook = renderHook(() => ({
-      list: useTaskPageDartState({ ...input }),
-      detail: useDartTaskDetailData(row, context)
-    }))
+    const hook = renderHook(() => {
+      const pageKey = useAppStore((s) => getProviderRuntimeContextKey(s.settings))
+      return {
+        list: useTaskPageDartState({ ...input, providerRuntimeContextKey: pageKey }),
+        detail: useDartTaskDetailData(row, context, pageKey)
+      }
+    })
     const edit = (status: string) => hook.result.current.detail.onUpdate({ status }, { status })
     const shownRow = () => hook.result.current.list.dartTasks.find((task) => task.id === taskId)
     const refresh = () => hook.result.current.list.setDartRefreshNonce((nonce) => nonce + 1)

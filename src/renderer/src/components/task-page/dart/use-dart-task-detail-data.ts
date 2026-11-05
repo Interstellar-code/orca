@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DartComment, DartTask } from '../../../../../shared/dart/dart-types'
 import type { TaskSourceContext } from '../../../../../shared/task-source-context'
-import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
 import { taskProviderErrorMessage, taskProviderErrorText } from '@/lib/task-provider-error-copy'
 import { runtimeTargetEnvironmentId } from '@/runtime/runtime-client-target'
 import { useAppStore } from '@/store'
-import { getDartReadScope } from '@/store/slices/dart/dart-read-coordination'
+import {
+  dartExplicitScope,
+  dartPageScopeFromContextKey
+} from '@/store/slices/dart/dart-read-coordination'
 import {
   captureDartEpoch,
   dartAccountIdentity,
@@ -31,11 +33,10 @@ const LOADING_STATE = { status: 'loading' } as const
 
 export function useDartTaskDetailData(
   task: DartTask | null,
-  sourceContext: TaskSourceContext | null
+  sourceContext: TaskSourceContext | null,
+  pageContextKey: string
 ) {
   const fetchDartTask = useAppStore((s) => s.fetchDartTask)
-  const activeRuntimeEnvironmentId = useAppStore((s) => s.settings?.activeRuntimeEnvironmentId)
-  const pageContextKey = useAppStore((s) => getProviderRuntimeContextKey(s.settings))
   const pageViewer = useAppStore((s) =>
     s.dartStatusContextKey === pageContextKey ? (s.dartStatus.viewer ?? null) : null
   )
@@ -55,11 +56,10 @@ export function useDartTaskDetailData(
   const latestTaskReadRef = useRef(0)
   const taskIdRef = useRef<string | null>(null)
 
-  // The context key is a dep because its session generation decides whose status the default scope trusts.
+  const pageScope = useMemo(() => dartPageScopeFromContextKey(pageContextKey), [pageContextKey])
   const scope = useMemo(
-    () => getDartReadScope({ activeRuntimeEnvironmentId }, sourceContext),
-    // oxlint-disable-next-line react-hooks/exhaustive-deps -- Why: see above.
-    [activeRuntimeEnvironmentId, sourceContext, pageContextKey]
+    () => (sourceContext ? dartExplicitScope(sourceContext) : pageScope),
+    [sourceContext, pageScope]
   )
   const viewerId = useAppStore((s) => dartScopeViewerId(s, scope, sourceContext))
   const { hostKey, accountKey } = dartAccountIdentity(scope, viewerId)
@@ -72,8 +72,7 @@ export function useDartTaskDetailData(
   identityRef.current = identity
   // Environments, not context keys: an explicit scope's key is `<env>::<prefix>` and never equals the page's.
   const onPageEnvironment =
-    runtimeTargetEnvironmentId(scope.target) ===
-    runtimeTargetEnvironmentId(getDartReadScope({ activeRuntimeEnvironmentId }).target)
+    runtimeTargetEnvironmentId(scope.target) === runtimeTargetEnvironmentId(pageScope.target)
   const viewerScope = JSON.stringify([hostKey, accountKey])
   const { config, supportsWritesV2, detailViewer } = useDartDetailMetadata(
     identity,

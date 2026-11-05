@@ -8,7 +8,8 @@ import type { DartConnectionStatus } from '../../../../../shared/dart/dart-types
 import { defaultScopeHost } from '@/lib/default-creation-host'
 import {
   getEnvironmentRuntimeContextKey,
-  getProviderRuntimeContextKey
+  getProviderRuntimeContextKey,
+  runtimeEnvironmentIdFromContextKey
 } from '@/lib/provider-runtime-context'
 import { taskSourceRuntimeTarget } from '@/lib/task-source-runtime-target'
 import { getRuntimeTargetHostId, runtimeTargetEnvironmentId } from '@/runtime/runtime-client-target'
@@ -120,6 +121,11 @@ export function getDartReadScope(
       target
     }
   }
+  return dartExplicitScope(sourceContext)
+}
+
+/** A source row names its own host and account, so no setting is read. */
+export function dartExplicitScope(sourceContext: TaskSourceContext): DartReadScope {
   const cachePrefix = getTaskSourceCacheScope(sourceContext)
   const target = taskSourceRuntimeTarget(sourceContext)
   return {
@@ -127,6 +133,17 @@ export function getDartReadScope(
     cachePrefix,
     explicitSource: true,
     target
+  }
+}
+
+/** The default scope for a page whose already-read context key names its host, so UI never re-reads the setting. */
+export function dartPageScopeFromContextKey(pageContextKey: string): DartReadScope {
+  const environmentId = runtimeEnvironmentIdFromContextKey(pageContextKey)
+  return {
+    contextKey: pageContextKey,
+    cachePrefix: null,
+    explicitSource: false,
+    target: environmentId ? { kind: 'environment', environmentId } : { kind: 'local' }
   }
 }
 

@@ -21,7 +21,7 @@ import {
 } from '@/lib/provider-runtime-context'
 import { dartUpdateRequiredMessage } from '@/runtime/runtime-dart-client'
 import { useAppStore } from '@/store'
-import { getDartReadScope } from '@/store/slices/dart/dart-read-coordination'
+import { dartPageScopeFromContextKey } from '@/store/slices/dart/dart-read-coordination'
 import { dartScopeHostKey } from '@/store/slices/dart/dart-task-identity'
 import {
   dirtyDraftCount,
@@ -151,7 +151,7 @@ export function DartIntegrationCard(): React.JSX.Element {
   const accountScopeRowClass = useIntegrationSubordinateRowClass('text-xs')
 
   // The same host `disconnectDart` acts on, so another host's drafts neither ask nor get discarded.
-  const disconnectHostKey = dartScopeHostKey(getDartReadScope(settings))
+  const disconnectHostKey = dartScopeHostKey(dartPageScopeFromContextKey(providerRuntimeContextKey))
 
   const handleDisconnect = async (discardDraftsOfHost?: string): Promise<void> => {
     setDisconnectError(null)

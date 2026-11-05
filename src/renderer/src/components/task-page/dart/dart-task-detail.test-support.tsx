@@ -7,6 +7,7 @@ import type {
 } from '../../../../../shared/dart/dart-types'
 import type { TaskSourceContext } from '../../../../../shared/task-source-context'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
 import { useAppStore } from '@/store'
 import {
   dartTaskFixture,
@@ -110,11 +111,13 @@ export function openRenderedDartDetail(
     dartStatusContextKey: getDartReadScope(settings).contextKey
   })
   const onClose = options.onClose ?? vi.fn()
+  const pageKey = getProviderRuntimeContextKey(settings)
   const tree = (shown: DartTask | null): React.JSX.Element => (
     <TooltipProvider>
       <TaskPageDartTaskDetail
         task={shown}
         sourceContext={dartDetailSourceContext(detailEnv)}
+        providerRuntimeContextKey={pageKey}
         workspaces={[]}
         onUse={vi.fn()}
         onClose={onClose}

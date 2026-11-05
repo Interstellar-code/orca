@@ -8,6 +8,7 @@ import type { DartWorkspaceConfig } from '../../../../../shared/dart/dart-types'
 import type { DartCreateTaskArgs } from '../../../../../shared/rpc-contract/dart-params'
 import { getDefaultSettings } from '../../../../../shared/constants'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
 import { useAppStore } from '@/store'
 import {
   dartTaskFixture,
@@ -112,7 +113,9 @@ function renderCreateHarness(
   let latest: DartCreateDialogModel | null = null
   function HarnessView(): React.JSX.Element {
     const dartStatus = useAppStore((state) => state.dartStatus)
+    const providerRuntimeContextKey = useAppStore((s) => getProviderRuntimeContextKey(s.settings))
     const creationInput: TaskPageDartCreationInput = {
+      providerRuntimeContextKey,
       dartConnected: true,
       dartUpdateRequired: false,
       dartConfig: config,

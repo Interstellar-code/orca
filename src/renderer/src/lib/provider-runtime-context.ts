@@ -12,6 +12,13 @@ export function getEnvironmentRuntimeContextKey(environmentId: string | null): s
   return `${baseKey}#${providerRuntimeSessionGeneration}`
 }
 
+/** The environment a context key from {@link getEnvironmentRuntimeContextKey} names; `null` is this app. */
+export function runtimeEnvironmentIdFromContextKey(key: string): string | null {
+  return isEnvironmentRuntimeContextKey(key)
+    ? key.slice('runtime:'.length, key.lastIndexOf('#'))
+    : null
+}
+
 /** Whether a context key from {@link getEnvironmentRuntimeContextKey} names a paired server. */
 export function isEnvironmentRuntimeContextKey(key: string | null | undefined): boolean {
   return key?.startsWith('runtime:') ?? false

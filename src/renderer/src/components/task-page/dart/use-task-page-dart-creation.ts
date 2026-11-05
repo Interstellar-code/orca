@@ -1,15 +1,20 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { translate } from '@/i18n/i18n'
-import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
 import { useAppStore } from '@/store'
-import { getDartReadScope, isDartAuthLostFailure } from '@/store/slices/dart/dart-read-coordination'
+import {
+  dartPageScopeFromContextKey,
+  getDartReadScope,
+  isDartAuthLostFailure
+} from '@/store/slices/dart/dart-read-coordination'
 import { dartScopeHostKey, dartScopeViewerId } from '@/store/slices/dart/dart-task-identity'
 import { EMPTY_DART_CREATE_SESSION } from '@/store/slices/task-creation-drafts'
 import type { DartCreateTaskModel } from './dart-detail-contracts'
+import { isDartCreateAnywayReady, resolveDartCreateKey } from './dart-create-session-state'
+import { dartCreateNotApplied } from './dart-create-not-applied'
 import { dartCreateArgs, dartCreateRefusal } from './dart-create-request'
 import { checkDartCreateSession, submitDartCreate } from './dart-create-submit'
-import type { DartCreateExtras, TaskPageDartCreationInput } from './dart-create-submit'
+import type { DartCreateExtras, TaskPageDartCreationInput } from './dart-create-input-types'
 import {
   addDartCreateRejection,
   clearDartCreateHostRejection,
@@ -22,7 +27,23 @@ import {
   useDartCreateOpen,
   useDartCreateOpenKey
 } from './use-dart-create-state'
-export type { TaskPageDartCreationInput } from './dart-create-submit'
+export type { TaskPageDartCreationInput } from './dart-create-input-types'
+function isLiveDartCreateOwner(hostKey: string, ownerUserId: string | null): boolean {
+  const state = useAppStore.getState()
+  const activeScope = getDartReadScope(state.settings)
+  return (
+    state.activeView === 'tasks' &&
+    hostKey === dartScopeHostKey(activeScope) &&
+    dartScopeViewerId(state, activeScope) === ownerUserId
+  )
+}
+
+function isLiveDartCreateHostLost(hostKey: string): boolean {
+  const state = useAppStore.getState()
+  const currentScope = getDartReadScope(state.settings)
+  return dartScopeHostKey(currentScope) !== hostKey || !dartScopeViewerId(state, currentScope)
+}
+
 export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput>(
   model: TModel
 ): TModel & DartCreateTaskModel & DartCreateExtras {
@@ -31,12 +52,10 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
   const [tokenRejections, setTokenRejections] = useState<Record<string, Record<string, boolean>>>(
     {}
   )
-  const environmentId = useAppStore((state) => state.settings?.activeRuntimeEnvironmentId)
-  const contextKey = useAppStore((state) => getProviderRuntimeContextKey(state.settings))
+  const { providerRuntimeContextKey } = model
   const scope = useMemo(
-    () => getDartReadScope({ activeRuntimeEnvironmentId: environmentId }),
-    // oxlint-disable-next-line react-hooks/exhaustive-deps -- The context includes runtime session generation.
-    [environmentId, contextKey]
+    () => dartPageScopeFromContextKey(providerRuntimeContextKey),
+    [providerRuntimeContextKey]
   )
   const hostKey = dartScopeHostKey(scope)
   const ownerUserId = useAppStore((state) => dartScopeViewerId(state, scope))
@@ -44,12 +63,7 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
   const ownerRecord = useAppStore((state) => state.dartCreateOwners[hostKey])
   const unknownKey = JSON.stringify([hostKey, 'create', null])
   const hasUnknownSession = useAppStore((state) => Boolean(state.dartCreateSessions[unknownKey]))
-  const key = ownerUserId
-    ? (ownerRecord?.keys[ownerUserId] ??
-      (!ownerRecord?.activeOwner && hasUnknownSession
-        ? unknownKey
-        : JSON.stringify([hostKey, 'create', ownerUserId])))
-    : (ownerRecord?.activeOwner && ownerRecord.keys[ownerRecord.activeOwner]) || unknownKey
+  const key = resolveDartCreateKey({ hostKey, ownerUserId, ownerRecord, hasUnknownSession })
   const session = useAppStore((state) =>
     ownerUserId
       ? (state.dartCreateSessions[key] ?? EMPTY_DART_CREATE_SESSION)
@@ -116,18 +130,15 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
     !createWritesV2Pending &&
     Boolean(dartConfig) &&
     !model.dartConfigError &&
-    session.unknown &&
-    session.listChecked &&
-    !session.lookingUp &&
-    (session.matchesDismissed || (session.matches.length === 0 && !session.truncated))
+    isDartCreateAnywayReady(session)
   const submit = useCallback<DartCreateTaskModel['createTask']>(
     async (input) => {
       if (!hasCurrentViewer()) {
-        return { ok: false, outcome: 'notApplied', error: 'A current Dart account is required.' }
+        return dartCreateNotApplied.errorAccountRequired()
       }
       const title = typeof input.title === 'string' ? input.title.trim() : ''
       if (createWritesV2Pending) {
-        return { ok: false, outcome: 'notApplied', error: 'Checking Dart capabilities.' }
+        return dartCreateNotApplied.errorCheckingCapabilities()
       }
       const board = typeof input.dartboard === 'string' ? input.dartboard : ''
       const refusal = dartCreateRefusal(
@@ -161,14 +172,9 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
         key,
         scope,
         onSuccess: (task) => {
-          const state = useAppStore.getState()
-          const activeScope = getDartReadScope(state.settings)
-          const activeHostKey = dartScopeHostKey(activeScope)
           if (
             mounted.current &&
-            state.activeView === 'tasks' &&
-            hostKey === activeHostKey &&
-            dartScopeViewerId(state, activeScope) === ownerUserId &&
+            isLiveDartCreateOwner(hostKey, ownerUserId) &&
             activeKey.current === key
           ) {
             noteDartTaskCreated(task)
@@ -185,9 +191,7 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
         }
       })
       if (!result.ok && isDartAuthLostFailure(result.errorCode) && ownerUserId) {
-        const state = useAppStore.getState()
-        const currentScope = getDartReadScope(state.settings)
-        if (dartScopeHostKey(currentScope) !== hostKey || !dartScopeViewerId(state, currentScope)) {
+        if (isLiveDartCreateHostLost(hostKey)) {
           setTokenRejections((current) => addDartCreateRejection(current, hostKey, ownerUserId))
         }
       }
@@ -214,14 +218,10 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
   const createTask = useCallback<DartCreateTaskModel['createTask']>(
     async (input) => {
       if (!hasCurrentViewer()) {
-        return { ok: false, outcome: 'notApplied', error: 'A current Dart account is required.' }
+        return dartCreateNotApplied.errorAccountRequired()
       }
       if (useAppStore.getState().dartCreateSessions[key]?.unknown) {
-        return {
-          ok: false,
-          outcome: 'notApplied',
-          error: 'Review the possible previous creation first.'
-        }
+        return dartCreateNotApplied.errorReviewPrevious()
       }
       return submit(input)
     },
@@ -229,10 +229,10 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
   )
   const createAnyway = useCallback<DartCreateTaskModel['createAnyway']>(async () => {
     if (!hasCurrentViewer()) {
-      return { ok: false, outcome: 'notApplied', error: 'A current Dart account is required.' }
+      return dartCreateNotApplied.errorAccountRequired()
     }
     if (createWritesV2Pending) {
-      return { ok: false, outcome: 'notApplied', error: 'Checking Dart capabilities.' }
+      return dartCreateNotApplied.errorCheckingCapabilities()
     }
     const current = useAppStore.getState().dartCreateSessions[key]
     if (
@@ -243,7 +243,7 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
       current.lookingUp ||
       !(current.matchesDismissed || (current.matches.length === 0 && !current.truncated))
     ) {
-      return { ok: false, outcome: 'notApplied', error: 'Create anyway needs a checked list.' }
+      return dartCreateNotApplied.errorNeedsCheckedList()
     }
     return submit(
       dartCreateArgs(

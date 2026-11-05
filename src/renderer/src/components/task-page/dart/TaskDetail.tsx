@@ -11,6 +11,7 @@ import { useDartTaskDetailData } from './use-dart-task-detail-data'
 export function TaskPageDartTaskDetail({
   task,
   sourceContext,
+  providerRuntimeContextKey,
   workspaces,
   onUse,
   onClose,
@@ -18,12 +19,13 @@ export function TaskPageDartTaskDetail({
 }: {
   task: DartTask | null
   sourceContext: TaskSourceContext | null
+  providerRuntimeContextKey: string
   workspaces: readonly Worktree[]
   onUse: (task: DartTask) => void
   onClose: () => void
   onOpenWorkspace: (workspace: Worktree) => void
 }): React.JSX.Element {
-  const data = useDartTaskDetailData(task, sourceContext)
+  const data = useDartTaskDetailData(task, sourceContext, providerRuntimeContextKey)
   const { runCloseGuards } = data
   const displayed = data.task
   const openTaskIdRef = useRef(task?.id ?? null)

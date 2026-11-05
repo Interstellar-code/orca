@@ -69,6 +69,13 @@ export function TaskPageDartCreateDialog({
   } = model
   const [showPending, setShowPending] = useState(false)
   const [discardOpen, setDiscardOpen] = useState(false)
+  const [seenCreateOpen, setSeenCreateOpen] = useState(createOpen)
+  if (seenCreateOpen !== createOpen) {
+    setSeenCreateOpen(createOpen)
+    if (!createOpen) {
+      setDiscardOpen(false)
+    }
+  }
   const contentRef = useRef<HTMLDivElement>(null)
   const focusWasInContentRef = useRef(false)
   useEffect(() => {
@@ -79,11 +86,6 @@ export function TaskPageDartCreateDialog({
     const timer = setTimeout(() => setShowPending(true), 200)
     return () => clearTimeout(timer)
   }, [createSubmitting])
-  useEffect(() => {
-    if (!createOpen) {
-      setDiscardOpen(false)
-    }
-  }, [createOpen])
   const blocked = createSubmitting || (model.createFieldsLocked ?? model.createUnresolved) === true
   const configUnavailable = !dartConfig || Boolean(model.dartConfigError)
   const refused = createNotice?.kind === 'refused'
@@ -194,6 +196,7 @@ export function TaskPageDartCreateDialog({
               maxLength={DART_TITLE_MAX_LENGTH}
               aria-invalid={titleInvalid}
               disabled={blocked}
+              className="disabled:opacity-100"
               placeholder={translate(
                 'auto.components.task.page.dart.TaskCreateDialog.titlePlaceholder',
                 'Task title'
@@ -229,6 +232,7 @@ export function TaskPageDartCreateDialog({
               rows={4}
               value={createDraft.description}
               disabled={blocked}
+              className="disabled:opacity-100"
               aria-invalid={!descriptionCheck.ok}
               placeholder={translate(
                 'auto.components.task.page.dart.TaskCreateDialog.bodyPlaceholder',

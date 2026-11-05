@@ -1,8 +1,4 @@
-import type {
-  DartConnectionStatus,
-  DartTask,
-  DartWorkspaceConfig
-} from '../../../../../shared/dart/dart-types'
+import type { DartTask } from '../../../../../shared/dart/dart-types'
 import type { DartCreateTaskArgs } from '../../../../../shared/rpc-contract/dart-params'
 import { translate } from '@/i18n/i18n'
 import { taskProviderErrorMessage } from '@/lib/task-provider-error-copy'
@@ -19,29 +15,7 @@ import {
 } from '@/store/slices/dart/dart-task-identity'
 
 import { lookupDartCreateMatches } from './dart-create-lookup'
-import type { DartListFilters } from './task-page-dart-list-model'
 
-export type TaskPageDartCreationInput = {
-  taskSource?: string
-  dartConnected: boolean
-  dartUpdateRequired: boolean
-  dartConfig: DartWorkspaceConfig | null
-  dartConfigError?: string | null
-  dartFilters: DartListFilters
-  dartStatus: DartConnectionStatus
-  setDartRefreshNonce: (updater: (nonce: number) => number) => void
-  noteDartTaskCreated: (task: DartTask) => void
-  openDartDetailPage: (task: DartTask) => void
-}
-
-export type DartCreateExtras = Partial<{
-  createFieldsLocked: boolean
-  accountChecking: boolean
-  retryAccountCheck(): Promise<void>
-  claimCreateMatch(task: DartTask): void
-  createWritesV2Pending: boolean
-  createTokenRejected: boolean
-}>
 let lookupSequence = 0
 
 let watchingSessions = false
@@ -237,13 +211,34 @@ export async function submitDartCreate(
         }
       })
     }
-    return { ok: false, outcome: 'notApplied', error: 'Dart account is not ready.' }
+    return {
+      ok: false,
+      outcome: 'notApplied',
+      error: translate(
+        'auto.components.task.page.dart.TaskCreateDialog.errorAccountNotReady',
+        'Dart account is not ready.'
+      )
+    }
   }
   if (!current || !ownsDartCreateSession(deps.key, deps.scope)) {
-    return { ok: false, outcome: 'notApplied', error: 'Dart create session is not active.' }
+    return {
+      ok: false,
+      outcome: 'notApplied',
+      error: translate(
+        'auto.components.task.page.dart.TaskCreateDialog.errorSessionNotActive',
+        'Dart create session is not active.'
+      )
+    }
   }
   if (current.submitting) {
-    return { ok: false, outcome: 'notApplied', error: 'A Dart create is already running.' }
+    return {
+      ok: false,
+      outcome: 'notApplied',
+      error: translate(
+        'auto.components.task.page.dart.TaskCreateDialog.errorCreateRunning',
+        'A Dart create is already running.'
+      )
+    }
   }
   const attempt = {
     title: String(args.title),

@@ -3,6 +3,7 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDefaultSettings } from '../../../../../shared/constants'
 import type { DartWorkspaceConfig } from '../../../../../shared/dart/dart-types'
+import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
 import { useAppStore } from '@/store'
 import { installFakeDartRuntime } from '@/store/slices/dart/dart-fake-runtime.test-support'
 import { getDartReadScope } from '@/store/slices/dart/dart-read-coordination'
@@ -44,7 +45,9 @@ function setup(knownViewer = true) {
   const opened = vi.fn()
   const hook = renderHook(() => {
     const dartStatus = useAppStore((state) => state.dartStatus)
+    const providerRuntimeContextKey = useAppStore((s) => getProviderRuntimeContextKey(s.settings))
     return useTaskPageDartCreation({
+      providerRuntimeContextKey,
       taskSource: 'dart',
       dartConnected: true,
       dartUpdateRequired: false,
@@ -378,9 +381,10 @@ describe('Dart create session identity and lifetime', () => {
 
   it('closes an open dialog when owner changes after a null viewer', () => {
     const key = JSON.stringify(['local', 'create', null])
+    const initialProps: { owner: string | null } = { owner: 'user-a' }
     const hook = renderHook(
       ({ owner }: { owner: string | null }) => useDartCreateOpenKey(key, 'local', owner, key),
-      { initialProps: { owner: 'user-a' as string | null } }
+      { initialProps }
     )
     act(() => hook.result.current[1](key))
     hook.rerender({ owner: null })
@@ -709,7 +713,7 @@ describe('Dart create session identity and lifetime', () => {
     await act(async () => hook.result.current.checkAgain())
     const lookups = host.requests
       .filter((request) => request.method === 'dart.listTasks')
-      .map((request) => request.params as { title: string; dartboard: string })
+      .map((request) => request.params)
     expect(lookups).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ title: 'First title', dartboard: 'Example/Platform' }),

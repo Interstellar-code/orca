@@ -15,11 +15,10 @@ import {
   collectLinkedDartTaskRefs,
   findDartTaskWorkspaceAttachmentsInIndex
 } from '@/lib/dart-issue-workspace-attachment'
-import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
 import { taskProviderErrorMessage } from '@/lib/task-provider-error-copy'
 import type { DartClientResult } from '@/runtime/runtime-dart-client'
 import { useAppStore } from '@/store'
-import { getDartReadScope } from '@/store/slices/dart/dart-read-coordination'
+import { dartPageScopeFromContextKey } from '@/store/slices/dart/dart-read-coordination'
 import {
   captureDartEpoch,
   dartAccountIdentity,
@@ -44,6 +43,7 @@ type DartListOutcome = {
 }
 
 export type TaskPageDartStateInput = {
+  providerRuntimeContextKey: string
   taskSource: TaskProvider
   dartConnected: boolean
   dartStatus: DartConnectionStatus
@@ -64,6 +64,7 @@ export type TaskPageDartStateInput = {
 
 export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(model: TModel) {
   const {
+    providerRuntimeContextKey,
     taskSource,
     dartConnected,
     dartStatus,
@@ -84,13 +85,9 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
   const [dartConfigError, setDartConfigError] = useState<string | null>(null)
   const active = taskSource === 'dart' && dartConnected
   const viewerId = dartStatus.viewer?.id ?? null
-  const activeRuntimeEnvironmentId = useAppStore((s) => s.settings?.activeRuntimeEnvironmentId)
-  const pageContextKey = useAppStore((s) => getProviderRuntimeContextKey(s.settings))
-  // The context key is a dep because its session generation decides whose status the scope trusts.
   const pageScope = useMemo(
-    () => getDartReadScope({ activeRuntimeEnvironmentId }),
-    // oxlint-disable-next-line react-hooks/exhaustive-deps -- Why: see above.
-    [activeRuntimeEnvironmentId, pageContextKey]
+    () => dartPageScopeFromContextKey(providerRuntimeContextKey),
+    [providerRuntimeContextKey]
   )
   const accountViewerId = useAppStore((s) => dartScopeViewerId(s, pageScope))
   const { hostKey, accountKey } = dartAccountIdentity(pageScope, accountViewerId)

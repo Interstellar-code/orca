@@ -18708,7 +18708,14 @@
               "mayHaveCreated": "Dart may have created this task. Check these before creating it again.",
               "accountNotReady": "No Dart account is selected. Switch back to the original account to check again.",
               "created": "Created",
-              "configFailed": "Could not load Dart configuration."
+              "configFailed": "Could not load Dart configuration.",
+              "errorAccountNotReady": "Dart account is not ready.",
+              "errorSessionNotActive": "Dart create session is not active.",
+              "errorCreateRunning": "A Dart create is already running.",
+              "errorAccountRequired": "A current Dart account is required.",
+              "errorCheckingCapabilities": "Checking Dart capabilities.",
+              "errorReviewPrevious": "Review the possible previous creation first.",
+              "errorNeedsCheckedList": "Create anyway needs a checked list."
             },
             "TaskDetail": {
               "sheetTitle": "Dart task",

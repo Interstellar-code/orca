@@ -44,6 +44,7 @@ export function TaskPageDartContent({
     getDartTaskWorkspaces,
     selectedDartTask,
     dartDetailSourceContext,
+    providerRuntimeContextKey,
     openDartDetailPage,
     closeTaskDetailPage,
     handleUseDartItem
@@ -245,6 +246,7 @@ export function TaskPageDartContent({
       <TaskPageDartTaskDetail
         task={selectedDartTask}
         sourceContext={dartDetailSourceContext}
+        providerRuntimeContextKey={providerRuntimeContextKey}
         workspaces={selectedDartTask ? getDartTaskWorkspaces(selectedDartTask) : []}
         onUse={(task: DartTask) => handleUseDartItem(task)}
         onClose={closeTaskDetailPage}

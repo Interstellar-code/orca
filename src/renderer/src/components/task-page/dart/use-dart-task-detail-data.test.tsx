@@ -7,6 +7,7 @@ import type { TaskSourceContext } from '../../../../../shared/task-source-contex
 import { DART_WRITES_V2_RUNTIME_CAPABILITY } from '../../../../../shared/dart/dart-capabilities'
 import { createCompatibleRuntimeStatusResponse } from '@/runtime/runtime-compatibility-test-fixture'
 import { dartSupportsWritesV2ForTarget } from '@/runtime/runtime-dart-write-client'
+import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
 import { useAppStore } from '@/store'
 import {
   dartTaskFixture,
@@ -42,8 +43,8 @@ function commentFixture(id: string, text: string): DartComment {
   }
 }
 
-function isCommentReply(reply: object): reply is { comment: DartComment } {
-  return 'comment' in reply
+function isCommentReply(reply: unknown): reply is { comment: DartComment } {
+  return typeof reply === 'object' && reply !== null && 'comment' in reply
 }
 
 /** The shared fake has no comments or config, so this file answers those two methods itself. */
@@ -124,7 +125,14 @@ function openDetail(options: { detailEnv?: string; userId?: string | null } = {}
     detailEnv,
     options.userId === undefined ? viewer.id : options.userId
   )
-  const mount = () => renderHook(() => useDartTaskDetailData(row, context))
+  const mount = () =>
+    renderHook(() =>
+      useDartTaskDetailData(
+        row,
+        context,
+        useAppStore((s) => getProviderRuntimeContextKey(s.settings))
+      )
+    )
   return { env, taskId, host, comments, row, context, mount }
 }
 
@@ -354,9 +362,17 @@ describe('useDartTaskDetailData', () => {
     const { host, taskId, row, context } = openDetail()
     const nextTaskId = `${taskId}Next`
     host.addTask(dartTaskFixture(nextTaskId, { description: 'Next task description' }))
-    const hook = renderHook(({ task }) => useDartTaskDetailData(task, context), {
-      initialProps: { task: row }
-    })
+    const hook = renderHook(
+      ({ task }) =>
+        useDartTaskDetailData(
+          task,
+          context,
+          useAppStore((s) => getProviderRuntimeContextKey(s.settings))
+        ),
+      {
+        initialProps: { task: row }
+      }
+    )
     await waitFor(() => expect(hook.result.current.full.status).toBe('ready'))
     host.addTask({ ...host.tasks.get(taskId)!, description: 'Changed in Dart' })
     const release = host.hold('dart.getTask')
