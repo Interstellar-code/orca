@@ -87,7 +87,8 @@ async function dartCall<M extends DartMethodName>(
     if (DART_WRITE_METHODS.has(method)) {
       const message = error instanceof Error ? error.message : String(error)
       return {
-        ...taskProviderFailure('dart.loadFailed', message),
+        ok: false,
+        error: message,
         outcome: 'notApplied'
       } as DartMethodContract[M]['reply']
     }

@@ -145,7 +145,7 @@ describe('web dart provider probe', () => {
     mocks.getRemoteRuntimeStatus.mockRejectedValue(new Error('offline'))
     await expect(
       createWebDartApi().addComment({ taskId: 'abcDEF123456', text: 'hi' } as never)
-    ).resolves.toMatchObject({ ok: false, outcome: 'notApplied' })
+    ).resolves.toEqual({ ok: false, error: 'offline', outcome: 'notApplied' })
     expect(mocks.callRuntimeEnvelope).not.toHaveBeenCalled()
   })
 
@@ -154,8 +154,9 @@ describe('web dart provider probe', () => {
     mocks.assertActiveEnvironment.mockImplementation(() => {
       throw new Error('environment changed')
     })
-    await expect(createWebDartApi().createTask({ title: 't' } as never)).resolves.toMatchObject({
+    await expect(createWebDartApi().createTask({ title: 't' } as never)).resolves.toEqual({
       ok: false,
+      error: 'environment changed',
       outcome: 'notApplied'
     })
     expect(mocks.callRuntimeEnvelope).not.toHaveBeenCalled()
