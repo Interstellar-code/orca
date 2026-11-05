@@ -38,11 +38,17 @@ const buttonVariants = cva(
         'icon-sm': 'size-8',
         'icon-lg': 'size-10',
         chip: "h-4 gap-0.5 rounded px-0.5 text-[10px] leading-none has-[>svg]:px-0.5 [&_svg:not([class*='size-'])]:size-2.5"
+      },
+      // Disabled-but-filled: a locked field shows its value at full strength instead of reading as a placeholder.
+      locked: {
+        false: '',
+        true: 'disabled:opacity-100'
       }
     },
     defaultVariants: {
       variant: 'default',
-      size: 'default'
+      size: 'default',
+      locked: false
     }
   }
 )
@@ -54,7 +60,7 @@ const Button = React.forwardRef<
       asChild?: boolean
     }
 >(function Button(
-  { className, variant = 'default', size = 'default', asChild = false, ...props },
+  { className, variant = 'default', size = 'default', locked, asChild = false, ...props },
   ref
 ) {
   const Comp = asChild ? Slot.Root : 'button'
@@ -65,7 +71,7 @@ const Button = React.forwardRef<
       data-slot="button"
       data-variant={variant}
       data-size={size}
-      className={cn(buttonVariants({ variant, size, className }))}
+      className={cn(buttonVariants({ variant, size, locked, className }))}
       {...props}
     />
   )

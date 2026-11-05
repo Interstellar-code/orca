@@ -138,7 +138,7 @@ const lists = () =>
         `${r.params.title}|${'dartboard' in r.params && typeof r.params.dartboard === 'string' ? r.params.dartboard : ''}`
     )
 type HostParams = Parameters<FakeDartHost['handle']>[1]
-const createdTaskId = (reply: object): string | null =>
+const createdTaskId = (reply: Awaited<ReturnType<FakeDartHost['handle']>>): string | null =>
   'ok' in reply &&
   reply.ok === true &&
   'task' in reply &&
