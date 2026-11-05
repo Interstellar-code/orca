@@ -28,6 +28,7 @@ export async function readAllDartComments(
     if (!Number.isInteger(rawCount) || rawCount < 0 || rawCount < page.comments.length) {
       throw new Error(taskProviderErrorText(undefined, 'dart.loadFailed'))
     }
+    rawTotalCount += rawCount
     offset += rawCount
     if (rawCount <= 0 && offset < totalCount) {
       throw new Error(taskProviderErrorText(undefined, 'dart.loadFailed'))

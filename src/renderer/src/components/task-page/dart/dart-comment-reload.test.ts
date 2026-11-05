@@ -32,6 +32,16 @@ describe('readAllDartComments', () => {
     expect(list.mock.calls.map(([, args]) => args.offset)).toEqual([0, 250])
     expect(result).toMatchObject({ ok: true, comments: [...first, comment('last')] })
   })
+  it('returns the total raw row count across pages', async () => {
+    list
+      .mockResolvedValueOnce({ ok: true, comments: [comment('first')], totalCount: 3, rawCount: 2 })
+      .mockResolvedValueOnce({ ok: true, comments: [comment('last')], totalCount: 3, rawCount: 1 })
+
+    await expect(readAllDartComments(target, 'task')).resolves.toMatchObject({
+      ok: true,
+      rawCount: 3
+    })
+  })
 
   it('rejects a repeated id rather than publishing an incomplete read', async () => {
     list
