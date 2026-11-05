@@ -60,6 +60,12 @@ export function TaskPageDartTaskDetail({
         showCloseButton={false}
         className="w-[min(92vw,780px)] sm:max-w-[780px]"
         onOpenAutoFocus={(event) => event.preventDefault()}
+        // A field that owns Escape (revert its draft) must not also close the sheet.
+        onEscapeKeyDown={(event) => {
+          if (event.target instanceof Element && event.target.closest('[data-dart-escape-local]')) {
+            event.preventDefault()
+          }
+        }}
       >
         <VisuallyHidden.Root asChild>
           <SheetTitle>

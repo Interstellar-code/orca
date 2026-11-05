@@ -6,13 +6,15 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { formatUiRelativeTimeFromDate } from '@/i18n/relative-time-format'
 import { translate } from '@/i18n/i18n'
 import { openAppHttpLink } from '@/lib/app-http-link-open'
+import { dartFieldState } from './DartPropertyChips'
+import { DartTitleField } from './DartTitleField'
 
 export function DartTaskDetailHeader({
   task,
   openUrl,
-  onUpdate: _onUpdate,
-  pendingFields: _pendingFields,
-  blockedFields: _blockedFields,
+  onUpdate,
+  pendingFields,
+  blockedFields,
   config: _config,
   supportsWritesV2: _supportsWritesV2,
   viewerName: _viewerName,
@@ -38,7 +40,14 @@ export function DartTaskDetailHeader({
             ) : null}
             {task.updatedAt ? <span>{formatUiRelativeTimeFromDate(task.updatedAt)}</span> : null}
           </div>
-          <h2 className="mt-1 text-xl font-semibold leading-tight text-foreground">{task.title}</h2>
+          <h2 className="mt-1 text-foreground">
+            <DartTitleField
+              key={task.id}
+              title={task.title}
+              state={dartFieldState('title', pendingFields, blockedFields)}
+              onSave={(title) => void onUpdate({ title }, { title })}
+            />
+          </h2>
         </div>
         {openUrl ? (
           <Button
