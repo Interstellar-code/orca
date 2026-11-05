@@ -69,7 +69,16 @@ export function createDartConnectionActions(
           get().dartUpdateRequired ||
           hasDartStatusChanged(get().dartStatus, status)
         ) {
-          set((state) => dartStatusUpdate(state, contextKey, status))
+          set((state) =>
+            dartStatusUpdate(
+              state,
+              contextKey,
+              status,
+              state.dartStatus.viewer?.id !== status.viewer?.id
+                ? { dartConfigCache: {} }
+                : undefined
+            )
+          )
         } else if (!get().dartStatusChecked) {
           set({ dartStatusChecked: true, dartStatusContextKey: contextKey })
         }

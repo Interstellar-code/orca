@@ -12,6 +12,7 @@ import { dartUpdateRequiredMessage } from '@/runtime/runtime-dart-client'
 import type { TaskPageComposerActionsModel } from '../use-task-page-composer-actions'
 import { TaskPageDartTaskList } from './TaskList'
 import { TaskPageDartTaskDetail } from './TaskDetail'
+import { TaskPageDartCreateDialog } from './TaskCreateDialog'
 import { isDartAuthFailureCode, isDartListTruncated } from './task-page-dart-list-model'
 
 function CenteredState({ children }: { children: React.ReactNode }): React.JSX.Element {
@@ -126,6 +127,7 @@ export function TaskPageDartContent({
           </div>
         </CenteredState>
         {connectDialog}
+        <TaskPageDartCreateDialog model={model} />
       </>
     )
   }
@@ -248,6 +250,7 @@ export function TaskPageDartContent({
         onClose={closeTaskDetailPage}
         onOpenWorkspace={openWorkspace}
       />
+      <TaskPageDartCreateDialog model={model} />
       {connectDialog}
     </div>
   )

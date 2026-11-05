@@ -24,7 +24,11 @@ import {
   scopedDartCacheKey,
   type DartReadScope
 } from './dart-read-coordination'
-import { dartScopeViewerId, registerDartCacheAlias } from './dart-task-identity'
+import {
+  dartAccountIdentity,
+  dartScopeViewerId,
+  registerDartCacheAlias
+} from './dart-task-identity'
 
 type DartReadActions = Pick<
   DartSlice,
@@ -163,8 +167,10 @@ export function createDartReadActions(set: DartSliceSet, get: DartSliceGet): Dar
 
     fetchDartConfig: async (options) => {
       const scope = getDartReadScope(get().settings, options?.sourceContext)
-      registerDartCacheAlias(scope, dartScopeViewerId(get(), scope, options?.sourceContext))
-      const cacheKey = scopedDartCacheKey(scope, 'config')
+      const viewerId = dartScopeViewerId(get(), scope, options?.sourceContext)
+      registerDartCacheAlias(scope, viewerId)
+      const { hostKey, accountKey } = dartAccountIdentity(scope, viewerId)
+      const cacheKey = JSON.stringify([hostKey, accountKey, 'config'])
       const cached = get().dartConfigCache[cacheKey]
       if (!options?.force && isFreshDartCacheEntry(cached) && cached.data) {
         return { ok: true, config: cached.data }
@@ -174,7 +180,7 @@ export function createDartReadActions(set: DartSliceSet, get: DartSliceGet): Dar
         get,
         scope,
         inflightReads: inflightConfigReads,
-        flightKey: `${scope.contextKey}::${cacheKey}`,
+        flightKey: JSON.stringify([scope.contextKey, cacheKey]),
         force: options?.force,
         read: () => dartConfigForTarget(scope.target),
         store: (result) =>

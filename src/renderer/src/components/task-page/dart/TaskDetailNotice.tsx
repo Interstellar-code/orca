@@ -64,8 +64,13 @@ export function DartTaskDetailNotice({
   dismissNotice,
   recheckNotice,
   actions,
-  className
-}: DartNoticeApi & { actions?: React.ReactNode; className?: string }): React.JSX.Element | null {
+  className,
+  recheckDisabled = false
+}: DartNoticeApi & {
+  actions?: React.ReactNode
+  className?: string
+  recheckDisabled?: boolean
+}): React.JSX.Element | null {
   const [checking, setChecking] = useState(false)
   const [showChecking, setShowChecking] = useState(false)
   // A quick read stays clean; only a slow one gets the label swap.
@@ -114,7 +119,13 @@ export function DartTaskDetailNotice({
         ) : null}
       </div>
       {notice.kind === 'unknown' ? (
-        <Button type="button" variant="outline" size="xs" disabled={checking} onClick={recheck}>
+        <Button
+          type="button"
+          variant="outline"
+          size="xs"
+          disabled={checking || recheckDisabled}
+          onClick={recheck}
+        >
           <span className="grid">
             <span
               aria-hidden={showChecking}

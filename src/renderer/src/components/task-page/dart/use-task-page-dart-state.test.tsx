@@ -2,9 +2,10 @@
 
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { DartTask } from '../../../../../shared/dart/dart-types'
+import type { DartTask, DartWorkspaceConfig } from '../../../../../shared/dart/dart-types'
 import type { TaskSourceContext } from '../../../../../shared/task-source-context'
 import { useAppStore } from '@/store'
+import type { DartClientResult } from '@/runtime/runtime-dart-client'
 import {
   dartTaskFixture,
   installFakeDartRuntime
@@ -23,6 +24,11 @@ const task: DartTask = {
 }
 
 function setup(overrides: Partial<TaskPageDartStateInput> = {}) {
+  const settings = useAppStore.getState().settings
+  useAppStore.setState({
+    dartStatus: { connected: true, viewer },
+    dartStatusContextKey: getDartReadScope(settings).contextKey
+  })
   const listDartTasks = vi.fn(() =>
     Promise.resolve({ ok: true as const, tasks: [task], totalCount: 1 })
   )
@@ -55,6 +61,7 @@ function setup(overrides: Partial<TaskPageDartStateInput> = {}) {
 }
 
 describe('useTaskPageDartState', () => {
+  afterEach(cleanup)
   it("lists the signed-in user's tasks by default", async () => {
     const { listDartTasks, hook } = setup()
     await waitFor(() => expect(hook.result.current.dartTasks).toHaveLength(1))
@@ -76,6 +83,69 @@ describe('useTaskPageDartState', () => {
         { force: false }
       )
     )
+  })
+
+  it('clears account A config while account B config is pending', async () => {
+    const settings = useAppStore.getState().settings
+    useAppStore.setState({
+      dartStatus: { connected: true, viewer },
+      dartStatusContextKey: getDartReadScope(settings).contextKey
+    })
+    const pending = Promise.withResolvers<DartClientResult<{ config: DartWorkspaceConfig }>>()
+    const configA = {
+      dartboards: ['Private A'],
+      statuses: [],
+      types: [],
+      tags: [],
+      priorities: [],
+      sizes: [],
+      assignees: []
+    }
+    const fetchDartConfig = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, config: configA })
+      .mockReturnValueOnce(pending.promise)
+    const { hook } = setup({ fetchDartConfig })
+    await waitFor(() => expect(hook.result.current.dartConfig).toEqual(configA))
+    act(() =>
+      useAppStore.setState({ dartStatus: { connected: true, viewer: { id: 'user-b', name: 'B' } } })
+    )
+    expect(hook.result.current.dartConfig).toBeNull()
+    expect(fetchDartConfig).toHaveBeenCalledTimes(2)
+    const configB = { ...configA, dartboards: ['Board B'] }
+    await act(async () => pending.resolve({ ok: true, config: configB }))
+    await waitFor(() => expect(hook.result.current.dartConfig).toEqual(configB))
+  })
+
+  it('resets board and assignee filters when the account changes', async () => {
+    const { hook } = setup()
+    act(() => {
+      hook.result.current.setDartFilter('mine', false)
+      hook.result.current.setDartFilter('dartboard', 'Example/Platform')
+      hook.result.current.setDartFilter('status', 'To-do')
+    })
+    act(() =>
+      useAppStore.setState({ dartStatus: { connected: true, viewer: { id: 'user-b', name: 'B' } } })
+    )
+    expect(hook.result.current.dartFilters).toMatchObject({
+      mine: true,
+      dartboard: null,
+      status: 'To-do'
+    })
+  })
+
+  it('reports a failed load with its error code', async () => {
+    const { hook } = setup({
+      listDartTasks: vi.fn(() =>
+        Promise.resolve({
+          ok: false as const,
+          error: 'Unauthorized',
+          errorCode: 'dart.unauthorized' as const
+        })
+      )
+    })
+    await waitFor(() => expect(hook.result.current.dartError?.code).toBe('dart.unauthorized'))
+    expect(hook.result.current.dartTasks).toEqual([])
   })
 
   it('drops the assignee filter for All tasks and searches titles', async () => {
@@ -115,20 +185,6 @@ describe('useTaskPageDartState', () => {
     })
     await waitFor(() => expect(hook.result.current.dartConfig).not.toBeNull())
     expect(listDartTasks).not.toHaveBeenCalled()
-    expect(hook.result.current.dartTasks).toEqual([])
-  })
-
-  it('reports a failed load with its error code', async () => {
-    const { hook } = setup({
-      listDartTasks: vi.fn(() =>
-        Promise.resolve({
-          ok: false as const,
-          error: 'Unauthorized',
-          errorCode: 'dart.unauthorized' as const
-        })
-      )
-    })
-    await waitFor(() => expect(hook.result.current.dartError?.code).toBe('dart.unauthorized'))
     expect(hook.result.current.dartTasks).toEqual([])
   })
 })

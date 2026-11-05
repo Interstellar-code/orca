@@ -10,7 +10,8 @@ const clientMocks = vi.hoisted(() => ({
   dartDisconnectForTarget: vi.fn(),
   dartTestConnectionForTarget: vi.fn(),
   dartListTasksForTarget: vi.fn(),
-  dartGetTaskForTarget: vi.fn()
+  dartGetTaskForTarget: vi.fn(),
+  dartConfigForTarget: vi.fn()
 }))
 
 vi.mock('@/runtime/runtime-dart-client', async (importOriginal) => ({
@@ -44,6 +45,28 @@ describe('dart slice connection', () => {
       dartStatusChecked: true,
       dartUpdateRequired: false
     })
+  })
+
+  it('clears cached config when a status check detects a different account', async () => {
+    const store = createTestStore()
+    clientMocks.dartStatusForTarget.mockResolvedValueOnce({ connected: true, viewer })
+    await store.getState().checkDartConnection()
+    const config = {
+      dartboards: [],
+      statuses: [],
+      types: [],
+      tags: [],
+      priorities: [],
+      sizes: [],
+      assignees: []
+    }
+    store.setState({ dartConfigCache: { old: { data: config, fetchedAt: NOW } } })
+    clientMocks.dartStatusForTarget.mockResolvedValueOnce({
+      connected: true,
+      viewer: { ...viewer, id: 'other' }
+    })
+    await store.getState().checkDartConnection()
+    expect(store.getState().dartConfigCache).toEqual({})
   })
 
   it('flags an old remote server instead of reporting a plain disconnect', async () => {
@@ -114,6 +137,33 @@ describe('dart slice connection', () => {
 })
 
 describe('dart slice reads', () => {
+  it('does not share cached or in-flight config between accounts', async () => {
+    const store = createTestStore()
+    const configA = {
+      dartboards: ['A'],
+      statuses: [],
+      types: [],
+      tags: [],
+      priorities: [],
+      sizes: [],
+      assignees: []
+    }
+    const configB = { ...configA, dartboards: ['B'] }
+    const pending = Promise.withResolvers<{ ok: true; config: typeof configA }>()
+    clientMocks.dartStatusForTarget.mockResolvedValueOnce({ connected: true, viewer })
+    await store.getState().checkDartConnection()
+    clientMocks.dartConfigForTarget
+      .mockReturnValueOnce(pending.promise)
+      .mockResolvedValueOnce({ ok: true, config: configB })
+    const first = store.getState().fetchDartConfig()
+    store.setState({ dartStatus: { connected: true, viewer: { ...viewer, id: 'other' } } })
+    expect(await store.getState().fetchDartConfig()).toEqual({ ok: true, config: configB })
+    pending.resolve({ ok: true, config: configA })
+    await first
+    expect(await store.getState().fetchDartConfig()).toEqual({ ok: true, config: configB })
+    expect(clientMocks.dartConfigForTarget).toHaveBeenCalledTimes(2)
+  })
+
   it('serves a repeat list from cache, shares concurrent requests and refetches on force', async () => {
     clientMocks.dartListTasksForTarget.mockResolvedValue({
       ok: true,

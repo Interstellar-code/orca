@@ -67,6 +67,11 @@ export function useTaskPageGlobalEffects(model: TaskPageJiraSummaryGenerationMod
         return
       }
 
+      // A modal owns Esc even when disabling a field moved focus to body.
+      if (document.querySelector('[role="dialog"][aria-modal="true"], [role="alertdialog"]')) {
+        return
+      }
+
       // Esc first blurs input; leave the page only when focus is outside one.
       if (
         target instanceof HTMLInputElement ||
