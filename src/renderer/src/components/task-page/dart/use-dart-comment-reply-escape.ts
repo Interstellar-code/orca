@@ -1,7 +1,6 @@
 import { useEffect, type RefObject } from 'react'
 import type { DartComment } from '../../../../../shared/dart/dart-types'
 import { isImeOwnedKeyboardEvent } from '@/lib/ime-composition-keyboard-event'
-import { getDartCommentSendState } from './dart-comment-send-state'
 
 // Surfaces layered above the sheet own Escape first, exactly as the Tasks page treats them.
 const ESCAPE_OWNING_OVERLAY_SELECTOR =
@@ -10,9 +9,9 @@ const ESCAPE_OWNING_OVERLAY_SELECTOR =
 export function useDartCommentReplyEscape(
   rootRef: RefObject<HTMLDivElement | null>,
   textareaRef: RefObject<HTMLTextAreaElement | null>,
-  draftKey: string,
   replyTo: DartComment | null,
-  onCancelReply: () => void
+  onCancelReply: () => void,
+  canCancelReply: boolean
 ): void {
   // Radix dismisses the sheet from a capture listener that runs before the textarea's own keydown;
   // this window listener runs earlier still, so vetoing cancels the reply, not the sheet.
@@ -35,12 +34,12 @@ export function useDartCommentReplyEscape(
       }
       event.preventDefault()
       event.stopPropagation()
-      if (getDartCommentSendState(draftKey).uncertainBodies.size === 0) {
+      if (canCancelReply) {
         onCancelReply()
       }
       textareaRef.current?.focus()
     }
     window.addEventListener('keydown', onKeyDown, { capture: true })
     return () => window.removeEventListener('keydown', onKeyDown, { capture: true })
-  }, [draftKey, onCancelReply, replyTo, rootRef, textareaRef])
+  }, [canCancelReply, onCancelReply, replyTo, rootRef, textareaRef])
 }

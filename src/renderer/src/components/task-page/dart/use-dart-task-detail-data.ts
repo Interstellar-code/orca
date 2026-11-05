@@ -20,13 +20,14 @@ import {
 } from '@/store/slices/dart/dart-task-identity'
 import { dartDraftKey } from './dart-draft-store'
 import { reloadDartComments } from './dart-comment-reload'
+import { retireDartLandedComments } from './dart-comment-send-state'
 import type { DartDetailCommentsApi, DartDetailDescriptionApi } from './dart-detail-contracts'
 import { readPastDartWrites, withLocalComments } from './dart-stale-read'
 import { pendingDartPatches, subscribeDartTaskWrites } from './dart-task-write-queue'
 import { getDartTaskOpenUrl } from './task-page-dart-list-model'
 import type { DartCommentsView, DartDetailLoadState } from './TaskDetailView'
 import { noOpenDartTaskFailure, useDartTaskDetailWrites } from './use-dart-task-detail-writes'
-import { useDartTaskDetailReads } from './use-dart-task-detail-reads'
+import { identityMatches, useDartTaskDetailReads } from './use-dart-task-detail-reads'
 
 const LOADING_STATE = { status: 'loading' } as const
 
@@ -56,7 +57,7 @@ export function useDartTaskDetailData(
   const [loadedFor, setLoadedFor] = useState<string | null>(null)
   const taskId = task?.id ?? null
   const localCommentsRef = useRef<DartComment[]>([])
-  const commentReadRef = useRef(0)
+  const commentReadsRef = useRef(new Map<string, number>())
   const latestTaskReadRef = useRef(0)
   const taskIdRef = useRef<string | null>(null)
 
@@ -130,6 +131,13 @@ export function useDartTaskDetailData(
   const applyCommentsRead = useCallback(
     (result: DartClientResult<DartCommentPage>, current: boolean, reload: boolean) => {
       if (result.ok) {
+        const active = identityRef.current
+        if (active) {
+          retireDartLandedComments(
+            dartDraftKey(active, active.taskId, 'comment'),
+            new Set(result.comments.map((comment) => comment.id))
+          )
+        }
         // Once Dart lists a comment its order wins; until then a just-added one must not vanish.
         localCommentsRef.current = localCommentsRef.current.filter(
           (local) => !result.comments.some((comment) => comment.id === local.id)
@@ -170,14 +178,16 @@ export function useDartTaskDetailData(
     identityRef,
     rowPatchRef,
     latestTaskReadRef,
-    commentReadRef,
+    commentReadsRef,
     taskIdRef,
     setLoadedFor
   })
 
   const retry = useCallback(() => setReloadNonce((n) => n + 1), [])
   // Until the effect runs for a newly opened task, the previous task's state must not show.
-  const isCurrent = loadedFor === taskId
+  const isCurrent =
+    loadedFor ===
+    (identity ? JSON.stringify([identity.hostKey, identity.accountKey, identity.taskId]) : null)
   const shownFull = isCurrent ? full : LOADING_STATE
   const shownComments = isCurrent ? comments : LOADING_STATE
   const displayed = useMemo(
@@ -195,53 +205,53 @@ export function useDartTaskDetailData(
   })
   const writes = useDartTaskDetailWrites({ identity, sourceContext, displayedRef })
 
+  const commentReadKey = identity
+    ? JSON.stringify([identity.hostKey, identity.accountKey, identity.taskId])
+    : null
+
   const reloadComments = useCallback<DartDetailCommentsApi['reloadComments']>(async () => {
-    if (
-      !identity ||
-      identityRef.current?.hostKey !== identity.hostKey ||
-      identityRef.current.accountKey !== identity.accountKey ||
-      identityRef.current.taskId !== identity.taskId
-    ) {
+    if (!commentReadKey || !identity || !identityMatches(identityRef.current, identity)) {
       return
     }
-    const commentRead = ++commentReadRef.current
+    const reads = commentReadsRef.current
+    const nextRead = (reads.get(commentReadKey) ?? 0) + 1
+    reads.set(commentReadKey, nextRead)
     await reloadDartComments({
       identity,
       sourceContext,
       listDartComments,
       isLatestRead: () =>
-        identityRef.current !== null &&
-        identityRef.current.hostKey === identity.hostKey &&
-        identityRef.current.accountKey === identity.accountKey &&
-        identityRef.current.taskId === identity.taskId &&
-        commentRead === commentReadRef.current,
+        identityMatches(identityRef.current, identity) && reads.get(commentReadKey) === nextRead,
       applyCommentsRead
     })
-  }, [applyCommentsRead, identity, listDartComments, sourceContext])
+  }, [applyCommentsRead, commentReadKey, identity, listDartComments, sourceContext])
 
   const appendLocalComment = useCallback<DartDetailCommentsApi['appendLocalComment']>(
     (comment) => {
-      if (
-        !identity ||
-        identityRef.current?.hostKey !== identity.hostKey ||
-        identityRef.current.accountKey !== identity.accountKey ||
-        identityRef.current.taskId !== identity.taskId
-      ) {
+      if (!identity) {
+        return
+      }
+      if (!identityMatches(identityRef.current, identity)) {
         return
       }
       if (!localCommentsRef.current.some((local) => local.id === comment.id)) {
         localCommentsRef.current = [...localCommentsRef.current, comment]
       }
-      setComments((shown) =>
-        shown.status === 'ready'
-          ? { status: 'ready', value: withLocalComments(shown.value, [comment]) }
-          : shown
-      )
+      setComments((shown) => ({
+        status: 'ready',
+        value: withLocalComments(
+          shown.status === 'ready' ? shown.value : { comments: [], totalCount: 0 },
+          [comment]
+        )
+      }))
     },
     [identity]
   )
   const readLatestTask = useCallback<DartDetailDescriptionApi['readLatestTask']>(async () => {
     if (!identity) {
+      return noOpenDartTaskFailure()
+    }
+    if (!identityMatches(identityRef.current, identity)) {
       return noOpenDartTaskFailure()
     }
     const latestTaskRead = ++latestTaskReadRef.current
@@ -253,14 +263,11 @@ export function useDartTaskDetailData(
     if (
       result.ok &&
       current &&
-      identityRef.current !== null &&
-      identityRef.current.hostKey === identity.hostKey &&
-      identityRef.current.accountKey === identity.accountKey &&
-      identityRef.current.taskId === identity.taskId &&
+      identityMatches(identityRef.current, identity) &&
       latestTaskRead === latestTaskReadRef.current
     ) {
       const latest = { ...result.task, ...pendingDartPatches(identity) }
-      setFull((shown) => (shown.status === 'ready' ? { status: 'ready', value: latest } : shown))
+      setFull({ status: 'ready', value: latest })
     }
     return result
   }, [fetchDartTask, identity, sourceContext])

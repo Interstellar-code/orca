@@ -199,6 +199,10 @@ describe('DartIntegrationCard', () => {
       clearDraft(REMOTE_DRAFT)
       clearDartCommentSendState(LOCAL_DRAFT)
       clearDartCommentSendState(REMOTE_DRAFT)
+      patchDartCommentSendState(LOCAL_DRAFT, { uncertainBodies: new Map(), landedComments: [] })
+      patchDartCommentSendState(REMOTE_DRAFT, { uncertainBodies: new Map(), landedComments: [] })
+      setDartReplyTarget(LOCAL_DRAFT, null)
+      setDartReplyTarget(REMOTE_DRAFT, null)
       discardDirtyDrafts('local')
     })
 
@@ -234,11 +238,11 @@ describe('DartIntegrationCard', () => {
       expect(getDraft(LOCAL_DRAFT)).toBe('typed text')
     })
 
-    it('discards only this host’s drafts once the disconnect succeeded', async () => {
+    it('discards this host’s drafts but keeps uncertain bodies', async () => {
       setDraft(LOCAL_DRAFT, 'typed text', { dirty: true })
       patchDartCommentSendState(LOCAL_DRAFT, {
         text: 'typed text',
-        uncertainBodies: new Map([['typed text', 'parent']])
+        uncertainBodies: new Map([['typed text', { id: 'parent', author: 'Pat' }]])
       })
       setDartReplyTarget(LOCAL_DRAFT, {
         id: 'parent',
@@ -249,16 +253,23 @@ describe('DartIntegrationCard', () => {
       })
       setDraft(REMOTE_DRAFT, 'other host text', { dirty: true })
       const state = installStore({ dartStatus: CONNECTED })
-      renderCard()
-
+      const view = renderCard()
       fireEvent.click(screen.getByRole('button', { name: 'Disconnect Dart' }))
       fireEvent.click(screen.getByRole('button', { name: 'Discard and disconnect' }))
-
       await waitFor(() => expect(getDraft(LOCAL_DRAFT)).toBeUndefined())
       expect(state.disconnectDart).toHaveBeenCalledOnce()
-      expect(getDartCommentSendState(LOCAL_DRAFT).uncertainBodies.get('typed text')).toBe('parent')
+      expect(getDartCommentSendState(LOCAL_DRAFT).uncertainBodies.get('typed text')).toEqual({
+        id: 'parent',
+        author: 'Pat'
+      })
       expect(getDraft(REMOTE_DRAFT)).toBe('other host text')
       expect(getDartCommentSendState(LOCAL_DRAFT).text).toBeNull()
+      expect(getDartReplyTarget(LOCAL_DRAFT)).toBeNull()
+      view.unmount()
+      installStore({ dartStatus: CONNECTED })
+      renderCard()
+      expect(getDartCommentSendState(LOCAL_DRAFT).text).toBeNull()
+      expect(isDartCommentBodyBlocked(LOCAL_DRAFT, 'typed text')).toBe(true)
       expect(getDartReplyTarget(LOCAL_DRAFT)).toBeNull()
     })
 
@@ -294,8 +305,12 @@ describe('DartIntegrationCard', () => {
       expect(getDraft(REMOTE_DRAFT)).toBe('other host text')
     })
 
-    it('counts and copies text refused by the bounded draft store (C3)', async () => {
-      patchDartCommentSendState(LOCAL_DRAFT, { text: 'Only copy', saved: false })
+    it('counts and copies refused text without treating uncertain bodies as drafts (C3)', async () => {
+      patchDartCommentSendState(LOCAL_DRAFT, {
+        text: 'Only copy',
+        saved: false,
+        uncertainBodies: new Map([['Already sent', null]])
+      })
       const state = installStore({ dartStatus: CONNECTED })
       renderCard()
       fireEvent.click(screen.getByRole('button', { name: 'Disconnect Dart' }))
@@ -303,23 +318,26 @@ describe('DartIntegrationCard', () => {
       expect(state.disconnectDart).not.toHaveBeenCalled()
       fireEvent.click(screen.getByRole('button', { name: 'Copy all' }))
       await screen.findByRole('button', { name: 'Copied' })
+      expect(writeClipboardText).toHaveBeenCalledOnce()
       expect(writeClipboardText).toHaveBeenCalledWith('Only copy')
       fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
       expect(getDartCommentSendState(LOCAL_DRAFT).text).toBe('Only copy')
+      expect(getDartCommentSendState(LOCAL_DRAFT).uncertainBodies.has('Already sent')).toBe(true)
     })
 
-    it('keeps unknown bodies blocking across plain disconnect and reconnect (C4)', async () => {
+    it('keeps unknown bodies blocking across disconnect and reconnect (C4)', async () => {
       patchDartCommentSendState(LOCAL_DRAFT, {
-        uncertainBodies: new Map([['Body', null]]),
-        notice: { kind: 'unknown', message: 'May have posted' }
+        uncertainBodies: new Map([['Body', null]])
       })
       const state = installStore({ dartStatus: CONNECTED })
       const view = renderCard()
       fireEvent.click(screen.getByRole('button', { name: 'Disconnect Dart' }))
       await waitFor(() => expect(state.disconnectDart).toHaveBeenCalledOnce())
+      expect(screen.queryByRole('dialog')).toBeNull()
       view.unmount()
       installStore({ dartStatus: CONNECTED })
       renderCard()
+      expect(getDartCommentSendState(LOCAL_DRAFT).uncertainBodies.has('Body')).toBe(true)
       expect(isDartCommentBodyBlocked(LOCAL_DRAFT, ' Body ')).toBe(true)
       expect(isDartCommentBodyBlocked(REMOTE_DRAFT, 'Body')).toBe(false)
     })

@@ -64,17 +64,43 @@ it('resends each unknown body to its own original parent (N6)', async () => {
   // The UI intentionally locks reply targets while any body is uncertain. Model a target
   // transition with the existing store while preserving the real first unknown outcome.
   act(() => setDartReplyTarget(key, q))
-  expect(screen.getByText('Replying to Quinn')).toBeTruthy()
+  expect(screen.getByText('Replying to Pat')).toBeTruthy()
   page.host.lostReplies.push(UNKNOWN)
   fireEvent.change(screen.getByRole('textbox', { name: 'Comment' }), {
     target: { value: 'Body two' }
   })
   fireEvent.click(screen.getByRole('button', { name: 'Send comment' }))
   await waitFor(() => {
-    expect(getDartCommentSendState(key).uncertainBodies.get('Body two')).toBe('q')
+    expect(getDartCommentSendState(key).uncertainBodies.get('Body two')).toEqual({
+      id: 'q',
+      author: 'Quinn'
+    })
     expect(screen.getByRole('button', { name: 'Send again' }).hasAttribute('disabled')).toBe(false)
   })
-  expect(getDartCommentSendState(key).uncertainBodies.get('Body one')).toBe('p')
+  expect(getDartCommentSendState(key).uncertainBodies.get('Body one')).toEqual({
+    id: 'p',
+    author: 'Pat'
+  })
+  expect(getDartCommentSendState(key).uncertainBodies.get('Body two')).toEqual({
+    id: 'q',
+    author: 'Quinn'
+  })
+
+  for (const [body, author] of [
+    ['Body one', 'Pat'],
+    ['Body two', 'Quinn']
+  ] as const) {
+    fireEvent.change(screen.getByRole('textbox', { name: 'Comment' }), {
+      target: { value: body }
+    })
+    expect(screen.getByText(`Replying to ${author}`)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Send comment' }).hasAttribute('disabled')).toBe(true)
+    expect(page.host.count('dart.addComment')).toBe(2)
+  }
+
+  fireEvent.change(screen.getByRole('textbox', { name: 'Comment' }), {
+    target: { value: 'Body one' }
+  })
 
   fireEvent.change(screen.getByRole('textbox', { name: 'Comment' }), {
     target: { value: 'Body one' }
@@ -82,7 +108,10 @@ it('resends each unknown body to its own original parent (N6)', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Send again' }))
   await waitFor(() => expect(page.host.count('dart.addComment')).toBe(3))
   await waitFor(() => expect(getDartCommentSendState(key).inFlight).toBe(false))
-  expect(getDartCommentSendState(key).uncertainBodies.get('Body two')).toBe('q')
+  expect(getDartCommentSendState(key).uncertainBodies.get('Body two')).toEqual({
+    id: 'q',
+    author: 'Quinn'
+  })
   fireEvent.change(screen.getByRole('textbox', { name: 'Comment' }), {
     target: { value: 'Body two' }
   })

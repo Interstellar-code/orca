@@ -32,10 +32,11 @@ export type DartCommentSendState = {
   saved: boolean
   inFlight: boolean
   landedComments: readonly DartComment[]
+  reloadedCommentIds: ReadonlySet<string>
   /** An unknown outcome blocks Send until the user edits the text or sends again on purpose. */
   blocked: boolean
   /** Set of normalized bodies whose delivery remains unknown, even after edits. */
-  uncertainBodies: ReadonlyMap<string, string | null>
+  uncertainBodies: ReadonlyMap<string, { id: string; author: string } | null>
   refusalNotice: DartWriteNotice | null
   generation: number
   /** A successful list read happened after the unknown write, so Send again may appear. */
@@ -48,8 +49,9 @@ const EMPTY_STATE: DartCommentSendState = {
   saved: true,
   inFlight: false,
   landedComments: [],
+  reloadedCommentIds: new Set<string>(),
   blocked: false,
-  uncertainBodies: new Map<string, string | null>(),
+  uncertainBodies: new Map<string, { id: string; author: string } | null>(),
   refusalNotice: null,
   generation: 0,
   reconciled: false,
@@ -96,6 +98,41 @@ export function patchDartCommentSendState(
   }
 }
 
+/** Retire locally retained writes only once a successful list contains them. */
+export function retireDartLandedComments(
+  draftKey: string,
+  confirmedIds: ReadonlySet<string>
+): void {
+  const current = getDartCommentSendState(draftKey)
+  const landedComments = current.landedComments.filter((comment) => !confirmedIds.has(comment.id))
+  if (landedComments.length !== current.landedComments.length) {
+    patchDartCommentSendState(draftKey, {
+      landedComments,
+      reloadedCommentIds: new Set(
+        [...current.reloadedCommentIds].filter((id) => !confirmedIds.has(id))
+      )
+    })
+  }
+}
+
+/** Claim a success reload once across composer remounts. */
+export function claimDartLandedCommentReload(draftKey: string): boolean {
+  const current = getDartCommentSendState(draftKey)
+  const pending = current.landedComments.filter(
+    (comment) => !current.reloadedCommentIds.has(comment.id)
+  )
+  if (pending.length === 0) {
+    return false
+  }
+  patchDartCommentSendState(draftKey, {
+    reloadedCommentIds: new Set([
+      ...current.reloadedCommentIds,
+      ...pending.map((comment) => comment.id)
+    ])
+  })
+  return true
+}
+
 /** False means this draft already has a write in flight, whichever mount sent it. */
 export function beginDartCommentSend(draftKey: string): boolean {
   if (inFlightKeys.has(draftKey)) {
@@ -118,6 +155,7 @@ export function clearDartCommentSendState(draftKey: string): void {
     text: null,
     saved: true,
     refusalNotice: null,
+    reconciled: current.reconciled,
     generation: current.generation + 1
   })
 }
@@ -132,11 +170,8 @@ export function clearDartCommentSendStatesForHost(hostKey: string): void {
 
 export function dirtyDartCommentTextsForHost(hostKey: string): string[] {
   return [...states]
-    .filter(
-      ([key, state]) =>
-        dartDraftKeyParts(key).hostKey === hostKey && !state.saved && state.text?.trim()
-    )
-    .map(([, state]) => state.text ?? '')
+    .filter(([key]) => dartDraftKeyParts(key).hostKey === hostKey)
+    .flatMap(([, state]) => (!state.saved && state.text?.trim() ? [state.text.trim()] : []))
 }
 
 export type DartCommentSubmission =
@@ -218,17 +253,46 @@ export function dartCommentBlockedReason(): string {
 
 /** Whether the trimmed body is currently blocked by an unresolved unknown write. */
 export function isDartCommentBodyBlocked(draftKey: string, text: string): boolean {
-  const { uncertainBodies } = getDartCommentSendState(draftKey)
   const trimmed = text.trim()
-  if (trimmed === '') {
-    return false
-  }
-  for (const [body] of uncertainBodies) {
+  return (
+    trimmed !== '' &&
+    [...getDartCommentSendState(draftKey).uncertainBodies.keys()].some(
+      (body) => body.trim() === trimmed
+    )
+  )
+}
+
+/** Return the reply target stored for a blocked body, if any. */
+export function dartUncertainReplyTarget(
+  draftKey: string,
+  text: string
+): { id: string; author: string } | null | undefined {
+  const trimmed = text.trim()
+  for (const [body, target] of getDartCommentSendState(draftKey).uncertainBodies) {
     if (body.trim() === trimmed) {
-      return true
+      return target
     }
   }
-  return false
+  return undefined
+}
+
+/** Remove one blocked body from the uncertain set after the user confirms it landed. */
+export function forgetDartCommentBody(draftKey: string, text: string): void {
+  const current = getDartCommentSendState(draftKey)
+  const uncertainBodies = new Map(current.uncertainBodies)
+  for (const body of uncertainBodies.keys()) {
+    if (body.trim() === text.trim()) {
+      uncertainBodies.delete(body)
+    }
+  }
+  patchDartCommentSendState(draftKey, {
+    uncertainBodies,
+    blocked: [...uncertainBodies.keys()].some(
+      (body) => body.trim() === (current.text ?? '').trim()
+    ),
+    reconciled: uncertainBodies.size > 0 ? current.reconciled : false,
+    notice: uncertainBodies.size > 0 ? current.notice : null
+  })
 }
 
 /** Name the drafts-full warning in words, keeping an id only where nothing is known. */

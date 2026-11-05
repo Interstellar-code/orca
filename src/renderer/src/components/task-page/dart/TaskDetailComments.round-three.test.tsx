@@ -74,7 +74,7 @@ it('records an unknown result after its draft was discarded mid-send', async () 
   type('Discarded pending')
   expect(send().disabled).toBe(true)
 })
-it('locks reply and cancel while an edited unknown reply remains unresolved', async () => {
+it('locks reply but permits cancel for an edited unknown reply', async () => {
   const page = openRenderedDartDetail({
     comments: [comment('p', 'Parent P'), comment('q', 'Parent Q', 'Quinn')]
   })
@@ -87,8 +87,10 @@ it('locks reply and cancel while an edited unknown reply remains unresolved', as
   await screen.findByRole('button', { name: 'Send again' })
   type('Edited')
   expect(replies[1].hasAttribute('disabled')).toBe(true)
-  expect(screen.getByRole('button', { name: 'Cancel' }).hasAttribute('disabled')).toBe(true)
+  expect(screen.getByRole('button', { name: 'Cancel' }).hasAttribute('disabled')).toBe(false)
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
   type('Body')
+  expect(screen.getByText('Replying to Pat')).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: 'Send again' }))
   await waitFor(() => expect(page.host.count('dart.addComment')).toBe(2))
   expect(
@@ -267,9 +269,9 @@ it('blocks an original unknown body after discarding another task’s oldest dra
     await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
 
     page.showTask(page.task)
-    await screen.findByRole('button', { name: 'Send again' })
     type('Edited unknown body')
     type(original)
+    await screen.findByRole('button', { name: 'Send again' })
     expect(send().disabled).toBe(true)
     fireEvent.click(send())
     expect(page.host.count('dart.addComment')).toBe(1)

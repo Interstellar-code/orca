@@ -1,4 +1,4 @@
-import { useEffect, type Dispatch, type RefObject, type SetStateAction } from 'react'
+import { useEffect, useRef, type Dispatch, type RefObject, type SetStateAction } from 'react'
 import type { DartCommentPage, DartTask } from '../../../../../shared/dart/dart-types'
 import type { TaskSourceContext } from '../../../../../shared/task-source-context'
 import { taskProviderErrorMessage, taskProviderErrorText } from '@/lib/task-provider-error-copy'
@@ -33,12 +33,12 @@ type Options = {
   identityRef: RefObject<Identity | null>
   rowPatchRef: RefObject<Partial<DartTask>>
   latestTaskReadRef: RefObject<number>
-  commentReadRef: RefObject<number>
+  commentReadsRef: RefObject<Map<string, number>>
   taskIdRef: RefObject<string | null>
   setLoadedFor: Dispatch<SetStateAction<string | null>>
 }
 
-function identityMatches(a: Identity | null, b: Identity | null): boolean {
+export function identityMatches(a: Identity | null, b: Identity | null): boolean {
   if (a === null || b === null) {
     return false
   }
@@ -58,19 +58,24 @@ export function useDartTaskDetailReads({
   identityRef,
   rowPatchRef,
   latestTaskReadRef,
-  commentReadRef,
+  commentReadsRef,
   taskIdRef,
   setLoadedFor
 }: Options): void {
+  const loadedScopeRef = useRef<string | null>(null)
   useEffect(() => {
     identityRef.current = identity
     taskIdRef.current = taskId
     const thisRead = { taskId, identity }
-    // Per-task read sequencing: a reload or switch for task A must never cancel task B's first read.
-    if (taskId) {
-      commentReadRef.current += 1
+    const commentReadKey = identity
+      ? JSON.stringify([identity.hostKey, identity.accountKey, identity.taskId])
+      : null
+    // Sequence by full read scope, so a task reload cannot invalidate another task.
+    if (commentReadKey) {
+      const reads = commentReadsRef.current
+      reads.set(commentReadKey, (reads.get(commentReadKey) ?? 0) + 1)
     }
-    latestTaskReadRef.current += 1
+    const taskRead = ++latestTaskReadRef.current
     if (!taskId || !identity) {
       return
     }
@@ -82,9 +87,13 @@ export function useDartTaskDetailReads({
       identityRef.current !== null &&
       identityMatches(identityRef.current, thisRead.identity) &&
       taskIdRef.current === thisRead.taskId
-    setLoadedFor(taskId)
-    setFull(LOADING_STATE)
-    setComments(LOADING_STATE)
+    const scopeKey = JSON.stringify([identity.hostKey, identity.accountKey, identity.taskId])
+    if (loadedScopeRef.current !== scopeKey) {
+      loadedScopeRef.current = scopeKey
+      setFull(LOADING_STATE)
+      setComments(LOADING_STATE)
+    }
+    setLoadedFor(scopeKey)
     void readPastDartWrites({
       captureEpoch,
       cancelled: isCancelled,
@@ -92,31 +101,39 @@ export function useDartTaskDetailReads({
       read: (forced) => fetchDartTask(taskId, { sourceContext, force: forced })
     })
       .then(({ result, current }) => {
-        if (cancelled || !isCurrentRead()) {
+        if (cancelled || taskRead !== latestTaskReadRef.current || !isCurrentRead()) {
           return
         }
-        setFull(
-          result.ok
-            ? {
-                status: 'ready',
-                value: {
-                  ...result.task,
-                  ...(current ? {} : rowPatchRef.current),
-                  ...pendingDartPatches(identity)
-                }
-              }
-            : { status: 'error', message: taskProviderErrorMessage(result) }
-        )
-      })
-      .catch(() => {
-        if (!cancelled && isCurrentRead()) {
+        if (result.ok) {
           setFull({
-            status: 'error',
-            message: taskProviderErrorText(undefined, 'dart.loadFailed')
+            status: 'ready',
+            value: {
+              ...result.task,
+              ...(current ? {} : rowPatchRef.current),
+              ...pendingDartPatches(identity)
+            }
           })
+        } else {
+          setFull((shown) =>
+            shown.status === 'ready'
+              ? shown
+              : { status: 'error', message: taskProviderErrorMessage(result) }
+          )
         }
       })
-    const commentRead = commentReadRef.current
+      .catch(() => {
+        if (!cancelled && taskRead === latestTaskReadRef.current && isCurrentRead()) {
+          setFull((shown) =>
+            shown.status === 'ready'
+              ? shown
+              : {
+                  status: 'error',
+                  message: taskProviderErrorText(undefined, 'dart.loadFailed')
+                }
+          )
+        }
+      })
+    const commentRead = commentReadKey ? commentReadsRef.current.get(commentReadKey) : null
     void readPastDartWrites({
       captureEpoch,
       cancelled: isCancelled,
@@ -124,12 +141,22 @@ export function useDartTaskDetailReads({
       read: (forced) => listDartComments(taskId, { sourceContext, force: forced })
     })
       .then(({ result, current }) => {
-        if (!cancelled && commentRead === commentReadRef.current && isCurrentRead()) {
+        if (
+          !cancelled &&
+          commentReadKey !== null &&
+          commentRead === commentReadsRef.current.get(commentReadKey) &&
+          isCurrentRead()
+        ) {
           applyCommentsRead(result, current, false)
         }
       })
       .catch(() => {
-        if (!cancelled && commentRead === commentReadRef.current && isCurrentRead()) {
+        if (
+          !cancelled &&
+          commentReadKey !== null &&
+          commentRead === commentReadsRef.current.get(commentReadKey) &&
+          isCurrentRead()
+        ) {
           setComments({
             status: 'error',
             message: taskProviderErrorText(undefined, 'dart.loadFailed')
@@ -154,7 +181,7 @@ export function useDartTaskDetailReads({
     identityRef,
     rowPatchRef,
     latestTaskReadRef,
-    commentReadRef,
+    commentReadsRef,
     taskIdRef,
     setLoadedFor
   ])
