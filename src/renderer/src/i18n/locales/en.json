@@ -13604,7 +13604,15 @@
               "updateRequiredBody": "{{message}} Dart stays off for this host; nothing falls back to this computer.",
               "connectedAs": "Connected with an authorization token",
               "disconnect": "Disconnect Dart",
-              "connectHelp": "Connect with your Dart authorization token. API access needs a Dart Premium plan or above."
+              "connectHelp": "Connect with your Dart authorization token. API access needs a Dart Premium plan or above.",
+              "unsavedDraftsTitleOne": "You have 1 unsaved Dart draft",
+              "unsavedDraftsTitle": "You have {{count}} unsaved Dart drafts",
+              "unsavedDraftsBody": "Drafts are kept only in memory. Disconnecting discards the ones made on this host.",
+              "copyDraftsFailed": "Could not copy the drafts. They are still saved here.",
+              "cancelDisconnect": "Cancel",
+              "draftsCopied": "Copied",
+              "copyAllDrafts": "Copy all",
+              "discardAndDisconnect": "Discard and disconnect"
             }
           }
         },
@@ -18680,7 +18688,8 @@
               "commentsCount": "Comments · {{count}}",
               "comments": "Comments",
               "noComments": "No comments yet.",
-              "commentsTruncated": "Showing first {{shown}} of {{total}} comments."
+              "commentsTruncated": "Showing first {{shown}} of {{total}} comments.",
+              "noOpenTask": "No Dart task is open."
             },
             "TaskList": {
               "linkedWorkspaceCount_one": "{{count}} workspace linked to this task",
@@ -18707,6 +18716,49 @@
                   }
                 }
               }
+            },
+            "DartCommentComposer": {
+              "replyingTo": "Replying to {{author}}",
+              "cancelReply": "Cancel",
+              "sendAgain": "Send again",
+              "checkAgain": "Check again",
+              "copyOldest": "Copy",
+              "discardOldest": "Discard it",
+              "placeholder": "Add a comment…",
+              "commentLabel": "Comment",
+              "send": "Send comment",
+              "shortcutHint": "{{shortcut}} to send",
+              "commentTooLarge": "This comment is too long to send to Dart. Shorten it and try again.",
+              "mayHavePosted": "Dart may have posted this comment. Check the list before sending again.",
+              "notSaved": "Comment wasn't saved: {{message}}",
+              "blockedReason": "Dart may have posted this comment. Check the list before sending again.",
+              "unknownHost": "unknown host",
+              "draftsFull": "Orca keeps a bounded number of unsaved Dart drafts, and this text is not saved yet. The oldest ({{kind}} on {{host}}, task {{task}}) has to be copied or discarded first.",
+              "draftKindDescription": "description",
+              "draftKindComment": "comment"
+            },
+            "TaskDetailNotice": {
+              "fieldTitle": "Title",
+              "fieldDescription": "Description",
+              "fieldDartboard": "Dartboard",
+              "fieldType": "Type",
+              "fieldStatus": "Status",
+              "fieldPriority": "Priority",
+              "fieldAssignee": "Assignee",
+              "fieldTags": "Tags",
+              "fieldSize": "Size",
+              "fieldStartAt": "Start date",
+              "fieldDueAt": "Due date",
+              "refusedField": "{{field}} wasn't saved: {{message}}",
+              "unknownField": "{{field}}: {{message}}",
+              "checkedAt": "Last checked {{time}}",
+              "checkAgain": "Check again",
+              "checking": "Checking…",
+              "dismiss": "Dismiss"
+            },
+            "dart-task-write-queue": {
+              "mayHaveApplied": "Dart may have applied this change. Showing what Dart had when Orca last checked.",
+              "fieldBlocked": "Dart may have applied an earlier change to this field. Check again or dismiss the notice before editing it."
             }
           },
           "task": {
@@ -23398,12 +23450,17 @@
         "badRequest": "Dart rejected the request.",
         "retryAfter": "Retry after {{wait}}.",
         "rateLimited": "Dart is rate limiting requests. Try again shortly.",
-        "invalidTaskUrl": "Enter a valid Dart task URL."
+        "invalidTaskUrl": "Enter a valid Dart task URL.",
+        "descriptionPatchRefused": "Dart did not accept this change."
       }
     },
     "dart": {
       "updateRequired": "Update the remote Orca server to use Dart.",
-      "connectSuperseded": "Dart connection was superseded by a newer request."
+      "connectSuperseded": "Dart connection was superseded by a newer request.",
+      "writesUpdateRequired": "Update the remote Orca server to edit this field in Dart.",
+      "textTooLargeKb": "This text is too large to save to Dart from Orca ({{size}} KB, limit {{limit}} KB). Shorten it or edit it in Dart.",
+      "textTooLongChars": "This text is too long to save to Dart from Orca ({{size}} characters, limit {{limit}}). Shorten it or edit it in Dart.",
+      "requestTooLarge": "This change is too large to save to Dart from Orca. Shorten it or edit it in Dart."
     }
   },
   "editorConflicts": {
