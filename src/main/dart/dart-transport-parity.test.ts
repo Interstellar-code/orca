@@ -345,3 +345,72 @@ describe('dart write params refused at the transport', () => {
     }
   )
 })
+
+describe('dart description patch replies over both transports', () => {
+  const patch = WRITES[3]
+  const RAW_TASK = {
+    id: TASK_ID,
+    htmlUrl: `https://app.dartai.com/t/${TASK_ID}-fix-it`,
+    title: 'Fix it',
+    status: 'Doing',
+    description: 'patched'
+  }
+
+  async function connectedPair() {
+    const pair = await transports()
+    routeSignedIn(pair.host, CONFIG)
+    await pair.ipc('dart:connect', { apiToken: FIXTURE_TOKEN })
+    return pair
+  }
+
+  it('sends the same bare {updates} body and returns the same task', async () => {
+    const { host, ipc, rpc } = await connectedPair()
+    host.route('POST', patch.http[1], () => jsonResponse(200, { item: RAW_TASK }))
+
+    const overIpc = await ipc(patch.channel, patch.params)
+    expect(host.lastBody()).toEqual({ updates: patch.params.updates })
+    const overRpc = await rpc(patch.method, patch.params)
+    expect(host.lastBody()).toEqual({ updates: patch.params.updates })
+
+    expect(overIpc).toMatchObject({ ok: true, task: { id: TASK_ID, description: 'patched' } })
+    expect(overRpc).toEqual(overIpc)
+  })
+
+  it('keeps task text Dart echoes in a 400 out of both replies', async () => {
+    const { host, ipc, rpc } = await connectedPair()
+    host.route('POST', patch.http[1], () =>
+      jsonResponse(400, { errors: ['oldText "SECRET PARAGRAPH" was not found'] })
+    )
+
+    const overIpc = await ipc(patch.channel, patch.params)
+    const overRpc = await rpc(patch.method, patch.params)
+
+    expect(overIpc).toMatchObject({
+      errorCode: 'dart.descriptionPatchRefused',
+      outcome: 'notApplied'
+    })
+    expect(overRpc).toEqual(overIpc)
+    expect(JSON.stringify([overIpc, overRpc])).not.toContain('SECRET PARAGRAPH')
+  })
+
+  it('gives the same rate-limit reply and never retries the write', async () => {
+    const { host, ipc, rpc } = await connectedPair()
+    host.route(
+      'POST',
+      patch.http[1],
+      () =>
+        new Response('{}', {
+          status: 429,
+          headers: { 'content-type': 'application/json', 'retry-after': '30' }
+        })
+    )
+    const callsBefore = host.fetch.mock.calls.length
+
+    const overIpc = await ipc(patch.channel, patch.params)
+    const overRpc = await rpc(patch.method, patch.params)
+
+    expect(overIpc).toMatchObject({ errorCode: 'dart.rateLimited', outcome: 'notApplied' })
+    expect(overRpc).toEqual(overIpc)
+    expect(host.fetch.mock.calls.length - callsBefore).toBe(2)
+  })
+})
