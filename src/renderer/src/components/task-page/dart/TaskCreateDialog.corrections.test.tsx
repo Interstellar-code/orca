@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import '@testing-library/jest-dom/vitest'
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DartWorkspaceConfig } from '../../../../../shared/dart/dart-types'
@@ -161,6 +161,7 @@ describe('Dart create recovery corrections', () => {
 
   it('shows a generic token rejection without exposing the retained draft during account checking', async () => {
     const user = userEvent.setup()
+    host.connection = { connected: true, viewer }
     host.refusals.push({
       ok: false,
       error: 'Private account token rejected',
@@ -171,12 +172,14 @@ describe('Dart create recovery corrections', () => {
     await user.type(screen.getByLabelText('Title'), 'Private draft')
     await user.click(screen.getByRole('button', { name: 'Create task' }))
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Dart rejected your token. Reconnect to Dart and try again.'
+      'Dart is not connected. Reconnect to Dart and try again.'
     )
     expect(screen.queryByText('Private account token rejected')).toBeNull()
     expect(screen.queryByDisplayValue('Private draft')).toBeNull()
-    act(() => useAppStore.setState({ dartStatus: { connected: true, viewer } }))
+    expect(useAppStore.getState().dartStatus?.connected).toBe(false)
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
     expect(await screen.findByDisplayValue('Private draft')).toBeTruthy()
+    expect(host.count('dart.status')).toBeGreaterThan(0)
   })
 
   it('rechecks after correcting a refused recovery and creates the displayed title and board', async () => {

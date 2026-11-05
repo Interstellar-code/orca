@@ -129,42 +129,62 @@ export async function checkDartCreateSession(key: string, scope: DartReadScope):
     listChecked: false,
     matchesDismissed: false
   })
-  const draft = current.lookupDraft ?? current.draft
+  const attempts = [
+    ...(current.sentAttempts ?? []),
+    current.lookupDraft ?? current.draft,
+    current.draft
+  ]
+  const pairs = attempts.filter(
+    (attempt, index) =>
+      attempts.findIndex(
+        (other) =>
+          other.title.trim() === attempt.title.trim() && other.dartboard === attempt.dartboard
+      ) === index
+  )
   try {
-    const lookup = await lookupDartCreateMatches(
-      (args) => {
-        if (!ownsDartCreateSession(key, scope)) {
-          throw new Error(
-            'The Dart account changed. Return to the original account to check again.'
-          )
-        }
-        return dartListTasksForTarget(scope.target, args)
-      },
-      draft.title.trim(),
-      draft.dartboard
-    )
+    const matches = new Map<string, DartTask>()
+    let truncated = false
+    let lookupError: string | null = null
+    for (const attempt of pairs) {
+      const latest = useAppStore.getState().dartCreateSessions[key]
+      if (!latest || latest.lookupSequence !== sequence || !ownsDartCreateSession(key, scope)) {
+        return
+      }
+      const lookup = await lookupDartCreateMatches(
+        (args) => {
+          if (!ownsDartCreateSession(key, scope)) {
+            throw new Error(
+              'The Dart account changed. Return to the original account to check again.'
+            )
+          }
+          return dartListTasksForTarget(scope.target, args)
+        },
+        attempt.title.trim(),
+        attempt.dartboard
+      )
+      if ('error' in lookup) {
+        lookupError ??= lookup.error
+        continue
+      }
+      for (const task of lookup.matches) {
+        matches.set(task.id, task)
+      }
+      truncated ||= lookup.truncated
+    }
     const latest = useAppStore.getState().dartCreateSessions[key]
     if (!latest || latest.lookupSequence !== sequence || !ownsDartCreateSession(key, scope)) {
       return
     }
-    if ('error' in lookup) {
-      store.patchDartCreateSession(key, {
-        listChecked: false,
-        matches: [],
-        truncated: false,
-        notice: { kind: 'unknown', message: lookup.error }
-      })
-    } else {
-      store.patchDartCreateSession(key, {
-        listChecked: true,
-        matches: lookup.matches,
-        truncated: lookup.truncated,
-        notice:
-          latest.notice?.kind === 'unknown'
-            ? { kind: 'unknown', message: dartCreateUnknownMessage() }
-            : latest.notice
-      })
-    }
+    store.patchDartCreateSession(key, {
+      listChecked: !lookupError && !truncated,
+      matches: lookupError ? [] : [...matches.values()],
+      truncated: lookupError ? false : truncated,
+      notice: lookupError
+        ? { kind: 'unknown', message: lookupError }
+        : latest.notice?.kind === 'unknown'
+          ? { kind: 'unknown', message: dartCreateUnknownMessage() }
+          : latest.notice
+    })
   } catch (error) {
     const latest = useAppStore.getState().dartCreateSessions[key]
     if (!latest || latest.lookupSequence !== sequence || !ownsDartCreateSession(key, scope)) {
@@ -225,16 +245,30 @@ export async function submitDartCreate(
   if (current.submitting) {
     return { ok: false, outcome: 'notApplied', error: 'A Dart create is already running.' }
   }
-  store.patchDartCreateSession(deps.key, { submitting: true, notice: null, listChecked: false })
+  const attempt = {
+    title: String(args.title),
+    dartboard: typeof args.dartboard === 'string' ? args.dartboard : ''
+  }
+  store.patchDartCreateSession(deps.key, {
+    submitting: true,
+    notice: null,
+    listChecked: false,
+    sentAttempts: [...(current.sentAttempts ?? []), attempt]
+  })
   const result = await store.createDartTask(args)
   if (result.ok) {
     store.clearDartCreateSession(deps.key)
     deps.onSuccess(result.task)
   } else if (result.outcome === 'unknown') {
+    const latest = useAppStore.getState().dartCreateSessions[deps.key]
+    if (!latest) {
+      return result
+    }
     store.patchDartCreateSession(deps.key, {
       unknown: true,
       submitting: false,
       editable: false,
+      draft: { ...latest.draft, dartboard: attempt.dartboard },
       lookupDraft: current?.draft
         ? {
             ...current.draft,

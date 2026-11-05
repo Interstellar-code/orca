@@ -71,8 +71,8 @@ export function TaskCreateDialogRecovery({
       {createTokenRejected ? (
         <p role="alert" className="text-xs text-destructive">
           {translate(
-            'auto.components.task.page.dart.TaskCreateDialog.tokenRejected',
-            'Dart rejected your token. Reconnect to Dart and try again.'
+            'auto.components.task.page.dart.TaskCreateDialog.connectionLost',
+            'Dart is not connected. Reconnect to Dart and try again.'
           )}
         </p>
       ) : null}

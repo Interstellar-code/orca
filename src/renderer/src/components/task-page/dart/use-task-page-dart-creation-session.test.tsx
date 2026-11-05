@@ -110,6 +110,97 @@ describe('Dart create session identity and lifetime', () => {
     expect(hook.result.current.createNotice).toMatchObject({ kind: 'refused' })
   })
 
+  it('treats notConnected as an auth loss and locks the private draft', async () => {
+    const { runtime, hook, openDraft, submit } = setup()
+    runtime.host(null).refusals.push({
+      ok: false,
+      error: 'Disconnected',
+      errorCode: 'dart.notConnected',
+      outcome: 'notApplied'
+    })
+    openDraft()
+    await waitFor(() => expect(hook.result.current.createWritesV2Pending).toBe(false))
+    await act(async () => {
+      await submit()
+    })
+    expect(useAppStore.getState().dartStatus.connected).toBe(false)
+    expect(hook.result.current.accountChecking).toBe(true)
+    expect(hook.result.current.createTokenRejected).toBe(true)
+    expect(hook.result.current.createDraft.title).toBe('')
+  })
+
+  it('invalidates an in-flight recovery lookup when the draft changes', async () => {
+    const { runtime, hook, openDraft, submit } = setup()
+    const host = runtime.host(null)
+    host.lostReplies.push({ ok: false, error: 'Lost reply', outcome: 'unknown' })
+    const release = host.hold('dart.listTasks')
+    openDraft()
+    await waitFor(() => expect(hook.result.current.createWritesV2Pending).toBe(false))
+    let pending: Promise<unknown> = Promise.resolve()
+    act(() => {
+      pending = submit()
+    })
+    await waitFor(() => expect(host.count('dart.listTasks')).toBeGreaterThan(0))
+    act(() => hook.result.current.setCreateDraft({ title: 'Changed during lookup' }))
+    await act(async () => {
+      release()
+      await pending
+    })
+    expect(hook.result.current.listChecked).toBe(false)
+    expect(hook.result.current.canCreateAnyway).toBe(false)
+    await act(async () => {
+      await hook.result.current.createAnyway()
+    })
+    expect(host.count('dart.createTask')).toBe(1)
+  })
+
+  it('does not show a late rejection to another owner', async () => {
+    const { runtime, hook, openDraft, submit } = setup()
+    const host = runtime.host(null)
+    host.refusals.push({ ok: false, error: 'Rejected', errorCode: 'dart.unauthorized' })
+    const release = host.hold('dart.createTask')
+    openDraft()
+    await waitFor(() => expect(hook.result.current.createWritesV2Pending).toBe(false))
+    let pending: Promise<unknown> = Promise.resolve()
+    act(() => {
+      pending = submit()
+    })
+    await waitFor(() => expect(host.count('dart.createTask')).toBe(1))
+    act(() => switchHost(null, true, { id: 'user-b', name: 'Other' }))
+    act(() => switchHost(null, false))
+    await act(async () => {
+      release()
+      await pending
+    })
+    expect(hook.result.current.createTokenRejected).toBe(false)
+  })
+
+  it('keeps a late rejection on its host and clears it after that host confirms a viewer', async () => {
+    const { runtime, hook, openDraft, submit } = setup()
+    const host = runtime.host(null)
+    host.refusals.push({ ok: false, error: 'Rejected', errorCode: 'dart.unauthorized' })
+    const release = host.hold('dart.createTask')
+    openDraft()
+    await waitFor(() => expect(hook.result.current.createWritesV2Pending).toBe(false))
+    let pending: Promise<unknown> = Promise.resolve()
+    act(() => {
+      pending = submit()
+    })
+    await waitFor(() => expect(host.count('dart.createTask')).toBe(1))
+    act(() => switchHost('host-b'))
+    act(() => switchHost('host-b', false))
+    await act(async () => {
+      release()
+      await pending
+    })
+    expect(hook.result.current.createTokenRejected).toBe(false)
+    act(() => switchHost(null, false))
+    expect(hook.result.current.createTokenRejected).toBe(true)
+    act(() => switchHost(null))
+    act(() => switchHost(null, false))
+    expect(hook.result.current.createTokenRejected).toBe(false)
+  })
+
   it('retains the known account lock when the viewer becomes unknown', async () => {
     const { runtime, hook, openDraft, submit } = setup()
     const host = runtime.host(null)

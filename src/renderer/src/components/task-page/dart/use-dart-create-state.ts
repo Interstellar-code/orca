@@ -3,9 +3,45 @@ import type { Dispatch, RefObject, SetStateAction } from 'react'
 import type { DartTask } from '../../../../../shared/dart/dart-types'
 import { translate } from '@/i18n/i18n'
 import { dartSupportsWritesV2ForTarget } from '@/runtime/runtime-dart-write-client'
-import type { DartReadScope } from '@/store/slices/dart/dart-read-coordination'
+import { getDartReadScope, type DartReadScope } from '@/store/slices/dart/dart-read-coordination'
+import { dartScopeViewerId } from '@/store/slices/dart/dart-task-identity'
 import { useAppStore } from '@/store'
 import type { DartCreateDraft } from './dart-detail-contracts'
+
+export function clearDartCreateHostRejection(
+  current: Record<string, Record<string, boolean>>,
+  hostKey: string
+): Record<string, Record<string, boolean>> {
+  if (!(hostKey in current)) {
+    return current
+  }
+  const next = { ...current }
+  delete next[hostKey]
+  return next
+}
+
+export function addDartCreateRejection(
+  current: Record<string, Record<string, boolean>>,
+  hostKey: string,
+  owner: string
+): Record<string, Record<string, boolean>> {
+  return { ...current, [hostKey]: { ...current[hostKey], [owner]: true } }
+}
+
+export function useDartCreateCurrentViewer(
+  ownerUserId: string | null,
+  scope: DartReadScope
+): () => boolean {
+  return useCallback(() => {
+    const state = useAppStore.getState()
+    const currentScope = getDartReadScope(state.settings)
+    return Boolean(
+      ownerUserId &&
+      currentScope.contextKey === scope.contextKey &&
+      dartScopeViewerId(state, currentScope) === ownerUserId
+    )
+  }, [ownerUserId, scope])
+}
 
 export function useDartCreateCapabilities(
   taskSource: string | undefined,

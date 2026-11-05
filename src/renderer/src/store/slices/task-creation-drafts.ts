@@ -14,6 +14,7 @@ export type NewJiraIssueDraft = { title: string; body: string }
 export type DartCreateSession = {
   draft: DartCreateDraft
   lookupDraft: DartCreateDraft | null
+  sentAttempts?: readonly { title: string; dartboard: string }[]
   unknown: boolean
   submitting: boolean
   notice: DartWriteNotice | null

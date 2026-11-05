@@ -3,7 +3,7 @@ import { toast } from 'sonner'
 import { translate } from '@/i18n/i18n'
 import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
 import { useAppStore } from '@/store'
-import { getDartReadScope } from '@/store/slices/dart/dart-read-coordination'
+import { getDartReadScope, isDartAuthLostFailure } from '@/store/slices/dart/dart-read-coordination'
 import { dartScopeHostKey, dartScopeViewerId } from '@/store/slices/dart/dart-task-identity'
 import { EMPTY_DART_CREATE_SESSION } from '@/store/slices/task-creation-drafts'
 import type { DartCreateTaskModel } from './dart-detail-contracts'
@@ -11,8 +11,11 @@ import { dartCreateArgs, dartCreateRefusal } from './dart-create-request'
 import { checkDartCreateSession, submitDartCreate } from './dart-create-submit'
 import type { DartCreateExtras, TaskPageDartCreationInput } from './dart-create-submit'
 import {
+  addDartCreateRejection,
+  clearDartCreateHostRejection,
   useDartCreateAccountCheck,
   useDartCreateCapabilities,
+  useDartCreateCurrentViewer,
   useDartCreateDiscardActions,
   useDartCreateDraft,
   useDartCreateMounted,
@@ -25,7 +28,9 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
 ): TModel & DartCreateTaskModel & DartCreateExtras {
   const { dartConnected, dartUpdateRequired, dartConfig, dartFilters, dartStatus } = model
   const { setDartRefreshNonce, noteDartTaskCreated, openDartDetailPage } = model
-  const [tokenRejection, setTokenRejection] = useState<{ host: string; owner: string } | null>(null)
+  const [tokenRejections, setTokenRejections] = useState<Record<string, Record<string, boolean>>>(
+    {}
+  )
   const environmentId = useAppStore((state) => state.settings?.activeRuntimeEnvironmentId)
   const contextKey = useAppStore((state) => getProviderRuntimeContextKey(state.settings))
   const scope = useMemo(
@@ -35,15 +40,7 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
   )
   const hostKey = dartScopeHostKey(scope)
   const ownerUserId = useAppStore((state) => dartScopeViewerId(state, scope))
-  const hasCurrentViewer = useCallback(() => {
-    const state = useAppStore.getState()
-    const currentScope = getDartReadScope(state.settings)
-    return Boolean(
-      ownerUserId &&
-      currentScope.contextKey === scope.contextKey &&
-      dartScopeViewerId(state, currentScope) === ownerUserId
-    )
-  }, [ownerUserId, scope])
+  const hasCurrentViewer = useDartCreateCurrentViewer(ownerUserId, scope)
   const ownerRecord = useAppStore((state) => state.dartCreateOwners[hostKey])
   const unknownKey = JSON.stringify([hostKey, 'create', null])
   const hasUnknownSession = useAppStore((state) => Boolean(state.dartCreateSessions[unknownKey]))
@@ -63,6 +60,7 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
   useLayoutEffect(() => {
     if (ownerUserId && hasCurrentViewer()) {
       setDartCreateOwner(hostKey, ownerUserId, key)
+      setTokenRejections((current) => clearDartCreateHostRejection(current, hostKey))
     }
   }, [hasCurrentViewer, hostKey, key, ownerUserId, setDartCreateOwner])
   const activeKey = useRef(key)
@@ -159,7 +157,6 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
         })
         return { ok: false, outcome: 'notApplied', error }
       }
-      setTokenRejection(null)
       const result = await submitDartCreate(args, {
         key,
         scope,
@@ -187,8 +184,12 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
           )
         }
       })
-      if (!result.ok && result.errorCode === 'dart.unauthorized' && ownerUserId) {
-        setTokenRejection({ host: hostKey, owner: ownerUserId })
+      if (!result.ok && isDartAuthLostFailure(result.errorCode) && ownerUserId) {
+        const state = useAppStore.getState()
+        const currentScope = getDartReadScope(state.settings)
+        if (dartScopeHostKey(currentScope) !== hostKey || !dartScopeViewerId(state, currentScope)) {
+          setTokenRejections((current) => addDartCreateRejection(current, hostKey, ownerUserId))
+        }
       }
       return result
     },
@@ -271,7 +272,8 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
     createSupportsWritesV2,
     createWritesV2Pending,
     createTokenRejected:
-      tokenRejection?.host === hostKey && (!ownerUserId || tokenRejection.owner === ownerUserId),
+      !ownerUserId &&
+      Boolean(ownerRecord?.activeOwner && tokenRejections[hostKey]?.[ownerRecord.activeOwner]),
     createSubmitting: session.submitting,
     openCreate,
     closeCreate,
