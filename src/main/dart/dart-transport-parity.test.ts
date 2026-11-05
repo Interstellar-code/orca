@@ -414,3 +414,53 @@ describe('dart description patch replies over both transports', () => {
     expect(host.fetch.mock.calls.length - callsBefore).toBe(2)
   })
 })
+
+describe('dart comment replies over both transports', () => {
+  const comment = WRITES[2]
+  const RAW_COMMENT = { id: 'cmt000000001', taskId: TASK_ID, text: 'hi', author: 'Ada' }
+
+  async function connectedPair() {
+    const pair = await transports()
+    routeSignedIn(pair.host, CONFIG)
+    await pair.ipc('dart:connect', { apiToken: FIXTURE_TOKEN })
+    return pair
+  }
+
+  it('sends the same body, with parentId only on a reply, and returns the same comment', async () => {
+    const { host, ipc, rpc } = await connectedPair()
+    host.route('POST', comment.http[1], () => jsonResponse(200, { item: RAW_COMMENT }))
+    const reply = { taskId: TASK_ID, text: 'hi', parentId: 'parent000001' }
+
+    const root = await ipc(comment.channel, comment.params)
+    expect(host.lastBody()).toEqual({ item: { taskId: TASK_ID, text: 'hi' } })
+    expect(await rpc(comment.method, comment.params)).toEqual(root)
+    expect(host.lastBody()).toEqual({ item: { taskId: TASK_ID, text: 'hi' } })
+
+    const overIpc = await ipc(comment.channel, reply)
+    expect(host.lastBody()).toEqual({ item: reply })
+    expect(await rpc(comment.method, reply)).toEqual(overIpc)
+    expect(host.lastBody()).toEqual({ item: reply })
+    expect(overIpc).toMatchObject({ ok: true, comment: { id: RAW_COMMENT.id, author: 'Ada' } })
+  })
+
+  it('gives the same rate-limit reply and never retries the comment', async () => {
+    const { host, ipc, rpc } = await connectedPair()
+    host.route(
+      'POST',
+      comment.http[1],
+      () =>
+        new Response('{}', {
+          status: 429,
+          headers: { 'content-type': 'application/json', 'retry-after': '30' }
+        })
+    )
+    const callsBefore = host.fetch.mock.calls.length
+
+    const overIpc = await ipc(comment.channel, comment.params)
+    const overRpc = await rpc(comment.method, comment.params)
+
+    expect(overIpc).toMatchObject({ errorCode: 'dart.rateLimited', outcome: 'notApplied' })
+    expect(overRpc).toEqual(overIpc)
+    expect(host.fetch.mock.calls.length - callsBefore).toBe(2)
+  })
+})

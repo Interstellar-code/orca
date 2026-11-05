@@ -9,7 +9,7 @@ import {
   DART_PROVIDER_RUNTIME_CAPABILITY,
   DART_WRITES_V2_RUNTIME_CAPABILITY
 } from '../../../../shared/dart/dart-capabilities'
-import type { DartTask, DartWorkspaceConfig } from '../../../../shared/dart/dart-types'
+import type { DartComment, DartTask, DartWorkspaceConfig } from '../../../../shared/dart/dart-types'
 import type { TaskSourceContext } from '../../../../shared/task-source-context'
 import { installAppKeyboardRouter } from '@/lib/app-keyboard-router'
 import { createCompatibleRuntimeStatusResponse } from '@/runtime/runtime-compatibility-test-fixture'
@@ -128,6 +128,8 @@ function seedPage(environmentId: string | null): void {
     persistedUIReady: true,
     activeView: 'tasks',
     taskPageData: {},
+    worktreeNavHistory: [],
+    worktreeNavHistoryIndex: -1,
     dartStatus: { connected: false, viewer: null },
     dartStatusChecked: false,
     dartUpdateRequired: false,
@@ -583,4 +585,238 @@ describe('a plain folder workspace linked to a Dart task', () => {
       expect(within(sheet).getByRole('combobox', { name: 'Status' }).textContent).toContain('Done')
     }
   )
+})
+
+/** Keeps comments the way a Dart workspace does; the shared fake stores none and returns one fixed id. */
+function storeComments(host: FakeDartHost, seed: DartComment[] = []): DartComment[] {
+  const comments = [...seed]
+  const handle = host.handle.bind(host)
+  host.handle = async (method, params) => {
+    if (method === 'dart.listComments') {
+      host.requests.push({ method, params })
+      const mine = comments.filter((comment) => comment.taskId === params.taskId)
+      return { ok: true, comments: mine, totalCount: mine.length }
+    }
+    if (method === 'dart.addComment') {
+      host.requests.push({ method, params })
+      const posted = params as { taskId: string; text: string; parentId?: string }
+      const comment: DartComment = {
+        id: `posted${String(comments.length + 1).padStart(6, '0')}`,
+        taskId: posted.taskId,
+        parentId: posted.parentId ?? null,
+        htmlUrl: 'https://app.dartai.com/c/posted',
+        author: VIEWER.name,
+        text: posted.text,
+        createdAt: new Date(Date.UTC(2026, 10, 5, 12, comments.length)).toISOString()
+      }
+      comments.push(comment)
+      return host.lostReplies.shift() ?? { ok: true, comment }
+    }
+    return handle(method, params)
+  }
+  return comments
+}
+
+function seededComments(taskId: string): DartComment[] {
+  return ['first', 'second'].map((word, index) => ({
+    id: `seeded${word}00`,
+    taskId,
+    parentId: null,
+    htmlUrl: `https://app.dartai.com/c/${word}`,
+    author: 'Sam Example',
+    text: `Seeded ${word} comment`,
+    createdAt: new Date(Date.UTC(2026, 10, 4, 12, index)).toISOString()
+  }))
+}
+
+function commentArticle(sheet: HTMLElement, text: string): HTMLElement {
+  const article = within(sheet).getByText(text).closest('article')
+  if (!(article instanceof HTMLElement)) {
+    throw new Error(`No comment article for ${text}`)
+  }
+  return article
+}
+
+function commentPosts(host: FakeDartHost): { taskId?: string; text?: string; parentId?: string }[] {
+  return host.requests.filter(({ method }) => method === 'dart.addComment').map((r) => r.params)
+}
+
+async function postComment(sheet: HTMLElement, text: string): Promise<void> {
+  const user = userEvent.setup()
+  await user.type(await within(sheet).findByRole('textbox', { name: 'Comment' }), text)
+  await user.click(within(sheet).getByRole('button', { name: 'Send comment' }))
+}
+
+describe.each(TRANSPORTS)('comments over the $name', (transport) => {
+  it('delivers a new comment once to the task’s host and renders it in the detail', async () => {
+    const host = transport.open()
+    const stored = storeComments(host)
+    renderPage()
+    const sheet = await openDetailFromList()
+
+    await postComment(sheet, 'Looks good to me')
+
+    expect(await within(sheet).findByText('Looks good to me')).toBeTruthy()
+    expect(commentPosts(host)).toEqual([{ taskId: SOURCE.id, text: 'Looks good to me' }])
+    expect(stored.map((comment) => comment.text)).toEqual(['Looks good to me'])
+    expect(within(sheet).getAllByRole('article')).toHaveLength(1)
+  })
+
+  it('posts a reply under the chosen parent and renders it threaded', async () => {
+    const host = transport.open()
+    storeComments(host, seededComments(SOURCE.id))
+    renderPage()
+    const sheet = await openDetailFromList()
+    await within(sheet).findByText('Seeded second comment')
+
+    await userEvent.setup().click(
+      within(commentArticle(sheet, 'Seeded second comment')).getByRole('button', {
+        name: 'Reply'
+      })
+    )
+    expect(within(sheet).getByText('Replying to Sam Example')).toBeTruthy()
+    await postComment(sheet, 'Answering the second one')
+
+    const reply = await within(sheet).findByText('Answering the second one')
+    expect(commentPosts(host)).toEqual([
+      { taskId: SOURCE.id, text: 'Answering the second one', parentId: 'seededsecond00' }
+    ])
+    expect(reply.closest('article')?.getAttribute('data-depth')).toBe('1')
+    const order = within(sheet)
+      .getAllByRole('article')
+      .map((article) => article.getAttribute('data-depth'))
+    expect(order).toEqual(['0', '0', '1'])
+    expect(within(sheet).getAllByRole('article')[2].textContent).toContain('Answering the second')
+  })
+
+  it('does not repost a comment whose reply was lost, and shows it once after Check again', async () => {
+    const host = transport.open()
+    const stored = storeComments(host)
+    renderPage()
+    const sheet = await openDetailFromList()
+    host.lostReplies.push({ ...UNKNOWN, error: 'Failed to add comment.' })
+
+    await postComment(sheet, 'Ship it')
+
+    expect(await within(sheet).findByText(/Not sure it posted/)).toBeTruthy()
+    expect(stored.map((comment) => comment.text)).toEqual(['Ship it'])
+    const notice = within(sheet)
+      .getAllByRole('status')
+      .find((el) => /Not sure it posted/.test(el.textContent ?? ''))!
+    await userEvent.setup().click(within(notice).getByRole('button', { name: 'Check again' }))
+
+    await waitFor(() => expect(within(sheet).queryByText(/Not sure it posted/)).toBeNull())
+    expect(within(sheet).getAllByText('Ship it')).toHaveLength(1)
+    expect(commentPosts(host)).toHaveLength(1)
+    expect(stored).toHaveLength(1)
+  })
+})
+
+describe.each(TRANSPORTS)('creating a task over the $name', (transport) => {
+  async function fillAndSubmit(title: string): Promise<void> {
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'New task' }))
+    await user.type(await screen.findByLabelText('Title'), title)
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Create task' })).toHaveProperty('disabled', false)
+    )
+    await user.click(screen.getByRole('button', { name: 'Create task' }))
+  }
+
+  beforeEach(() => {
+    useAppStore.setState({ dartCreateSessions: {}, dartCreateOwners: {} })
+    const uiState = { featureInteractions: {} }
+    Object.assign(window.api, {
+      ui: {
+        get: vi.fn(() => Promise.resolve(uiState)),
+        recordFeatureInteraction: vi.fn(() => Promise.resolve(uiState))
+      }
+    })
+  })
+
+  it('sends one create with the entered fields, opens the task and lists it', async () => {
+    const host = transport.open()
+    renderPage()
+    await screen.findByRole('heading', { name: SOURCE.title })
+
+    await fillAndSubmit('Brand new delivery task')
+
+    await waitFor(() => expect(host.count('dart.createTask')).toBe(1))
+    const create = host.requests.find(({ method }) => method === 'dart.createTask')!
+    expect(create.params).toMatchObject({ title: 'Brand new delivery task', dartboard: 'Board A' })
+    expect(
+      [...host.tasks.values()].filter((t) => t.title === 'Brand new delivery task')
+    ).toHaveLength(1)
+    const sheet = (await screen.findByRole('button', { name: 'Close Dart task preview' })).closest(
+      '[role="dialog"]'
+    ) as HTMLElement
+    await waitFor(() =>
+      expect(
+        (within(sheet).getByRole('textbox', { name: 'Title' }) as HTMLInputElement).value
+      ).toBe('Brand new delivery task')
+    )
+    await closeDetail()
+    expect(listRow('Brand new delivery task')).toBeTruthy()
+    expect(host.count('dart.createTask')).toBe(1)
+  })
+
+  it('does not create again after a lost reply and finds the one task on Check again', async () => {
+    const host = transport.open()
+    host.lostReplies.push({ ...UNKNOWN, error: 'Failed to create Dart task.' })
+    renderPage()
+    await screen.findByRole('heading', { name: SOURCE.title })
+
+    await fillAndSubmit('Lost reply task')
+
+    const dialog = await screen.findByRole('dialog')
+    await within(dialog).findByText(/Dart may have created this task/)
+    expect(host.count('dart.createTask')).toBe(1)
+    const created = [...host.tasks.values()].filter((t) => t.title === 'Lost reply task')
+    expect(created).toHaveLength(1)
+    expect(await within(dialog).findByRole('button', { name: 'Lost reply task' })).toBeTruthy()
+    expect(within(dialog).getByRole('button', { name: 'Create task' })).toHaveProperty(
+      'disabled',
+      true
+    )
+
+    await userEvent.setup().click(within(dialog).getAllByRole('button', { name: 'Check again' })[0])
+    await within(dialog).findByRole('button', { name: 'Lost reply task' })
+
+    expect(host.count('dart.createTask')).toBe(1)
+    expect([...host.tasks.values()].filter((t) => t.title === 'Lost reply task')).toHaveLength(1)
+  })
+})
+
+describe('comments in a detail scoped to another host over the remote RPC', () => {
+  it('posts the comment and the reply to that host only', async () => {
+    const page = TRANSPORTS[0].open()
+    const pageComments = storeComments(page, seededComments(SOURCE.id))
+    renderPage()
+    await screen.findByRole('heading', { name: SOURCE.title })
+    const other = addRemote()
+    const otherComments = storeComments(other.host, seededComments(SOURCE.id))
+    const pageReads = page.count('dart.listComments')
+
+    openInStore(explicitScope(other.environmentId, VIEWER.id))
+    const sheet = await screen.findByRole('dialog')
+    await within(sheet).findByText('Seeded first comment')
+    await postComment(sheet, 'Scoped comment')
+    await within(sheet).findByText('Scoped comment')
+    await userEvent
+      .setup()
+      .click(
+        within(commentArticle(sheet, 'Seeded first comment')).getByRole('button', { name: 'Reply' })
+      )
+    await postComment(sheet, 'Scoped reply')
+    await within(sheet).findByText('Scoped reply')
+
+    expect(commentPosts(other.host)).toEqual([
+      { taskId: SOURCE.id, text: 'Scoped comment' },
+      { taskId: SOURCE.id, text: 'Scoped reply', parentId: 'seededfirst00' }
+    ])
+    expect(otherComments).toHaveLength(4)
+    expect(page.count('dart.addComment')).toBe(0)
+    expect(page.count('dart.listComments')).toBe(pageReads)
+    expect(pageComments).toHaveLength(2)
+  })
 })

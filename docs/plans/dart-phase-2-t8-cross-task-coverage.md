@@ -26,4 +26,14 @@ A web-paired host that predates `dart.provider.v1` shows the update-required sta
 
 ## Pass 2
 
-Comments (T5) and the New task dialog (T7): delivery of a comment and a created task, lost-reply cases for both, old-host comments, and the new-task dialog screenshot.
+Comments (T5) and the New task dialog (T7). Fakes only; nothing calls Dart.
+
+| Test file                                     | Covers                                                                                                                                                                                                                                                                                                                                                                            |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TaskPage.dart.delivery.test.tsx`             | Comment add and reply (right parent, threaded render), create task (one create, opens in detail, listed), both over remote RPC and web-paired host; lost reply for a comment ("Not sure it posted", Check again shows it once, one post) and for create (Check again lists the one task, no second create); a detail scoped to another host posts add and reply to that host only |
+| `TaskPage.dart.comments-old-host.test.tsx`    | Host with `dart.provider.v1` but no `dart.writes.v2` posts comments and replies normally; host without `dart.provider.v1` shows update-required and receives no `dart.*` request (both transports)                                                                                                                                                                                |
+| `src/main/dart/dart-transport-parity.test.ts` | Comment body (`parentId` only on a reply) and comment rate-limit reply identical over IPC and RPC, no retry                                                                                                                                                                                                                                                                       |
+
+Not covered: create from a scoped detail (create always uses the page scope, per T7).
+
+Screenshots (fixtures, light and dark, `.cache/fixtures/t8-pass2/`): New task dialog empty (`TaskCreateDialog:empty`), duplicate-match warning (`:mayHaveCreated`), "Create anyway" (`:createAnyway`), comments "Not sure it posted" (`TaskDetailComments:unknownOutcome`) and duplicate (`:duplicate`).
