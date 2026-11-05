@@ -100,7 +100,7 @@ export function DartCreateFields({
               id={`dart-create-${key}`}
               size="sm"
               aria-label={label}
-              className="w-full"
+              className="w-full disabled:opacity-100"
             >
               <SelectValue />
             </SelectTrigger>
@@ -131,7 +131,7 @@ export function DartCreateFields({
               size="sm"
               disabled={blocked || !dartConfig?.tags.length}
               aria-label={translate('auto.components.task.page.dart.TaskCreateDialog.tags', 'Tags')}
-              className="justify-start"
+              className={cn('justify-start', blocked && 'disabled:opacity-100')}
             >
               <span className="truncate">
                 {createDraft.tags.join(', ') ||
@@ -173,7 +173,7 @@ export function DartCreateFields({
           <Input
             id="dart-create-due"
             type="date"
-            className="h-8"
+            className="h-8 disabled:opacity-100"
             value={createDraft.dueAt}
             disabled={blocked}
             onChange={(event) => setCreateDraft({ dueAt: event.target.value })}
