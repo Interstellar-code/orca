@@ -20,10 +20,23 @@ const UNKNOWN = {
   errorCode: 'dart.commentFailed',
   outcome: 'unknown'
 } as const
-const box = (): HTMLTextAreaElement =>
-  screen.getByRole('textbox', { name: 'Comment' }) as HTMLTextAreaElement
-const send = (): HTMLButtonElement =>
-  screen.getByRole('button', { name: 'Send comment' }) as HTMLButtonElement
+function isCommentReply(reply: object): reply is { comment: DartComment } {
+  return 'comment' in reply
+}
+function box(): HTMLTextAreaElement {
+  const element = screen.getByRole('textbox', { name: 'Comment' })
+  if (!(element instanceof HTMLTextAreaElement)) {
+    throw new Error('Missing comment textarea')
+  }
+  return element
+}
+function send(): HTMLButtonElement {
+  const element = screen.getByRole('button', { name: 'Send comment' })
+  if (!(element instanceof HTMLButtonElement)) {
+    throw new Error('Missing send button')
+  }
+  return element
+}
 const typeComment = (text: string): void => {
   fireEvent.change(box(), { target: { value: text } })
 }
@@ -84,8 +97,8 @@ it('shows a late successful result after Discard and disconnect instead of losin
   const handle = page.host.handle.bind(page.host)
   page.host.handle = async (method, params) => {
     const result = await handle(method, params)
-    if (method === 'dart.addComment' && (result as { ok?: boolean }).ok) {
-      comments.push((result as { ok: true; comment: DartComment }).comment)
+    if (method === 'dart.addComment' && isCommentReply(result)) {
+      comments.push(result.comment)
     }
     return result
   }
