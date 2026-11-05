@@ -287,7 +287,9 @@ describe('Dart create dialog lookup regressions', () => {
     await user.type(screen.getByLabelText('Title'), 'Ship the fix')
     await user.click(screen.getByRole('button', { name: 'Create task' }))
 
-    expect(await screen.findByText(/more tasks exist/i)).toBeTruthy()
+    expect(
+      await screen.findByText(/couldn't check all tasks; a copy may already exist/i)
+    ).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Create anyway' })).toBeNull()
     expect(host.count('dart.createTask')).toBe(1)
   })

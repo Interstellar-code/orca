@@ -176,7 +176,7 @@ export async function checkDartCreateSession(key: string, scope: DartReadScope):
       return
     }
     store.patchDartCreateSession(key, {
-      listChecked: !lookupError && !truncated,
+      listChecked: !lookupError,
       matches: lookupError ? [] : [...matches.values()],
       truncated: lookupError ? false : truncated,
       notice: lookupError
@@ -252,8 +252,7 @@ export async function submitDartCreate(
   store.patchDartCreateSession(deps.key, {
     submitting: true,
     notice: null,
-    listChecked: false,
-    sentAttempts: [...(current.sentAttempts ?? []), attempt]
+    listChecked: false
   })
   const result = await store.createDartTask(args)
   if (result.ok) {
@@ -280,6 +279,7 @@ export async function submitDartCreate(
         : null,
       listChecked: false,
       matchesDismissed: false,
+      sentAttempts: [...(latest.sentAttempts ?? []), attempt],
       notice: { kind: 'unknown', message: dartCreateUnknownMessage() }
     })
     if (ownsDartCreateSession(deps.key, deps.scope)) {

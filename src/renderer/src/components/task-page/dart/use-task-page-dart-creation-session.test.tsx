@@ -691,4 +691,66 @@ describe('Dart create session identity and lifetime', () => {
     ).toBe(true)
     expect(hook.result.current.createMatches[0]?.title).toBe('Keep this draft')
   })
+  it('retains the submitted board and searches every distinct recovery attempt', async () => {
+    const { runtime, hook, openDraft } = setup()
+    const host = runtime.host(null)
+    host.lostReplies.push({ ok: false, error: 'Lost reply', outcome: 'unknown' })
+    openDraft('First title')
+    await waitFor(() => expect(hook.result.current.createWritesV2Pending).toBe(false))
+    await act(async () => {
+      await hook.result.current.createTask({ title: 'First title', dartboard: 'Example/Platform' })
+    })
+    act(() =>
+      hook.result.current.setCreateDraft({
+        title: 'Second title',
+        dartboard: 'Example/Platform/Search'
+      })
+    )
+    await act(async () => hook.result.current.checkAgain())
+    const lookups = host.requests
+      .filter((request) => request.method === 'dart.listTasks')
+      .map((request) => request.params as { title: string; dartboard: string })
+    expect(lookups).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ title: 'First title', dartboard: 'Example/Platform' }),
+        expect.objectContaining({ title: 'Second title', dartboard: 'Example/Platform/Search' })
+      ])
+    )
+  })
+
+  it('does not unlock recovery after a failed search, but allows Create anyway only after a clean lookup', async () => {
+    const { runtime, hook, openDraft } = setup()
+    const host = runtime.host(null)
+    host.failReads = true
+    host.lostReplies.push({ ok: false, error: 'Lost reply', outcome: 'unknown' })
+    openDraft('Blocked lookup')
+    await waitFor(() => expect(hook.result.current.createWritesV2Pending).toBe(false))
+    await act(async () =>
+      hook.result.current.createTask({ title: 'Blocked lookup', dartboard: 'Example/Platform' })
+    )
+    expect(hook.result.current.canCreateAnyway).toBe(false)
+    host.failReads = false
+    await act(async () => hook.result.current.checkAgain())
+    expect(hook.result.current.canCreateAnyway).toBe(false)
+    act(() => hook.result.current.dismissMatches())
+    expect(hook.result.current.canCreateAnyway).toBe(true)
+  })
+
+  it('keeps host sessions isolated while a recovery remains open', async () => {
+    const { runtime, hook, openDraft } = setup()
+    const host = runtime.host(null)
+    host.lostReplies.push({ ok: false, error: 'Lost reply', outcome: 'unknown' })
+    openDraft('Host A draft')
+    await waitFor(() => expect(hook.result.current.createWritesV2Pending).toBe(false))
+    await act(async () =>
+      hook.result.current.createTask({ title: 'Host A draft', dartboard: 'Example/Platform' })
+    )
+    act(() => switchHost('host-b'))
+    act(() => switchHost('host-b', true, viewer))
+    openDraft('Host B draft')
+    expect(hook.result.current.createDraft.title).toBe('Host B draft')
+    act(() => switchHost(null))
+    expect(hook.result.current.createDraft.title).toBe('Host A draft')
+    expect(host.count('dart.createTask')).toBe(1)
+  })
 })
