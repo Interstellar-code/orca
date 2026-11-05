@@ -46,8 +46,23 @@ export function useDartCreateOpenKey(
   unknownKey: string
 ): [string | null, Dispatch<SetStateAction<string | null>>] {
   const [openKey, setOpenKey] = useState<string | null>(null)
+  const previousOwner = useRef<{ hostKey: string; ownerUserId: string | null }>({
+    hostKey,
+    ownerUserId: ownerUserId ?? null
+  })
   useEffect(() => {
+    const previous = previousOwner.current
+    const accountChanged =
+      previous.hostKey === hostKey &&
+      Boolean(previous.ownerUserId && ownerUserId && previous.ownerUserId !== ownerUserId)
+    previousOwner.current = {
+      hostKey,
+      ownerUserId: ownerUserId ?? (previous.hostKey === hostKey ? previous.ownerUserId : null)
+    }
     setOpenKey((current) => {
+      if (accountChanged) {
+        return null
+      }
       if (current === key) {
         return current
       }

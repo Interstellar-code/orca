@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import '@testing-library/jest-dom/vitest'
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DartWorkspaceConfig } from '../../../../../shared/dart/dart-types'
@@ -102,7 +102,11 @@ type Harness = {
 }
 
 /** Renders the real "New task" button and the real dialog over the real creation hook and store action. */
-function renderCreateHarness(overrides: Partial<TaskPageDartCreationInput> = {}): Harness {
+function renderCreateHarness(
+  overrides: Partial<TaskPageDartCreationInput> = {},
+  discardCreateDraft?: () => void,
+  modelOverrides: Partial<DartCreateDialogModel> = {}
+): Harness {
   const createCalls: DartCreateTaskArgs[] = []
   const order: string[] = []
   let latest: DartCreateDialogModel | null = null
@@ -125,6 +129,8 @@ function renderCreateHarness(overrides: Partial<TaskPageDartCreationInput> = {})
     }
     latest = {
       ...model,
+      ...modelOverrides,
+      ...(discardCreateDraft ? { discardCreateDraft } : {}),
       createTask: (input: DartCreateTaskArgs) => {
         createCalls.push(input)
         return model.createTask(input)
@@ -336,6 +342,40 @@ describe('Dart create dialog fields and keyboard order', () => {
     expect(await screen.findByLabelText('Due date')).toBeTruthy()
   })
 
+  it('shows a saved due date without writes v2 so it can be cleared', async () => {
+    const user = userEvent.setup()
+    const supportsWritesV2 = vi.spyOn(window.api.dart, 'supportsWritesV2').mockResolvedValue(false)
+    const harness = renderCreateHarness({ taskSource: 'dart' })
+    await user.click(harness.newTaskButton())
+    await waitFor(() => expect(supportsWritesV2).toHaveBeenCalled())
+    act(() => harness.setDraft({ dueAt: '2027-01-15' }))
+    const dueDate = await screen.findByLabelText('Due date')
+    expect(dueDate).toHaveValue('2027-01-15')
+    fireEvent.change(dueDate, { target: { value: '' } })
+    expect(screen.queryByLabelText('Due date')).toBeNull()
+    supportsWritesV2.mockRestore()
+  })
+
+  it('preserves the due date after a refused write and sends it on retry', async () => {
+    const user = userEvent.setup()
+    host.refusals.push({ ok: false, error: 'Try again.', errorCode: 'dart.badRequest' })
+    renderCreateHarness({ taskSource: 'dart' })
+    await user.click(screen.getByRole('button', { name: 'New task' }))
+    await user.type(screen.getByLabelText('Title'), 'Due-date task')
+    fireEvent.change(await screen.findByLabelText('Due date'), { target: { value: '2027-01-15' } })
+    await user.click(screen.getByRole('button', { name: 'Create task' }))
+    await screen.findByRole('alert')
+    expect(screen.getByLabelText('Due date')).toHaveValue('2027-01-15')
+    await user.click(screen.getByRole('button', { name: 'Dismiss' }))
+    await user.click(screen.getByRole('button', { name: 'Create task' }))
+    await waitFor(() => expect(host.count('dart.createTask')).toBe(2))
+    const requests = host.requests.filter((entry) => entry.method === 'dart.createTask')
+    expect(requests.map((request) => request.params)).toEqual([
+      expect.objectContaining({ dueAt: '2027-01-15' }),
+      expect.objectContaining({ dueAt: '2027-01-15' })
+    ])
+  })
+
   it('enforces the title character limit and description byte limit', async () => {
     const user = userEvent.setup()
     renderCreateHarness()
@@ -465,6 +505,9 @@ describe('Dart create dialog with a lost reply', () => {
     await user.click(screen.getByRole('button', { name: 'Create anyway' }))
     await waitFor(() => expect(screen.getByRole('button', { name: 'Ship the fix' })).toBeDisabled())
     expect(screen.getByRole('button', { name: 'This is mine' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Check again' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Discard draft' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Create anyway' })).toBeNull()
     release()
   })
 
@@ -708,7 +751,7 @@ it('keeps ordinary create disabled when an unresolved draft becomes editable', a
   await user.click(screen.getByRole('button', { name: 'Create task' }))
   await screen.findByRole('button', { name: 'This is mine' })
   const key = JSON.stringify(['local', 'create', viewer.id])
-  useAppStore.getState().patchDartCreateSession(key, { editable: true, notice: null })
+  act(() => useAppStore.getState().patchDartCreateSession(key, { editable: true, notice: null }))
   await waitFor(() => expect(screen.getByRole('button', { name: 'Create task' })).toBeDisabled())
   expect(
     screen.getByRole('button', { name: 'Check again' }).querySelector('.animate-spin')
@@ -729,36 +772,58 @@ describe('Dart create dialog recovery guards', () => {
     expect(screen.getByRole('button', { name: 'Check again' })).toBeVisible()
   })
 
-  it('disables recovery controls while submitting or looking up', async () => {
+  it('shows a refusal while checking the account', async () => {
     const user = userEvent.setup()
-    host.lostReplies.push({ ok: false, error: 'socket closed', outcome: 'unknown' })
+    renderCreateHarness({}, undefined, {
+      accountChecking: true,
+      createNotice: { kind: 'refused', message: 'Dart rejected the API token.' }
+    })
+    await user.click(screen.getByRole('button', { name: 'New task' }))
+    expect(screen.getByText('Checking your Dart account.')).toBeVisible()
+    expect(screen.getByText('Dart rejected the API token.')).toBeVisible()
+  })
+
+  it('disables ordinary controls while submitting', async () => {
+    const user = userEvent.setup()
+    const release = host.hold('dart.createTask')
     renderCreateHarness()
     await user.click(screen.getByRole('button', { name: 'New task' }))
     await user.type(screen.getByLabelText('Title'), 'Ship the fix')
     await user.click(screen.getByRole('button', { name: 'Create task' }))
-    expect(await screen.findByText(/may have created this task/i)).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Check again' })).toBeEnabled()
-    expect(screen.getByRole('button', { name: 'Discard draft' })).toBeEnabled()
+    expect(screen.getByLabelText('Title')).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Create task' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
+    release()
   })
 
   it('cancels discard confirmation with Cancel and Escape, then confirms discard', async () => {
     const user = userEvent.setup()
     const discard = vi.fn()
-    const harness = renderCreateHarness()
+    const harness = renderCreateHarness({}, discard)
     await user.click(harness.newTaskButton())
     await user.type(screen.getByLabelText('Title'), 'Ship the fix')
     // Establish unresolved state through the real lost-reply flow.
     host.lostReplies.push({ ok: false, error: 'socket closed', outcome: 'unknown' })
     await user.click(screen.getByRole('button', { name: 'Create task' }))
     await screen.findByRole('button', { name: 'Discard draft' })
-    harness.model().discardCreateDraft = discard
+    await user.click(screen.getByRole('button', { name: 'Discard draft' }))
+    expect(screen.getByRole('alertdialog')).toBeTruthy()
+    await user.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Cancel' })
+    )
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(discard).not.toHaveBeenCalled()
     await user.click(screen.getByRole('button', { name: 'Discard draft' }))
     expect(screen.getByRole('alertdialog')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus()
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(discard).not.toHaveBeenCalled()
     await user.click(screen.getByRole('button', { name: 'Discard draft' }))
-    await user.click(screen.getByRole('button', { name: 'Discard draft' }))
+    await user.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Discard draft' })
+    )
+    expect(discard).toHaveBeenCalledTimes(1)
   })
 
   it('isolates an unresolved draft when the active Dart account changes', async () => {
@@ -791,6 +856,8 @@ describe('Dart create dialog recovery guards', () => {
     await user.click(screen.getByRole('button', { name: 'Create task' }))
     await screen.findByText(/may have created this task/i)
     await waitFor(() => expect(screen.getByRole('button', { name: 'Check again' })).toBeDisabled())
+    expect(screen.getByRole('button', { name: 'Create task' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Discard draft' })).toBeEnabled()
     release()
   })
 

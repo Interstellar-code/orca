@@ -77,7 +77,7 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
       (!ownerRecord?.activeOwner && hasUnknownSession
         ? unknownKey
         : JSON.stringify([hostKey, 'create', ownerUserId])))
-    : unknownKey
+    : (ownerRecord?.activeOwner && ownerRecord.keys[ownerRecord.activeOwner]) || unknownKey
   const session = useAppStore((state) => state.dartCreateSessions[key] ?? EMPTY_DART_CREATE_SESSION)
   const patchSession = useAppStore((state) => state.patchDartCreateSession)
   const setDartCreateOwner = useAppStore((state) => state.setDartCreateOwner)
@@ -168,8 +168,10 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
       if (!dartConfig?.types.length) {
         delete args.type
       }
-      if (!createSupportsWritesV2) {
-        delete args.dueAt
+      if (!createSupportsWritesV2 && (input.dueAt || createDraft.dueAt)) {
+        const error = 'A due date requires Dart writes v2, which is unavailable.'
+        patchSession(key, { notice: { kind: 'refused', message: error }, editable: true })
+        return { ok: false, outcome: 'notApplied', error }
       }
       return submitDartCreate(args, {
         key,
@@ -201,6 +203,7 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
     },
     [
       createSupportsWritesV2,
+      createDraft.dueAt,
       createWritesV2Pending,
       dartConfig,
       hasCurrentViewer,
@@ -250,11 +253,11 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
     ) {
       return { ok: false, outcome: 'notApplied', error: 'Create anyway needs a checked list.' }
     }
-    return submit(dartCreateArgs(current.draft, createSupportsWritesV2))
+    return submit(dartCreateArgs(createDraft, true))
   }, [
     dartConfig,
     model.dartConfigError,
-    createSupportsWritesV2,
+    createDraft,
     createWritesV2Pending,
     hasCurrentViewer,
     key,
@@ -279,9 +282,9 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
     createDraft,
     setCreateDraft,
     createUnresolved: session.unknown,
-    createFieldsLocked: session.unknown || !ownerUserId,
+    createFieldsLocked: (session.unknown && !session.editable) || !ownerUserId,
     createLookingUp: session.lookingUp,
-    createNotice: ownerUserId ? session.notice : accountCheckNotice,
+    createNotice: session.notice ?? (!ownerUserId ? accountCheckNotice : null),
     accountChecking: !ownerUserId,
     retryAccountCheck,
     listChecked: session.listChecked,

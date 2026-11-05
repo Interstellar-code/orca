@@ -165,7 +165,7 @@ export function DartCreateFields({
           </PopoverContent>
         </Popover>
       </div>
-      {createSupportsWritesV2 ? (
+      {createSupportsWritesV2 || createDraft.dueAt ? (
         <div className="flex flex-col gap-1">
           <label className="text-2xs font-medium text-muted-foreground" htmlFor="dart-create-due">
             {translate('auto.components.task.page.dart.TaskCreateDialog.dueDate', 'Due date')}

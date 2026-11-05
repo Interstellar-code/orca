@@ -86,7 +86,8 @@ export function TaskCreateDialogRecovery({
             {translate('auto.components.task.page.dart.TaskCreateDialog.retryAccount', 'Retry')}
           </Button>
         </div>
-      ) : createNotice ? (
+      ) : null}
+      {createNotice && (!accountChecking || createNotice.kind !== 'unknown') ? (
         <DartTaskDetailNotice
           notice={createNotice}
           dismissNotice={dismissCreateNotice}

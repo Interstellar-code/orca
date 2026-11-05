@@ -76,6 +76,36 @@ beforeEach(() => {
 })
 
 describe('Dart create session identity and lifetime', () => {
+  it('does not show an adopted unknown draft to a different account', () => {
+    const { hook, openDraft } = setup(false)
+    openDraft('Private draft')
+    act(() => switchHost(null, true, viewer))
+    expect(hook.result.current.createDraft.title).toBe('Private draft')
+    expect(hook.result.current.createOpen).toBe(true)
+    act(() => switchHost(null, true, { id: 'user-b', name: 'Other' }))
+    expect(hook.result.current.createOpen).toBe(false)
+    expect(hook.result.current.createDraft.title).not.toBe('Private draft')
+  })
+
+  it('keeps the draft and refusal after a 401 during submit', async () => {
+    const { runtime, hook, openDraft, submit } = setup()
+    runtime.host(null).refusals.push({
+      ok: false,
+      error: 'Dart rejected the API token.',
+      errorCode: 'dart.unauthorized',
+      outcome: 'notApplied'
+    })
+    openDraft()
+    await waitFor(() => expect(hook.result.current.createWritesV2Pending).toBe(false))
+    await act(async () => {
+      await submit()
+    })
+    expect(hook.result.current.createOpen).toBe(true)
+    expect(hook.result.current.accountChecking).toBe(true)
+    expect(hook.result.current.createDraft.title).toBe('Keep this draft')
+    expect(hook.result.current.createNotice).toMatchObject({ kind: 'refused' })
+  })
+
   it('retains the known account lock when the viewer becomes unknown', async () => {
     const { runtime, hook, openDraft, submit } = setup()
     const host = runtime.host(null)
@@ -87,7 +117,7 @@ describe('Dart create session identity and lifetime', () => {
     })
     act(() => switchHost(null, false))
     expect(hook.result.current.createOpen).toBe(true)
-    expect(hook.result.current.createDraft.title).toBe('')
+    expect(hook.result.current.createDraft.title).toBe('Keep this draft')
     expect(hook.result.current.createFieldsLocked).toBe(true)
     expect(hook.result.current.accountChecking).toBe(true)
     expect(

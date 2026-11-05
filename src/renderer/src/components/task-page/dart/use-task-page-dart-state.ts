@@ -28,11 +28,11 @@ import {
 import { readPastDartWrites } from './dart-stale-read'
 import {
   buildDartListArgs,
-  DEFAULT_DART_LIST_FILTERS,
   sortDartTasksByRecency,
   type DartListFilters
 } from './task-page-dart-list-model'
 import { filterLinkedDartTasks, readLinkedDartTasks } from './task-page-dart-linked-issues'
+import { useDartAccountFilters } from './use-dart-account-filters'
 import { useDartListPinnedRows } from './use-dart-list-pinned-rows'
 
 export type TaskPageDartError = { message: string; code?: string }
@@ -73,7 +73,6 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
     fetchDartTask,
     fetchDartConfig
   } = model
-  const [dartFilters, setDartFilters] = useState<DartListFilters>(DEFAULT_DART_LIST_FILTERS)
   const [dartSearchInput, setDartSearchInput] = useState('')
   const [dartHasWorkspace, setDartHasWorkspace] = useState(false)
   const [dartRefreshNonce, setDartRefreshNonce] = useState(0)
@@ -95,6 +94,7 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
   )
   const accountViewerId = useAppStore((s) => dartScopeViewerId(s, pageScope))
   const { hostKey, accountKey } = dartAccountIdentity(pageScope, accountViewerId)
+  const [dartFilters, setDartFilters] = useDartAccountFilters(hostKey, accountKey)
   const configOwnerKey = JSON.stringify([hostKey, accountViewerId])
   const configOwnerRef = useRef(configOwnerKey)
   const configIsCurrent = configOwnerRef.current === configOwnerKey
@@ -262,7 +262,7 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
   const setDartFilter = useCallback(
     <K extends keyof DartListFilters>(key: K, value: DartListFilters[K]) =>
       setDartFilters((current) => ({ ...current, [key]: value })),
-    []
+    [setDartFilters]
   )
   const applyDartSearch = useCallback(
     (value: string) => {

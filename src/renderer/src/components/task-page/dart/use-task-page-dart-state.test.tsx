@@ -117,6 +117,23 @@ describe('useTaskPageDartState', () => {
     await waitFor(() => expect(hook.result.current.dartConfig).toEqual(configB))
   })
 
+  it('resets board and assignee filters when the account changes', async () => {
+    const { hook } = setup()
+    act(() => {
+      hook.result.current.setDartFilter('mine', false)
+      hook.result.current.setDartFilter('dartboard', 'Example/Platform')
+      hook.result.current.setDartFilter('status', 'To-do')
+    })
+    act(() =>
+      useAppStore.setState({ dartStatus: { connected: true, viewer: { id: 'user-b', name: 'B' } } })
+    )
+    expect(hook.result.current.dartFilters).toMatchObject({
+      mine: true,
+      dartboard: null,
+      status: 'To-do'
+    })
+  })
+
   it('reports a failed load with its error code', async () => {
     const { hook } = setup({
       listDartTasks: vi.fn(() =>
