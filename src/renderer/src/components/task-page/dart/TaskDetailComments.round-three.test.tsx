@@ -9,7 +9,13 @@ import {
   tearDownRenderedDartDetail
 } from './dart-task-detail.test-support'
 import { clearDartCommentSendState, getDartCommentSendState } from './dart-comment-send-state'
-import { dartDraftKey } from './dart-draft-store'
+import {
+  clearDraft,
+  dartDraftKey,
+  oldestDirtyDraft,
+  setDraft,
+  type DartDraftValue
+} from './dart-draft-store'
 
 const UNKNOWN = {
   ok: false,
@@ -227,6 +233,60 @@ it('blocks every unknown body after editing away and back (R3)', async () => {
     fireEvent.click(send())
   }
   expect(page.host.count('dart.addComment')).toBe(2)
+})
+
+it('blocks an original unknown body after discarding another task’s oldest draft (N7)', async () => {
+  const page = openRenderedDartDetail()
+  const other = page.addTask('B')
+  const identity = { hostKey: `runtime:${page.pageEnv}`, accountKey: 'user-a' }
+  const filled: string[] = []
+  const original = 'Original unknown body'
+  const displaced: { key: string; value: DartDraftValue }[] = []
+  for (let oldest = oldestDirtyDraft(); oldest; oldest = oldestDirtyDraft()) {
+    displaced.push(oldest)
+    clearDraft(oldest.key)
+  }
+
+  try {
+    page.host.lostReplies.push(UNKNOWN)
+    type(original)
+    fireEvent.click(send())
+    await screen.findByRole('button', { name: 'Send again' })
+    await screen.findByText('No comments yet.')
+    for (let index = 0; index < 19; index += 1) {
+      const key = dartDraftKey(identity, `${other.id}-filler-${index}`, 'comment')
+      filled.push(key)
+      expect(setDraft(key, `filler ${index}`, { dirty: true })).toBe('ok')
+    }
+    expect(page.host.count('dart.addComment')).toBe(1)
+
+    page.showTask(other)
+    type('Bounded draft')
+    const warning = await screen.findByRole('alert')
+    fireEvent.click(within(warning).getByRole('button', { name: 'Discard it' }))
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+
+    page.showTask(page.task)
+    await screen.findByRole('button', { name: 'Send again' })
+    type('Edited unknown body')
+    type(original)
+    expect(send().disabled).toBe(true)
+    fireEvent.click(send())
+    expect(page.host.count('dart.addComment')).toBe(1)
+  } finally {
+    const taskKey = dartDraftKey(identity, page.task.id, 'comment')
+    const otherKey = dartDraftKey(identity, other.id, 'comment')
+    for (const key of filled) {
+      clearDraft(key)
+    }
+    clearDraft(taskKey)
+    clearDraft(otherKey)
+    clearDartCommentSendState(taskKey)
+    clearDartCommentSendState(otherKey)
+    for (const draft of displaced) {
+      setDraft(draft.key, draft.value, { dirty: true })
+    }
+  }
 })
 
 it('keeps the reply banner and deliberate resend target aligned (R4)', async () => {
