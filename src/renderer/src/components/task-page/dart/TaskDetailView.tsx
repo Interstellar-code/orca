@@ -28,7 +28,11 @@ export type DartCommentsView = {
 
 export type DartTaskDetailViewProps = {
   edit: DartDetailEditApi
-  commentsApi: DartDetailCommentsApi
+  commentsApi: DartDetailCommentsApi & {
+    readLatestComments(): Promise<DartComment[]>
+    viewerName: string | null
+    viewerEmail?: string | null
+  }
   descriptionApi: DartDetailDescriptionApi
   notice: DartNoticeApi
   workspaces: readonly Worktree[]

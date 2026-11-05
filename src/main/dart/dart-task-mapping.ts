@@ -91,15 +91,16 @@ export function mapDartConfig(raw: unknown): DartWorkspaceConfig {
   }
 }
 
-/** `{count, results}` list pages; a missing `count` falls back to the page length. */
-export function readDartPage(raw: unknown): { results: unknown[]; count: number } {
+/** `{count, results}` list pages; comments require both fields for safe pagination. */
+export function readDartPage(raw: unknown, strict = false): { results: unknown[]; count: number } {
   const page = isRecord(raw) ? raw : {}
-  const results = Array.isArray(page.results) ? page.results : []
-  const count =
+  const validCount =
     typeof page.count === 'number' && Number.isSafeInteger(page.count) && page.count >= 0
-      ? page.count
-      : results.length
-  return { results, count }
+  if (strict && (!Array.isArray(page.results) || !validCount)) {
+    throw new Error('Dart returned an unreadable comment page.')
+  }
+  const results = Array.isArray(page.results) ? page.results : []
+  return { results, count: validCount ? (page.count as number) : results.length }
 }
 
 /** `GET /tasks/{id}` and writes wrap the task as `{item}`. */

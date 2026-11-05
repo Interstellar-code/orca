@@ -1,31 +1,31 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type {
-  DartComment,
-  DartCommentPage,
-  DartTask,
-  DartWorkspaceConfig
-} from '../../../../../shared/dart/dart-types'
+import type { DartComment, DartTask } from '../../../../../shared/dart/dart-types'
 import type { TaskSourceContext } from '../../../../../shared/task-source-context'
 import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
 import { taskProviderErrorMessage, taskProviderErrorText } from '@/lib/task-provider-error-copy'
 import { runtimeTargetEnvironmentId } from '@/runtime/runtime-client-target'
-import type { DartClientResult } from '@/runtime/runtime-dart-client'
-import { dartSupportsWritesV2ForTarget } from '@/runtime/runtime-dart-write-client'
 import { useAppStore } from '@/store'
 import { getDartReadScope } from '@/store/slices/dart/dart-read-coordination'
 import {
   captureDartEpoch,
   dartAccountIdentity,
   dartScopeViewerId,
-  type DartEpochSnapshot
+  isDartEpochCurrent
 } from '@/store/slices/dart/dart-task-identity'
 import { dartDraftKey } from './dart-draft-store'
+import { readAllDartComments, reloadDartComments } from './dart-comment-reload'
 import type { DartDetailCommentsApi, DartDetailDescriptionApi } from './dart-detail-contracts'
 import { readPastDartWrites, withLocalComments } from './dart-stale-read'
 import { pendingDartPatches, subscribeDartTaskWrites } from './dart-task-write-queue'
 import { getDartTaskOpenUrl } from './task-page-dart-list-model'
 import type { DartCommentsView, DartDetailLoadState } from './TaskDetailView'
 import { noOpenDartTaskFailure, useDartTaskDetailWrites } from './use-dart-task-detail-writes'
+import {
+  identityMatches,
+  useDartCommentsRead,
+  useDartDetailMetadata,
+  useDartTaskDetailReads
+} from './use-dart-task-detail-reads'
 
 const LOADING_STATE = { status: 'loading' } as const
 
@@ -34,8 +34,6 @@ export function useDartTaskDetailData(
   sourceContext: TaskSourceContext | null
 ) {
   const fetchDartTask = useAppStore((s) => s.fetchDartTask)
-  const listDartComments = useAppStore((s) => s.listDartComments)
-  const fetchDartConfig = useAppStore((s) => s.fetchDartConfig)
   const activeRuntimeEnvironmentId = useAppStore((s) => s.settings?.activeRuntimeEnvironmentId)
   const pageContextKey = useAppStore((s) => getProviderRuntimeContextKey(s.settings))
   const pageViewer = useAppStore((s) =>
@@ -49,14 +47,13 @@ export function useDartTaskDetailData(
     patch: {}
   })
   const rowPatchRef = useRef<Partial<DartTask>>({})
-  const [config, setConfig] = useState<DartWorkspaceConfig | null>(null)
-  const [supportsWritesV2, setSupportsWritesV2] = useState(false)
   const [reloadNonce, setReloadNonce] = useState(0)
   const [loadedFor, setLoadedFor] = useState<string | null>(null)
   const taskId = task?.id ?? null
   const localCommentsRef = useRef<DartComment[]>([])
-  const commentReadRef = useRef(0)
+  const commentReadsRef = useRef(new Map<string, number>())
   const latestTaskReadRef = useRef(0)
+  const taskIdRef = useRef<string | null>(null)
 
   // The context key is a dep because its session generation decides whose status the default scope trusts.
   const scope = useMemo(
@@ -71,14 +68,29 @@ export function useDartTaskDetailData(
     () => (taskId ? { hostKey, accountKey, taskId } : null),
     [hostKey, accountKey, taskId]
   )
+  const identityRef = useRef(identity)
+  identityRef.current = identity
   // Environments, not context keys: an explicit scope's key is `<env>::<prefix>` and never equals the page's.
   const onPageEnvironment =
     runtimeTargetEnvironmentId(scope.target) ===
     runtimeTargetEnvironmentId(getDartReadScope({ activeRuntimeEnvironmentId }).target)
-  const viewerName =
-    pageViewer && onPageEnvironment && (!viewerId || viewerId === pageViewer.id)
-      ? pageViewer.name
-      : null
+  const viewerScope = JSON.stringify([hostKey, accountKey])
+  const { config, supportsWritesV2, detailViewer } = useDartDetailMetadata(
+    identity,
+    scope,
+    sourceContext,
+    viewerScope,
+    reloadNonce
+  )
+  const scopedViewer = detailViewer?.scope === viewerScope ? detailViewer.viewer : null
+  const viewer =
+    scopedViewer && (!viewerId || viewerId === scopedViewer.id)
+      ? scopedViewer
+      : pageViewer && onPageEnvironment && (!viewerId || viewerId === pageViewer.id)
+        ? pageViewer
+        : null
+  const viewerName = viewer?.name ?? null
+  const viewerEmail = viewer?.email ?? null
 
   useEffect(() => {
     rowPatchRef.current = {}
@@ -98,144 +110,31 @@ export function useDartTaskDetailData(
     return subscribeDartTaskWrites(identity, (update) => apply(update.patch), apply)
   }, [identity])
 
-  // The page-level config and capability belong to the default scope; the detail asks its own host.
-  useEffect(() => {
-    if (!identity) {
-      return
-    }
-    let cancelled = false
-    setConfig(null)
-    setSupportsWritesV2(false)
-    void fetchDartConfig({ sourceContext })
-      .then((result) => {
-        if (!cancelled && result.ok) {
-          setConfig(result.config)
-        }
-      })
-      .catch(() => {})
-    void dartSupportsWritesV2ForTarget(scope.target).then((supported) => {
-      if (!cancelled) {
-        setSupportsWritesV2(supported)
-      }
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [identity, scope, sourceContext, fetchDartConfig])
+  const applyCommentsRead = useDartCommentsRead(localCommentsRef, setComments)
 
-  const applyCommentsRead = useCallback(
-    (result: DartClientResult<DartCommentPage>, current: boolean, reload: boolean) => {
-      if (result.ok) {
-        // Once Dart lists a comment its order wins; until then a just-added one must not vanish.
-        localCommentsRef.current = localCommentsRef.current.filter(
-          (local) => !result.comments.some((comment) => comment.id === local.id)
-        )
-      }
-      setComments((shown) => {
-        if (!current && shown.status === 'ready') {
-          return shown
-        }
-        if (result.ok) {
-          return {
-            status: 'ready',
-            value: withLocalComments(
-              { comments: result.comments, totalCount: result.totalCount },
-              localCommentsRef.current
-            )
-          }
-        }
-        // A failed reload must not hide the comments on screen.
-        return reload && shown.status === 'ready'
-          ? shown
-          : { status: 'error', message: taskProviderErrorMessage(result) }
-      })
-    },
-    []
-  )
-
-  // oxlint-disable-next-line react-doctor/no-derived-state-effect -- Why: this effect starts the reads; `loadedFor` records which task they answer.
-  useEffect(() => {
-    // The hook outlives a task switch, so a slow read of the last task must not land on this one.
-    latestTaskReadRef.current += 1
-    if (!taskId || !identity) {
-      return
-    }
-    let cancelled = false
-    const force = reloadNonce > 0
-    const captureEpoch = (): DartEpochSnapshot => captureDartEpoch(identity)
-    const isCancelled = (): boolean => cancelled
-    setLoadedFor(taskId)
-    setFull(LOADING_STATE)
-    setComments(LOADING_STATE)
-    void readPastDartWrites({
-      captureEpoch,
-      cancelled: isCancelled,
-      force,
-      read: (forced) => fetchDartTask(taskId, { sourceContext, force: forced })
-    })
-      .then(({ result, current }) => {
-        if (cancelled) {
-          return
-        }
-        // Past the re-read limit the edits on screen stay over the last read, since no read is shown yet.
-        setFull(
-          result.ok
-            ? {
-                status: 'ready',
-                value: {
-                  ...result.task,
-                  ...(current ? {} : rowPatchRef.current),
-                  ...pendingDartPatches(identity)
-                }
-              }
-            : { status: 'error', message: taskProviderErrorMessage(result) }
-        )
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setFull({
-            status: 'error',
-            message: taskProviderErrorText(undefined, 'dart.loadFailed')
-          })
-        }
-      })
-    commentReadRef.current += 1
-    const commentRead = commentReadRef.current
-    void readPastDartWrites({
-      captureEpoch,
-      cancelled: isCancelled,
-      force,
-      read: (forced) => listDartComments(taskId, { sourceContext, force: forced })
-    })
-      .then(({ result, current }) => {
-        if (!cancelled && commentRead === commentReadRef.current) {
-          applyCommentsRead(result, current, false)
-        }
-      })
-      .catch(() => {
-        if (!cancelled && commentRead === commentReadRef.current) {
-          setComments({
-            status: 'error',
-            message: taskProviderErrorText(undefined, 'dart.loadFailed')
-          })
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [
+  useDartTaskDetailReads({
     taskId,
     identity,
     sourceContext,
     reloadNonce,
     fetchDartTask,
-    listDartComments,
-    applyCommentsRead
-  ])
+    target: scope.target,
+    setFull,
+    setComments,
+    applyCommentsRead,
+    identityRef,
+    rowPatchRef,
+    latestTaskReadRef,
+    commentReadsRef,
+    taskIdRef,
+    setLoadedFor
+  })
 
   const retry = useCallback(() => setReloadNonce((n) => n + 1), [])
   // Until the effect runs for a newly opened task, the previous task's state must not show.
-  const isCurrent = loadedFor === taskId
+  const isCurrent =
+    loadedFor ===
+    (identity ? JSON.stringify([identity.hostKey, identity.accountKey, identity.taskId]) : null)
   const shownFull = isCurrent ? full : LOADING_STATE
   const shownComments = isCurrent ? comments : LOADING_STATE
   const displayed = useMemo(
@@ -253,35 +152,100 @@ export function useDartTaskDetailData(
   })
   const writes = useDartTaskDetailWrites({ identity, sourceContext, displayedRef })
 
+  const commentReadKey = identity
+    ? JSON.stringify([identity.hostKey, identity.accountKey, identity.taskId])
+    : null
+
   const reloadComments = useCallback<DartDetailCommentsApi['reloadComments']>(async () => {
-    if (!identity) {
+    if (!commentReadKey || !identity || !identityMatches(identityRef.current, identity)) {
       return
     }
-    commentReadRef.current += 1
-    const commentRead = commentReadRef.current
+    const reads = commentReadsRef.current
+    const nextRead = (reads.get(commentReadKey) ?? 0) + 1
+    reads.set(commentReadKey, nextRead)
+    await reloadDartComments({
+      identity,
+      target: scope.target,
+      onError: () =>
+        setComments((shown) =>
+          shown.status === 'ready'
+            ? shown
+            : { status: 'error', message: taskProviderErrorText(undefined, 'dart.loadFailed') }
+        ),
+      isLatestRead: () =>
+        identityMatches(identityRef.current, identity) && reads.get(commentReadKey) === nextRead,
+      applyCommentsRead
+    })
+  }, [applyCommentsRead, commentReadKey, identity, scope.target])
+  const readLatestComments = useCallback(async (): Promise<DartComment[]> => {
+    if (!commentReadKey || !identity || !identityMatches(identityRef.current, identity)) {
+      throw new Error(taskProviderErrorText(undefined, 'dart.loadFailed'))
+    }
+    const reads = commentReadsRef.current
+    const nextRead = (reads.get(commentReadKey) ?? 0) + 1
+    reads.set(commentReadKey, nextRead)
+    const isLatestCommentRead = (): boolean =>
+      identityMatches(identityRef.current, identity) && reads.get(commentReadKey) === nextRead
+    const setCommentReadError = (): void => {
+      if (isLatestCommentRead()) {
+        setComments((shown) =>
+          shown.status === 'ready'
+            ? shown
+            : { status: 'error', message: taskProviderErrorText(undefined, 'dart.loadFailed') }
+        )
+      }
+    }
+    const capturedEpoch = captureDartEpoch(identity)
     const { result, current } = await readPastDartWrites({
       captureEpoch: () => captureDartEpoch(identity),
       force: true,
-      read: () => listDartComments(identity.taskId, { sourceContext, force: true })
+      read: () => readAllDartComments(scope.target, identity.taskId)
+    }).catch((error: unknown) => {
+      setCommentReadError()
+      throw error
     })
-    if (commentRead === commentReadRef.current) {
-      applyCommentsRead(result, current, true)
+    if (!current) {
+      setCommentReadError()
     }
-  }, [applyCommentsRead, identity, listDartComments, sourceContext])
-
-  const appendLocalComment = useCallback<DartDetailCommentsApi['appendLocalComment']>((comment) => {
-    if (!localCommentsRef.current.some((local) => local.id === comment.id)) {
-      localCommentsRef.current = [...localCommentsRef.current, comment]
+    if (!isLatestCommentRead() || !current || !isDartEpochCurrent(capturedEpoch)) {
+      setCommentReadError()
+      throw new Error(taskProviderErrorText(undefined, 'dart.loadFailed'))
     }
-    setComments((shown) =>
-      shown.status === 'ready'
-        ? { status: 'ready', value: withLocalComments(shown.value, [comment]) }
-        : shown
-    )
-  }, [])
-
+    if (!result.ok) {
+      setCommentReadError()
+      throw new Error(taskProviderErrorMessage(result))
+    }
+    if (result.rawCount !== undefined && result.rawCount !== result.comments.length) {
+      setCommentReadError()
+      throw new Error(taskProviderErrorText(undefined, 'dart.loadFailed'))
+    }
+    applyCommentsRead(result, true, true)
+    return [...withLocalComments(result, localCommentsRef.current).comments]
+  }, [applyCommentsRead, commentReadKey, identity, scope.target])
+  const appendLocalComment = useCallback<DartDetailCommentsApi['appendLocalComment']>(
+    (comment) => {
+      if (!identity) {
+        return
+      }
+      if (!identityMatches(identityRef.current, identity) || comment.taskId !== identity.taskId) {
+        return
+      }
+      if (!localCommentsRef.current.some((local) => local.id === comment.id)) {
+        localCommentsRef.current = [...localCommentsRef.current, comment]
+      }
+      setComments((shown) =>
+        shown.status === 'ready'
+          ? { status: 'ready', value: withLocalComments(shown.value, [comment]) }
+          : shown
+      )
+    },
+    [identity]
+  )
   const readLatestTask = useCallback<DartDetailDescriptionApi['readLatestTask']>(async () => {
     if (!identity) {
+      return noOpenDartTaskFailure()
+    }
+    if (!identityMatches(identityRef.current, identity)) {
       return noOpenDartTaskFailure()
     }
     const latestTaskRead = ++latestTaskReadRef.current
@@ -290,9 +254,14 @@ export function useDartTaskDetailData(
       force: true,
       read: () => fetchDartTask(identity.taskId, { sourceContext, force: true })
     })
-    if (result.ok && current && latestTaskRead === latestTaskReadRef.current) {
+    if (
+      result.ok &&
+      current &&
+      identityMatches(identityRef.current, identity) &&
+      latestTaskRead === latestTaskReadRef.current
+    ) {
       const latest = { ...result.task, ...pendingDartPatches(identity) }
-      setFull((shown) => (shown.status === 'ready' ? { status: 'ready', value: latest } : shown))
+      setFull({ status: 'ready', value: latest })
     }
     return result
   }, [fetchDartTask, identity, sourceContext])
@@ -314,8 +283,10 @@ export function useDartTaskDetailData(
     config,
     supportsWritesV2,
     viewerName,
+    viewerEmail,
     writeScope: sourceContext,
     reloadComments,
+    readLatestComments,
     appendLocalComment,
     commentDraftKey: identity ? dartDraftKey(identity, identity.taskId, 'comment') : null,
     description,

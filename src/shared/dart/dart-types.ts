@@ -91,4 +91,5 @@ export type DartTaskPage = {
 export type DartCommentPage = {
   comments: DartComment[]
   totalCount: number
+  rawCount?: number
 }

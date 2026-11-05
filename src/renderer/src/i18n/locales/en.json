@@ -18853,6 +18853,28 @@
               "fieldType": "Type",
               "refusedField": "{{field}} wasn't saved: {{message}}",
               "unknownField": "{{field}}: {{message}}"
+            },
+            "DartCommentComposer": {
+              "replyingTo": "Replying to {{author}}",
+              "cancelReply": "Cancel",
+              "copyOldest": "Copy",
+              "discardOldest": "Discard it",
+              "placeholder": "Add a comment…",
+              "commentLabel": "Comment",
+              "send": "Send comment",
+              "shortcutHint": "{{shortcut}} to send",
+              "commentTooLarge": "This comment is too long to send to Dart. Shorten it and try again.",
+              "mayHavePosted": "Not sure it posted",
+              "notSaved": "Comment wasn't saved: {{message}}",
+              "unknownHost": "unknown host",
+              "draftsFull": "Orca keeps a bounded number of unsaved Dart drafts, and this text is not saved yet. The oldest ({{kind}} on {{host}}, task {{task}}) has to be copied or discarded first.",
+              "draftKindDescription": "description",
+              "draftKindComment": "comment",
+              "readFailed": "Could not check comments. Retry before sending.",
+              "viewerUnknown": "Cannot check for duplicate comments without the current Dart user. Retry after reconnecting.",
+              "duplicate": "A matching comment is already posted",
+              "postAnyway": "Post anyway",
+              "retry": "Retry"
             }
           },
           "task": {

@@ -163,7 +163,9 @@ describe('detail property editors', () => {
 
   it('omits Assign to me when the detail has no viewer name', async () => {
     const user = userEvent.setup()
-    openDetail({ detailEnv: `other-host-${Date.now()}` })
+    const detailEnv = `other-host-${Date.now()}`
+    runtime.host(detailEnv).connection = { connected: true, viewer: null }
+    openDetail({ detailEnv })
 
     await user.click(await screen.findByRole('combobox', { name: 'Assignee' }))
     await screen.findByRole('option', { name: 'Unassigned' })
