@@ -31,34 +31,57 @@ export async function checkDartCreateSession(key: string, scope: DartReadScope):
     matchesDismissed: false
   })
   const draft = current.lookupDraft ?? current.draft
-  const lookup = await lookupDartCreateMatches(
-    (args) => dartListTasksForTarget(scope.target, args),
-    draft.title.trim(),
-    draft.dartboard
-  )
-  const latest = useAppStore.getState().dartCreateSessions[key]
-  if (!latest || latest.lookupSequence !== sequence) {
-    return
-  }
-  if ('error' in lookup) {
+  try {
+    const lookup = await lookupDartCreateMatches(
+      (args) => dartListTasksForTarget(scope.target, args),
+      draft.title.trim(),
+      draft.dartboard
+    )
+    const latest = useAppStore.getState().dartCreateSessions[key]
+    if (!latest || latest.lookupSequence !== sequence) {
+      return
+    }
+    if ('error' in lookup) {
+      store.patchDartCreateSession(key, {
+        listChecked: false,
+        matches: [],
+        truncated: false,
+        notice: { kind: 'unknown', message: lookup.error }
+      })
+    } else {
+      store.patchDartCreateSession(key, {
+        listChecked: true,
+        matches: lookup.matches,
+        truncated: lookup.truncated,
+        notice:
+          latest.notice?.kind === 'unknown'
+            ? { kind: 'unknown', message: dartCreateUnknownMessage() }
+            : latest.notice
+      })
+    }
+  } catch (error) {
+    const latest = useAppStore.getState().dartCreateSessions[key]
+    if (!latest || latest.lookupSequence !== sequence) {
+      return
+    }
     store.patchDartCreateSession(key, {
-      lookingUp: false,
       listChecked: false,
       matches: [],
       truncated: false,
-      notice: { kind: 'unknown', message: lookup.error }
+      notice: {
+        kind: 'unknown',
+        message: translate(
+          'auto.components.task.page.dart.TaskCreateDialog.lookupFailed',
+          'Could not check whether Dart created this task. {{error}} Try again.',
+          { error: taskProviderErrorMessage({ error }) }
+        )
+      }
     })
-  } else {
-    store.patchDartCreateSession(key, {
-      lookingUp: false,
-      listChecked: true,
-      matches: lookup.matches,
-      truncated: lookup.truncated,
-      notice:
-        latest.notice?.kind === 'unknown'
-          ? { kind: 'unknown', message: dartCreateUnknownMessage() }
-          : latest.notice
-    })
+  } finally {
+    const latest = useAppStore.getState().dartCreateSessions[key]
+    if (latest?.lookupSequence === sequence) {
+      store.patchDartCreateSession(key, { lookingUp: false })
+    }
   }
 }
 
@@ -81,7 +104,13 @@ export async function submitDartCreate(
       unknown: true,
       submitting: false,
       editable: false,
-      lookupDraft: current?.draft ?? null,
+      lookupDraft: current?.draft
+        ? {
+            ...current.draft,
+            title: String(args.title),
+            dartboard: typeof args.dartboard === 'string' ? args.dartboard : ''
+          }
+        : null,
       listChecked: false,
       matchesDismissed: false,
       notice: { kind: 'unknown', message: dartCreateUnknownMessage() }
