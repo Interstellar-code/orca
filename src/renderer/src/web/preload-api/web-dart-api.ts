@@ -9,7 +9,10 @@ import {
   DART_WRITES_V2_RUNTIME_CAPABILITY
 } from '../../../../shared/dart/dart-capabilities'
 import { taskProviderFailure } from '../../../../shared/task-provider-failure'
-import { DartUpdateRequiredError } from '../../runtime/runtime-dart-client'
+import {
+  DartUpdateRequiredError,
+  dartUpdateRequiredMessage
+} from '../../runtime/runtime-dart-client'
 import { callRuntimeEnvelope, getRemoteRuntimeStatus } from './web-runtime-calls'
 import { assertActiveEnvironment, requireActiveEnvironment } from './web-runtime-session'
 
@@ -20,22 +23,43 @@ const DART_SETTINGS_TIMEOUT_MS = 15_000
 
 const DART_WRITE_METHODS = new Set<DartMethodName>(DART_UNVERIFIED_WRITE_METHODS)
 
-async function hostAdvertises(capability: string): Promise<boolean> {
+async function hostAdvertises(
+  capability: string,
+  onProbeFailure: 'false' | 'throw'
+): Promise<boolean> {
   const environmentId = requireActiveEnvironment().id
-  const status = await getRemoteRuntimeStatus().catch(() => null)
+  const status =
+    onProbeFailure === 'throw'
+      ? await getRemoteRuntimeStatus()
+      : await getRemoteRuntimeStatus().catch(() => null)
   // Why: the verdict belongs to the probed host; a host switched in mid-probe is never trusted.
   assertActiveEnvironment(environmentId)
   return status?.capabilities?.includes(capability) === true
 }
 
-const supportsWritesV2 = (): Promise<boolean> => hostAdvertises(DART_WRITES_V2_RUNTIME_CAPABILITY)
+const supportsWritesV2 = (): Promise<boolean> =>
+  hostAdvertises(DART_WRITES_V2_RUNTIME_CAPABILITY, 'false')
 
-// Why: a host without the capability must be updated; its Dart calls are never sent.
-async function dartStatus(): Promise<DartMethodContract['dart.status']['reply']> {
-  if (!(await hostAdvertises(DART_PROVIDER_RUNTIME_CAPABILITY))) {
-    throw new DartUpdateRequiredError()
+const PROVIDER_VERDICT_TTL_MS = 60_000
+const providerVerdictExpiry = new Map<string, number>()
+
+// Why: only a positive verdict is cached so an in-place host upgrade is seen on the next call.
+async function hostSupportsDartProvider(): Promise<boolean> {
+  const environmentId = requireActiveEnvironment().id
+  const expiry = providerVerdictExpiry.get(environmentId)
+  if (expiry !== undefined && Date.now() < expiry) {
+    return true
   }
-  return dartCall('dart.status')
+  // A failed probe rethrows so a network error shows the offline state, not update-required.
+  const supported = await hostAdvertises(DART_PROVIDER_RUNTIME_CAPABILITY, 'throw')
+  if (supported) {
+    providerVerdictExpiry.set(environmentId, Date.now() + PROVIDER_VERDICT_TTL_MS)
+  }
+  return supported
+}
+
+export function clearDartProviderVerdictCacheForTests(): void {
+  providerVerdictExpiry.clear()
 }
 
 async function dartCall<M extends DartMethodName>(
@@ -43,6 +67,17 @@ async function dartCall<M extends DartMethodName>(
   params?: DartMethodContract[M]['params'],
   timeoutMs = DART_READ_TIMEOUT_MS
 ): Promise<DartMethodContract[M]['reply']> {
+  // Why: a host without the capability must be updated; its Dart calls are never sent.
+  if (!(await hostSupportsDartProvider())) {
+    if (method === 'dart.status') {
+      throw new DartUpdateRequiredError()
+    }
+    const failure = { ok: false as const, error: dartUpdateRequiredMessage() }
+    // SAFETY: every Dart reply type admits the contract failure shape.
+    return (
+      DART_WRITE_METHODS.has(method) ? { ...failure, outcome: 'notApplied' } : failure
+    ) as DartMethodContract[M]['reply']
+  }
   const response = await callRuntimeEnvelope<DartMethodContract[M]['reply']>(
     method,
     params,
@@ -62,7 +97,7 @@ async function dartCall<M extends DartMethodName>(
 
 export function createWebDartApi(): PreloadApi['dart'] {
   return {
-    status: dartStatus,
+    status: () => dartCall('dart.status'),
     connect: (args) => dartCall('dart.connect', args),
     disconnect: () => dartCall('dart.disconnect', undefined, DART_SETTINGS_TIMEOUT_MS),
     testConnection: () => dartCall('dart.testConnection'),

@@ -16,10 +16,11 @@ vi.mock('./web-runtime-session', () => ({
   assertActiveEnvironment: mocks.assertActiveEnvironment
 }))
 
-import { createWebDartApi } from './web-dart-api'
+import { clearDartProviderVerdictCacheForTests, createWebDartApi } from './web-dart-api'
 
 beforeEach(() => {
   vi.resetAllMocks()
+  clearDartProviderVerdictCacheForTests()
   mocks.requireActiveEnvironment.mockReturnValue({ id: 'env-1' })
 })
 
@@ -62,6 +63,38 @@ describe('web dart status capability gate', () => {
     expect(mocks.callRuntimeEnvelope).not.toHaveBeenCalled()
   })
 
+  it('rethrows a failed probe instead of reporting update-required', async () => {
+    mocks.getRemoteRuntimeStatus.mockRejectedValue(new Error('offline'))
+    const error = await createWebDartApi()
+      .status()
+      .catch((e: unknown) => e)
+    expect(error).toMatchObject({ message: 'offline' })
+    expect((error as Error).name).not.toBe('DartUpdateRequiredError')
+    expect(mocks.callRuntimeEnvelope).not.toHaveBeenCalled()
+  })
+
+  it('sends nothing from any other method to a host without dart.provider.v1', async () => {
+    mocks.getRemoteRuntimeStatus.mockResolvedValue({ capabilities: [] })
+    const api = createWebDartApi()
+    await expect(api.listTasks({} as never)).resolves.toMatchObject({ ok: false })
+    await expect(api.getTask({ taskId: 'abcDEF123456' } as never)).resolves.toMatchObject({
+      ok: false
+    })
+    await expect(api.connect({ apiToken: 't' })).resolves.toMatchObject({ ok: false })
+    await expect(
+      api.updateTask({ taskId: 'abcDEF123456', updates: {} } as never)
+    ).resolves.toMatchObject({ ok: false, outcome: 'notApplied' })
+    expect(mocks.callRuntimeEnvelope).not.toHaveBeenCalled()
+  })
+
+  it('probes once for repeated calls to a supporting host', async () => {
+    mocks.getRemoteRuntimeStatus.mockResolvedValue({ capabilities: ['dart.provider.v1'] })
+    mocks.callRuntimeEnvelope.mockResolvedValue({ ok: true, result: { ok: true } })
+    await createWebDartApi().status()
+    await createWebDartApi().config()
+    expect(mocks.getRemoteRuntimeStatus).toHaveBeenCalledTimes(1)
+  })
+
   it('sends dart.status to a host with dart.provider.v1', async () => {
     mocks.getRemoteRuntimeStatus.mockResolvedValue({ capabilities: ['dart.provider.v1'] })
     mocks.callRuntimeEnvelope.mockResolvedValue({ ok: true, result: { ok: true } })
@@ -71,6 +104,10 @@ describe('web dart status capability gate', () => {
 })
 
 describe('web dart writes', () => {
+  beforeEach(() => {
+    mocks.getRemoteRuntimeStatus.mockResolvedValue({ capabilities: ['dart.provider.v1'] })
+  })
+
   it('sends the description patch with the write timeout', async () => {
     mocks.callRuntimeEnvelope.mockResolvedValue({ ok: true, result: { ok: true } })
     const args = {
