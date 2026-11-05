@@ -101,7 +101,6 @@ export function DartCreateFields({
               size="sm"
               aria-label={label}
               className="w-full"
-              locked
             >
               <SelectValue />
             </SelectTrigger>
@@ -133,7 +132,6 @@ export function DartCreateFields({
               disabled={blocked || !dartConfig?.tags.length}
               aria-label={translate('auto.components.task.page.dart.TaskCreateDialog.tags', 'Tags')}
               className="justify-start"
-              locked={blocked}
             >
               <span className="truncate">
                 {createDraft.tags.join(', ') ||
@@ -176,7 +174,6 @@ export function DartCreateFields({
             id="dart-create-due"
             type="date"
             className="h-8"
-            locked
             value={createDraft.dueAt}
             disabled={blocked}
             onChange={(event) => setCreateDraft({ dueAt: event.target.value })}

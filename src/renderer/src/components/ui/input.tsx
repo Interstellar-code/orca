@@ -23,20 +23,15 @@ const inputVariants = cva('', {
     adornment: {
       none: '',
       trailing: 'pr-8'
-    },
-    // Disabled-but-filled: a locked field shows its value at full strength instead of reading as a placeholder.
-    locked: {
-      false: '',
-      true: 'disabled:opacity-100'
     }
   },
-  defaultVariants: { variant: 'default', density: 'default', adornment: 'none', locked: false }
+  defaultVariants: { variant: 'default', density: 'default', adornment: 'none' }
 })
 
 const Input = React.forwardRef<
   HTMLInputElement,
   React.ComponentProps<'input'> & VariantProps<typeof inputVariants>
->(({ className, type, variant, surface, density, adornment, locked, ...props }, ref) => {
+>(({ className, type, variant, surface, density, adornment, ...props }, ref) => {
   return (
     <ImeInput
       ref={ref}
@@ -46,7 +41,7 @@ const Input = React.forwardRef<
         'h-9 w-full min-w-0 appearance-none rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none selection:bg-primary selection:text-primary-foreground file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm dark:bg-input/30',
         'focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
         'aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40',
-        inputVariants({ variant, surface, density, adornment, locked }),
+        inputVariants({ variant, surface, density, adornment }),
         className
       )}
       {...props}
