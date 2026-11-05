@@ -783,6 +783,17 @@ describe('Dart create dialog recovery guards', () => {
     expect(screen.getByText('Dart rejected the API token.')).toBeVisible()
   })
 
+  it('suppresses the unknown notice while checking the account', async () => {
+    const user = userEvent.setup()
+    renderCreateHarness({}, undefined, {
+      accountChecking: true,
+      createNotice: { kind: 'unknown', message: 'The create outcome is unknown.' }
+    })
+    await user.click(screen.getByRole('button', { name: 'New task' }))
+    expect(screen.getByText('Checking your Dart account.')).toBeVisible()
+    expect(screen.queryByText('The create outcome is unknown.')).toBeNull()
+  })
+
   it('disables ordinary controls while submitting', async () => {
     const user = userEvent.setup()
     const release = host.hold('dart.createTask')
@@ -798,8 +809,7 @@ describe('Dart create dialog recovery guards', () => {
 
   it('cancels discard confirmation with Cancel and Escape, then confirms discard', async () => {
     const user = userEvent.setup()
-    const discard = vi.fn()
-    const harness = renderCreateHarness({}, discard)
+    const harness = renderCreateHarness()
     await user.click(harness.newTaskButton())
     await user.type(screen.getByLabelText('Title'), 'Ship the fix')
     // Establish unresolved state through the real lost-reply flow.
@@ -812,18 +822,21 @@ describe('Dart create dialog recovery guards', () => {
       within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Cancel' })
     )
     expect(screen.queryByRole('alertdialog')).toBeNull()
-    expect(discard).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('Title')).toHaveValue('Ship the fix')
     await user.click(screen.getByRole('button', { name: 'Discard draft' }))
     expect(screen.getByRole('alertdialog')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus()
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('alertdialog')).toBeNull()
-    expect(discard).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('Title')).toHaveValue('Ship the fix')
     await user.click(screen.getByRole('button', { name: 'Discard draft' }))
     await user.click(
       within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Discard draft' })
     )
-    expect(discard).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    await user.click(harness.newTaskButton())
+    expect(screen.getByLabelText('Title')).toHaveValue('')
+    expect(screen.queryByText(/may have created this task/i)).toBeNull()
   })
 
   it('isolates an unresolved draft when the active Dart account changes', async () => {

@@ -174,7 +174,9 @@ export async function submitDartCreate(
         ? {
             ...current.draft,
             title: String(args.title),
-            dartboard: typeof args.dartboard === 'string' ? args.dartboard : ''
+            dartboard: typeof args.dartboard === 'string' ? args.dartboard : '',
+            assignee: typeof args.assignee === 'string' ? args.assignee : '',
+            dueAt: typeof args.dueAt === 'string' ? args.dueAt : ''
           }
         : null,
       listChecked: false,

@@ -78,7 +78,11 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
         ? unknownKey
         : JSON.stringify([hostKey, 'create', ownerUserId])))
     : (ownerRecord?.activeOwner && ownerRecord.keys[ownerRecord.activeOwner]) || unknownKey
-  const session = useAppStore((state) => state.dartCreateSessions[key] ?? EMPTY_DART_CREATE_SESSION)
+  const session = useAppStore((state) =>
+    ownerUserId
+      ? (state.dartCreateSessions[key] ?? EMPTY_DART_CREATE_SESSION)
+      : EMPTY_DART_CREATE_SESSION
+  )
   const patchSession = useAppStore((state) => state.patchDartCreateSession)
   const setDartCreateOwner = useAppStore((state) => state.setDartCreateOwner)
   useLayoutEffect(() => {
@@ -161,7 +165,11 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
         dartConfig
       )
       if (refusal) {
-        patchSession(key, { notice: { kind: 'refused', message: refusal }, editable: true })
+        patchSession(key, {
+          notice: { kind: 'refused', message: refusal },
+          editable: true,
+          listChecked: false
+        })
         return { ok: false, outcome: 'notApplied', error: refusal }
       }
       const args = { ...input, title, dartboard: board }
@@ -170,7 +178,11 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
       }
       if (!createSupportsWritesV2 && (input.dueAt || createDraft.dueAt)) {
         const error = 'A due date requires Dart writes v2, which is unavailable.'
-        patchSession(key, { notice: { kind: 'refused', message: error }, editable: true })
+        patchSession(key, {
+          notice: { kind: 'refused', message: error },
+          editable: true,
+          listChecked: false
+        })
         return { ok: false, outcome: 'notApplied', error }
       }
       return submitDartCreate(args, {
@@ -253,16 +265,8 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
     ) {
       return { ok: false, outcome: 'notApplied', error: 'Create anyway needs a checked list.' }
     }
-    return submit(dartCreateArgs(createDraft, true))
-  }, [
-    dartConfig,
-    model.dartConfigError,
-    createDraft,
-    createWritesV2Pending,
-    hasCurrentViewer,
-    key,
-    submit
-  ])
+    return submit(dartCreateArgs(current.lookupDraft ?? current.draft, true))
+  }, [dartConfig, model.dartConfigError, createWritesV2Pending, hasCurrentViewer, key, submit])
   const { claimCreateMatch, discardCreateDraft } = useDartCreateDiscardActions(
     key,
     hasCurrentViewer,
@@ -279,7 +283,7 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
     openCreate,
     closeCreate,
     createTask,
-    createDraft,
+    createDraft: ownerUserId ? createDraft : EMPTY_DART_CREATE_SESSION.draft,
     setCreateDraft,
     createUnresolved: session.unknown,
     createFieldsLocked: (session.unknown && !session.editable) || !ownerUserId,

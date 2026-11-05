@@ -125,10 +125,12 @@ export function useDartCreateOpen(
     if (!connected || updateRequired) {
       return
     }
-    setDraft({
-      dartboard: draft.dartboard,
-      assignee: draft.assignee || (mine && ownerUserId ? (viewerName ?? '') : '')
-    })
+    if (ownerUserId && !useAppStore.getState().dartCreateSessions[key]?.unknown) {
+      setDraft({
+        dartboard: draft.dartboard,
+        assignee: draft.assignee || (mine ? (viewerName ?? '') : '')
+      })
+    }
     setOpenKey(key)
   }, [connected, draft, key, mine, ownerUserId, setDraft, setOpenKey, updateRequired, viewerName])
 }
