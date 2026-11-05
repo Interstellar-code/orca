@@ -579,8 +579,10 @@ describe('useDartTaskDetailData', () => {
     await act(async () => releaseInitial())
   })
 
-  it('shows an error when Retry comments read throws', async () => {
+  it('keeps shown comments when Retry comments read throws', async () => {
     const page = await openReady()
+    const shown = { ...commentFixture('shown', 'Already shown'), taskId: page.taskId }
+    act(() => page.hook.result.current.appendLocalComment(shown))
     const handle = page.host.handle.bind(page.host)
     page.host.handle = async (method, params) => {
       if (method === 'dart.listComments') {
@@ -591,7 +593,32 @@ describe('useDartTaskDetailData', () => {
     }
 
     act(() => page.hook.result.current.retry())
-    await waitFor(() => expect(page.hook.result.current.comments.status).toBe('error'))
+    await waitFor(() => expect(page.hook.result.current.comments.status).toBe('ready'))
+    expect(page.hook.result.current.comments).toMatchObject({
+      status: 'ready',
+      value: { comments: [shown] }
+    })
+  })
+
+  it('keeps shown comments when Retry comments read is refused', async () => {
+    const page = await openReady()
+    const shown = { ...commentFixture('shown', 'Already shown'), taskId: page.taskId }
+    act(() => page.hook.result.current.appendLocalComment(shown))
+    const handle = page.host.handle.bind(page.host)
+    page.host.handle = async (method, params) => {
+      if (method === 'dart.listComments') {
+        page.host.requests.push({ method, params })
+        return { ok: false, error: 'Unavailable', errorCode: 'dart.loadFailed' }
+      }
+      return handle(method, params)
+    }
+
+    act(() => page.hook.result.current.retry())
+    await waitFor(() => expect(page.hook.result.current.comments.status).toBe('ready'))
+    expect(page.hook.result.current.comments).toMatchObject({
+      status: 'ready',
+      value: { comments: [shown] }
+    })
   })
 
   it('shows the patched description from a targeted save and sends no description field', async () => {

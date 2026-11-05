@@ -261,7 +261,7 @@ export function useDartTaskDetailReads({
           isCurrentRead()
         ) {
           setComments((shown) =>
-            shown.status === 'ready' && !force
+            shown.status === 'ready'
               ? shown
               : {
                   status: 'error',
