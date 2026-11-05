@@ -16,27 +16,8 @@ import {
   getDraft,
   type DartDraftValue
 } from './dart-draft-store'
-import { clearDraft } from './dart-draft-store'
-import { getDartReplyTarget, setDartReplyTarget } from './dart-reply-target-store'
 import { hasMatchingDartComment } from './dart-comment-duplicate'
 import type { DartWriteNotice } from './dart-detail-contracts'
-
-export function clearCompletedDartComment(draftKey: string, sentParentId?: string | null): void {
-  clearDraft(draftKey)
-  const target = getDartReplyTarget(draftKey)
-  if (sentParentId === undefined || (target?.id ?? null) === sentParentId) {
-    setDartReplyTarget(draftKey, null)
-  }
-  patchDartCommentSendState(draftKey, {
-    text: null,
-    saved: true,
-    duplicate: null,
-    notice: null,
-    unknownSubmission: null,
-    refusalNotice: null,
-    recheckFailed: false
-  })
-}
 
 export function dartCommentViewerUnknownNotice(): DartWriteNotice {
   return {
