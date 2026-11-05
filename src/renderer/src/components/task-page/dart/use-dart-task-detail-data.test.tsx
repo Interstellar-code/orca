@@ -488,6 +488,59 @@ describe('useDartTaskDetailData', () => {
       ).toEqual(['Older', 'Posted'])
     }
   )
+
+  it('shows an error when an initial latest comments read is overtaken by a write', async () => {
+    const page = openDetail()
+    const releaseInitial = page.host.hold('dart.listComments')
+    const hook = page.mount()
+    await waitFor(() => expect(page.host.count('dart.listComments')).toBe(1))
+    const releaseRead = page.host.hold('dart.listComments')
+    const pending = hook.result.current.readLatestComments()
+    const rejected = expect(pending).rejects.toThrow()
+    await waitFor(() => expect(page.host.count('dart.listComments')).toBe(2))
+
+    await act(async () => {
+      await hook.result.current.onAddComment({ text: 'Posted' })
+      releaseInitial()
+      releaseRead()
+    })
+    await rejected
+    expect(hook.result.current.comments.status).toBe('error')
+  })
+
+  it('shows an error when an initial latest comments read is always stale', async () => {
+    const page = openDetail()
+    const releaseInitial = page.host.hold('dart.listComments')
+    let reads = 0
+    const handle = page.host.handle.bind(page.host)
+    page.host.handle = async (method, params) => {
+      const result = await handle(method, params)
+      if (method === 'dart.listComments') {
+        reads += 1
+        bumpDartEpochs({
+          hostKey: `runtime:${page.env}`,
+          accountKey: viewer.id,
+          taskId: page.taskId
+        })
+      }
+      return result
+    }
+    const hook = page.mount()
+    await waitFor(() => expect(page.host.count('dart.listComments')).toBe(1))
+    const releaseRead = page.host.hold('dart.listComments')
+    const pending = hook.result.current.readLatestComments()
+    const rejected = expect(pending).rejects.toThrow()
+    await waitFor(() => expect(page.host.count('dart.listComments')).toBe(2))
+
+    await act(async () => {
+      releaseInitial()
+      releaseRead()
+    })
+    await rejected
+    expect(reads).toBeGreaterThan(2)
+    expect(hook.result.current.comments.status).toBe('error')
+  })
+
   it('rejects a comments read whose epoch becomes stale before publishing', async () => {
     const page = await openReady()
     const shown = { ...commentFixture('shown', 'Already shown'), taskId: page.taskId }

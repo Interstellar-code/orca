@@ -207,12 +207,8 @@ export function useDartTaskDetailData(
     if (!current) {
       setCommentReadError()
     }
-    if (
-      !isLatestCommentRead() ||
-      !current ||
-      !isDartEpochCurrent(capturedEpoch) ||
-      !isDartEpochCurrent(capturedEpoch)
-    ) {
+    if (!isLatestCommentRead() || !current || !isDartEpochCurrent(capturedEpoch)) {
+      setCommentReadError()
       throw new Error(taskProviderErrorText(undefined, 'dart.loadFailed'))
     }
     if (!result.ok) {
