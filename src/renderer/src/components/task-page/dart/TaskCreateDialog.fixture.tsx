@@ -149,3 +149,23 @@ export const failedConfig = defineFixture({
     />
   )
 })
+
+export const discardConfirmation = defineFixture({
+  width: 640,
+  render: () => (
+    <TaskPageDartCreateDialog
+      model={model({
+        createDraft: filledDraft,
+        dartConfig: filledConfig,
+        createUnresolved: true,
+        createFieldsLocked: true,
+        discardCreateDraft: noop
+      })}
+    />
+  ),
+  interact: () => {
+    Array.from(document.querySelectorAll('button'))
+      .find((button) => button.textContent === 'Discard draft')
+      ?.click()
+  }
+})

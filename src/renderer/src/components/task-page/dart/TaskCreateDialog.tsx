@@ -63,6 +63,7 @@ export function TaskPageDartCreateDialog({
     openDartDetailPage
   } = model
   const [showPending, setShowPending] = useState(false)
+  const [discardOpen, setDiscardOpen] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
   const focusWasInContentRef = useRef(false)
   useEffect(() => {
@@ -74,12 +75,32 @@ export function TaskPageDartCreateDialog({
     return () => clearTimeout(timer)
   }, [createSubmitting])
   const blocked = createSubmitting || (model.createFieldsLocked ?? model.createUnresolved) === true
+  const configUnavailable = !dartConfig || Boolean(model.dartConfigError)
+  const recoveryBlocked = createSubmitting || Boolean(model.createLookingUp) || configUnavailable
   useEffect(() => {
     if (blocked && focusWasInContentRef.current) {
-      contentRef.current?.querySelector<HTMLButtonElement>('button:not([disabled])')?.focus()
+      const enabled = contentRef.current?.querySelector<HTMLButtonElement>('button:not([disabled])')
+      if (enabled) {
+        enabled.focus()
+      } else {
+        contentRef.current?.focus()
+      }
       focusWasInContentRef.current = false
     }
-  }, [blocked])
+  }, [blocked, configUnavailable])
+  useEffect(() => {
+    if (!blocked || !contentRef.current) {
+      return
+    }
+    const enabled = contentRef.current.querySelector<HTMLButtonElement>('button:not([disabled])')
+    if (
+      !enabled &&
+      document.activeElement instanceof HTMLElement &&
+      contentRef.current.contains(document.activeElement)
+    ) {
+      contentRef.current.focus()
+    }
+  }, [blocked, configUnavailable])
   const descriptionCheck = checkDartRequestText('description', createDraft.description)
   const titleInvalid = createDraft.title.length > DART_TITLE_MAX_LENGTH
   const canSubmit =
@@ -236,7 +257,7 @@ export function TaskPageDartCreateDialog({
                     type="button"
                     variant="outline"
                     size="xs"
-                    disabled={createSubmitting || model.createLookingUp}
+                    disabled={recoveryBlocked}
                     onClick={() => void checkAgain()}
                   >
                     {translate(
@@ -292,15 +313,7 @@ export function TaskPageDartCreateDialog({
                   variant="ghost"
                   size="sm"
                   disabled={createSubmitting}
-                  onClick={() => {
-                    const message = translate(
-                      'auto.components.task.page.dart.TaskCreateDialog.confirmDiscard',
-                      'Discard this draft? Dart may already have created the task.'
-                    )
-                    if (window.confirm(message)) {
-                      model.discardCreateDraft?.()
-                    }
-                  }}
+                  onClick={() => setDiscardOpen(true)}
                 >
                   {translate(
                     'auto.components.task.page.dart.TaskCreateDialog.discardDraft',
@@ -315,7 +328,7 @@ export function TaskPageDartCreateDialog({
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={createSubmitting || model.createLookingUp}
+                  disabled={recoveryBlocked}
                   onClick={dismissMatches}
                 >
                   {translate(
@@ -328,7 +341,7 @@ export function TaskPageDartCreateDialog({
                 <Button
                   type="button"
                   size="sm"
-                  disabled={createSubmitting || model.createLookingUp}
+                  disabled={recoveryBlocked}
                   onClick={() => void createAnyway()}
                 >
                   {translate(
@@ -376,6 +389,48 @@ export function TaskPageDartCreateDialog({
             </span>
           </Button>
         </DialogFooter>
+        <Dialog open={discardOpen} onOpenChange={setDiscardOpen}>
+          <DialogContent role="alertdialog" size="compact">
+            <DialogHeader>
+              <DialogTitle size="compact">
+                {translate(
+                  'auto.components.task.page.dart.TaskCreateDialog.confirmDiscardTitle',
+                  'Discard draft?'
+                )}
+              </DialogTitle>
+              <DialogDescription size="compact">
+                {translate(
+                  'auto.components.task.page.dart.TaskCreateDialog.confirmDiscard',
+                  'Discard this draft? Dart may already have created the task.'
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={createSubmitting}
+                onClick={() => setDiscardOpen(false)}
+              >
+                {translate('auto.components.task.page.dart.TaskCreateDialog.cancel', 'Cancel')}
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={createSubmitting}
+                onClick={() => {
+                  setDiscardOpen(false)
+                  model.discardCreateDraft?.()
+                }}
+              >
+                {translate(
+                  'auto.components.task.page.dart.TaskCreateDialog.discardDraft',
+                  'Discard draft'
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </DialogContent>
     </Dialog>
   )

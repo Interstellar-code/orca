@@ -613,3 +613,62 @@ describe('Dart create session ownership', () => {
     expect(screen.getByRole('button', { name: 'Create task' })).toHaveProperty('disabled', true)
   })
 })
+
+describe('Dart create dialog recovery guards', () => {
+  it('keeps ordinary Create task disabled while unresolved and shows recovery guidance', async () => {
+    const user = userEvent.setup()
+    host.lostReplies.push({ ok: false, error: 'socket closed', outcome: 'unknown' })
+    renderCreateHarness()
+    await user.click(screen.getByRole('button', { name: 'New task' }))
+    await user.type(screen.getByLabelText('Title'), 'Ship the fix')
+    await user.click(screen.getByRole('button', { name: 'Create task' }))
+    expect(await screen.findByText(/may have created this task/i)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Create task' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Check again' })).toBeVisible()
+  })
+
+  it('disables recovery controls while submitting or looking up', async () => {
+    const user = userEvent.setup()
+    host.lostReplies.push({ ok: false, error: 'socket closed', outcome: 'unknown' })
+    renderCreateHarness()
+    await user.click(screen.getByRole('button', { name: 'New task' }))
+    await user.type(screen.getByLabelText('Title'), 'Ship the fix')
+    await user.click(screen.getByRole('button', { name: 'Create task' }))
+    expect(await screen.findByText(/may have created this task/i)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Check again' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Discard draft' })).toBeEnabled()
+  })
+
+  it('cancels discard confirmation with Cancel and Escape, then confirms discard', async () => {
+    const user = userEvent.setup()
+    const discard = vi.fn()
+    const harness = renderCreateHarness()
+    await user.click(harness.newTaskButton())
+    await user.type(screen.getByLabelText('Title'), 'Ship the fix')
+    // Establish unresolved state through the real lost-reply flow.
+    host.lostReplies.push({ ok: false, error: 'socket closed', outcome: 'unknown' })
+    await user.click(screen.getByRole('button', { name: 'Create task' }))
+    await screen.findByRole('button', { name: 'Discard draft' })
+    harness.model().discardCreateDraft = discard
+    await user.click(screen.getByRole('button', { name: 'Discard draft' }))
+    expect(screen.getByRole('alertdialog')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Discard draft' }))
+    await user.click(screen.getByRole('button', { name: 'Discard draft' }))
+    expect(discard).toHaveBeenCalledOnce()
+  })
+
+  it('moves focus to the dialog body when Enter submits and no recovery button is enabled', async () => {
+    const user = userEvent.setup()
+    const release = host.hold('dart.createTask')
+    renderCreateHarness()
+    await user.click(screen.getByRole('button', { name: 'New task' }))
+    const title = screen.getByLabelText('Title')
+    await user.type(title, 'Ship the fix')
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(screen.getByRole('dialog')).toHaveFocus())
+    release()
+  })
+})
