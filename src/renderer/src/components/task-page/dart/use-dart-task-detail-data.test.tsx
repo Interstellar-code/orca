@@ -494,6 +494,7 @@ describe('useDartTaskDetailData', () => {
     act(() => page.hook.result.current.appendLocalComment(shown))
     const release = page.host.hold('dart.listComments')
     const pending = page.hook.result.current.readLatestComments()
+    const rejected = expect(pending).rejects.toThrow()
     await waitFor(() => expect(page.host.count('dart.listComments')).toBeGreaterThan(1))
     bumpDartEpochs({
       hostKey: `runtime:${page.env}`,
@@ -501,7 +502,7 @@ describe('useDartTaskDetailData', () => {
       taskId: page.taskId
     })
     await act(async () => release())
-    await expect(pending).rejects.toThrow()
+    await rejected
     expect(page.hook.result.current.comments).toMatchObject({
       status: 'ready',
       value: { comments: [shown] }
