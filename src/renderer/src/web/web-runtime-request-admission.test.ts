@@ -9,10 +9,10 @@ import { WebRuntimeSubscriptionRegistry } from './web-runtime-subscription-regis
 import type { WebRuntimeTransportSubscription } from './web-runtime-subscription-contract'
 import { WebRuntimeRequestRegistry } from './web-runtime-request-registry'
 
-const mocks = vi.hoisted(() => ({ call: vi.fn() }))
+const mocks = vi.hoisted(() => ({ call: vi.fn(), status: vi.fn() }))
 vi.mock('./preload-api/web-runtime-calls', () => ({
   callRuntimeEnvelope: mocks.call,
-  getRemoteRuntimeStatus: vi.fn()
+  getRemoteRuntimeStatus: mocks.status
 }))
 vi.mock('./preload-api/web-runtime-session', () => ({
   requireActiveEnvironment: () => ({ id: 'env-1' }),
@@ -121,6 +121,7 @@ describe('web runtime request admission', () => {
 describe('web Dart client size refusal end to end', () => {
   it('reaches the user as notApplied with the too-large message through the real web Dart API', async () => {
     const { registry, send, sealText } = harness()
+    mocks.status.mockResolvedValue({ capabilities: ['dart.provider.v1'] })
     mocks.call.mockImplementation(async (method: string, params: unknown, timeoutMs: number) =>
       registry.call(method, params, { timeoutMs })
     )
