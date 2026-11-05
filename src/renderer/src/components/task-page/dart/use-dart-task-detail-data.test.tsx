@@ -555,6 +555,44 @@ describe('useDartTaskDetailData', () => {
       ['Newer']
     )
   })
+  it.each([
+    ['refused', { ok: false, error: 'Unavailable', errorCode: 'dart.loadFailed' }],
+    ['malformed', { ok: true, comments: [], totalCount: 0, rawCount: 1 }]
+  ] as const)('shows an error when an initial latest comments read is %s', async (_, reply) => {
+    const page = openDetail()
+    const releaseInitial = page.host.hold('dart.listComments')
+    const hook = page.mount()
+    await waitFor(() => expect(page.host.count('dart.listComments')).toBe(1))
+    const handle = page.host.handle.bind(page.host)
+    page.host.handle = async (method, params) => {
+      if (method === 'dart.listComments') {
+        page.host.requests.push({ method, params })
+        return reply
+      }
+      return handle(method, params)
+    }
+
+    await act(async () => {
+      await expect(hook.result.current.readLatestComments()).rejects.toThrow()
+    })
+    expect(hook.result.current.comments.status).toBe('error')
+    await act(async () => releaseInitial())
+  })
+
+  it('shows an error when Retry comments read throws', async () => {
+    const page = await openReady()
+    const handle = page.host.handle.bind(page.host)
+    page.host.handle = async (method, params) => {
+      if (method === 'dart.listComments') {
+        page.host.requests.push({ method, params })
+        throw new Error('Read failed')
+      }
+      return handle(method, params)
+    }
+
+    act(() => page.hook.result.current.retry())
+    await waitFor(() => expect(page.hook.result.current.comments.status).toBe('error'))
+  })
 
   it('shows the patched description from a targeted save and sends no description field', async () => {
     const { hook, host } = await openReady()

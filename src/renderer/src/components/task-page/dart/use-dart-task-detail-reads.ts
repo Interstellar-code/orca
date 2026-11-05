@@ -250,7 +250,7 @@ export function useDartTaskDetailReads({
           commentRead === commentReadsRef.current.get(commentReadKey) &&
           isCurrentRead()
         ) {
-          applyCommentsRead(result, current, false)
+          applyCommentsRead(result, current, true)
         }
       })
       .catch(() => {
@@ -261,7 +261,7 @@ export function useDartTaskDetailReads({
           isCurrentRead()
         ) {
           setComments((shown) =>
-            shown.status === 'ready'
+            shown.status === 'ready' && !force
               ? shown
               : {
                   status: 'error',

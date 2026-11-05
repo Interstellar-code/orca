@@ -1,4 +1,3 @@
-import { isDartEpochCurrent } from '@/store/slices/dart/dart-task-identity'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DartComment, DartTask } from '../../../../../shared/dart/dart-types'
 import type { TaskSourceContext } from '../../../../../shared/task-source-context'
@@ -10,7 +9,8 @@ import { getDartReadScope } from '@/store/slices/dart/dart-read-coordination'
 import {
   captureDartEpoch,
   dartAccountIdentity,
-  dartScopeViewerId
+  dartScopeViewerId,
+  isDartEpochCurrent
 } from '@/store/slices/dart/dart-task-identity'
 import { dartDraftKey } from './dart-draft-store'
 import { readAllDartComments, reloadDartComments } from './dart-comment-reload'
@@ -184,56 +184,43 @@ export function useDartTaskDetailData(
     const reads = commentReadsRef.current
     const nextRead = (reads.get(commentReadKey) ?? 0) + 1
     reads.set(commentReadKey, nextRead)
-    const capturedEpoch = captureDartEpoch(identity)
-    let epochChanged = false
-    const captureReadEpoch = () => {
-      const next = captureDartEpoch(identity)
-      if (next.key === capturedEpoch.key && next.epoch !== capturedEpoch.epoch) {
-        epochChanged = true
-      }
-      return next
-    }
-    const { result, current } = await readPastDartWrites({
-      captureEpoch: captureReadEpoch,
-      force: true,
-      read: () => readAllDartComments(scope.target, identity.taskId)
-    }).catch((error: unknown) => {
-      if (
-        identityMatches(identityRef.current, identity) &&
-        reads.get(commentReadKey) === nextRead
-      ) {
+    const isLatestCommentRead = (): boolean =>
+      identityMatches(identityRef.current, identity) && reads.get(commentReadKey) === nextRead
+    const setCommentReadError = (): void => {
+      if (isLatestCommentRead()) {
         setComments((shown) =>
           shown.status === 'ready'
             ? shown
             : { status: 'error', message: taskProviderErrorText(undefined, 'dart.loadFailed') }
         )
       }
+    }
+    const capturedEpoch = captureDartEpoch(identity)
+    const { result, current } = await readPastDartWrites({
+      captureEpoch: () => captureDartEpoch(identity),
+      force: true,
+      read: () => readAllDartComments(scope.target, identity.taskId)
+    }).catch((error: unknown) => {
+      setCommentReadError()
       throw error
     })
-    if (
-      !current &&
-      identityMatches(identityRef.current, identity) &&
-      reads.get(commentReadKey) === nextRead
-    ) {
-      setComments((shown) =>
-        shown.status === 'ready'
-          ? shown
-          : { status: 'error', message: taskProviderErrorText(undefined, 'dart.loadFailed') }
-      )
+    if (!current) {
+      setCommentReadError()
     }
     if (
-      !identityMatches(identityRef.current, identity) ||
-      reads.get(commentReadKey) !== nextRead ||
+      !isLatestCommentRead() ||
       !current ||
       !isDartEpochCurrent(capturedEpoch) ||
-      epochChanged
+      !isDartEpochCurrent(capturedEpoch)
     ) {
       throw new Error(taskProviderErrorText(undefined, 'dart.loadFailed'))
     }
     if (!result.ok) {
+      setCommentReadError()
       throw new Error(taskProviderErrorMessage(result))
     }
     if (result.rawCount !== undefined && result.rawCount !== result.comments.length) {
+      setCommentReadError()
       throw new Error(taskProviderErrorText(undefined, 'dart.loadFailed'))
     }
     applyCommentsRead(result, true, true)
