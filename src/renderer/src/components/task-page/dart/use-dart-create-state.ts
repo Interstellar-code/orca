@@ -213,7 +213,7 @@ export function useDartCreateAccountCheck(): {
       kind: 'unknown',
       message: translate(
         'auto.components.task.page.dart.TaskCreateDialog.checkingAccount',
-        'Checking your Dart account'
+        'Checking your Dart account.'
       )
     }
   }

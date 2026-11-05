@@ -168,7 +168,7 @@ export function TaskCreateDialogRecovery({
         <p className="text-2xs text-muted-foreground">
           {translate(
             'auto.components.task.page.dart.TaskCreateDialog.truncated',
-            "Couldn't check all tasks; a copy may already exist. Select None of these is mine before creating anyway."
+            "Couldn't check all tasks; a copy may already exist."
           )}
         </p>
       ) : null}

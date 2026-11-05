@@ -232,7 +232,7 @@ export async function submitDartCreate(
           kind: 'unknown',
           message: translate(
             'auto.components.task.page.dart.TaskCreateDialog.accountNotReady',
-            'No Dart account is selected. Switch back to the original account to create this task.'
+            'No Dart account is selected. Switch back to the original account to check again.'
           )
         }
       })
