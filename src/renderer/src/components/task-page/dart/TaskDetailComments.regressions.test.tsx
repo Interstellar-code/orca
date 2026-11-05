@@ -286,7 +286,9 @@ it('requires an explicit Post anyway for an identical recent comment', async () 
     key: 'Enter',
     ctrlKey: true
   })
-  await waitFor(() => expect(page.add).not.toHaveBeenCalled())
+  await waitFor(() => expect(page.read).toHaveBeenCalledTimes(1))
+  await act(async () => {})
+  expect(page.add).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: 'Post anyway' }))
   await waitFor(() => expect(page.add).toHaveBeenCalledTimes(1))
   expect(page.append).toHaveBeenCalledTimes(1)
