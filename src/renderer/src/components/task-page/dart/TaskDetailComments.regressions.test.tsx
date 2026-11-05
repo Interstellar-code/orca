@@ -375,3 +375,15 @@ it('refuses a failed pre-send read and retries the guard before posting', async 
   await blocked()
   expect(page.add).not.toHaveBeenCalled()
 })
+
+it('does not post after the task closes during the pre-send read', async () => {
+  const page = setup()
+  const pending = Promise.withResolvers<DartComment[]>()
+  page.read.mockImplementationOnce(() => pending.promise)
+  type('Do not send after close')
+  send()
+  await waitFor(() => expect(page.read).toHaveBeenCalledOnce())
+  page.unmount()
+  await act(async () => pending.resolve([]))
+  expect(page.add).not.toHaveBeenCalled()
+})
