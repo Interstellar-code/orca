@@ -30,7 +30,7 @@ function task(overrides: Partial<DartTask>): DartTask {
 }
 
 function mockRemote(options: { withDartCapability: boolean; reply?: unknown }): void {
-  runtimeCall.mockImplementation(async (args: { method: string }) => {
+  runtimeCall.mockImplementation(async (args: { method: string; params: unknown }) => {
     if (args.method === 'status.get') {
       const status = createCompatibleRuntimeStatusResponse('remote-dart')
       // The compatible status already advertises every current capability, Dart included.

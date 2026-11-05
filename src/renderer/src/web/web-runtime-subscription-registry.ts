@@ -47,14 +47,24 @@ export class WebRuntimeSubscriptionRegistry {
       subscription.id = this.options.nextId()
       subscription.needsReplay = false
       this.subscriptions.set(subscription.id, subscription)
-      if (
-        this.options.sendEncrypted({
+      let sent: boolean
+      try {
+        sent = this.options.sendEncrypted({
           id: subscription.id,
           deviceToken: this.options.deviceToken,
           method: subscription.method,
           params: subscription.params
         })
-      ) {
+      } catch (error) {
+        // One refused replay must not abort the rest; report it on that subscription only.
+        this.subscriptions.delete(subscription.id)
+        subscription.callbacks.onError?.({
+          code: errorCodeOf(error),
+          message: error instanceof Error ? error.message : String(error)
+        })
+        continue
+      }
+      if (sent) {
         subscription.callbacks.onTransportReplayed?.()
       } else {
         subscription.needsReplay = true
@@ -69,4 +79,10 @@ export class WebRuntimeSubscriptionRegistry {
       subscription.callbacks.onError?.({ code, message })
     }
   }
+}
+
+function errorCodeOf(error: unknown): string {
+  return error instanceof Error && 'code' in error && typeof error.code === 'string'
+    ? error.code
+    : 'replay_failed'
 }

@@ -51,6 +51,7 @@ export type TaskProviderErrorCode =
   | 'dart.commentFailed'
   | 'dart.badRequest'
   | 'dart.rateLimited'
+  | 'dart.descriptionPatchRefused'
   | 'dart.invalidTaskUrl'
 
 export function taskProviderFailure(

@@ -1,5 +1,6 @@
 import type { PairedRuntimeConnection } from '../../../shared/paired-runtime-connection'
 import { withReconnectJitter } from '../../../shared/reconnect-jitter'
+import { assertRemoteRuntimeRequestFitsHostFrame } from '../../../shared/remote-runtime/remote-runtime-memory-limits'
 import { WebRuntimeConnectionHeartbeat } from './web-runtime-connection-heartbeat'
 import {
   routeWebRuntimeConnectionFrame,
@@ -252,7 +253,10 @@ export class WebRuntimeConnectionTransport {
     if (!socket || socket.readyState !== WebSocket.OPEN || !this.handshake) {
       return false
     }
-    socket.send(this.handshake.channel.sealText(JSON.stringify(this.auth.outbound(message))))
+    const serialized = JSON.stringify(this.auth.outbound(message))
+    // Throws RemoteRuntimeClientError('invalid_argument') for a request the host would refuse by closing the socket.
+    assertRemoteRuntimeRequestFitsHostFrame(serialized)
+    socket.send(this.handshake.channel.sealText(serialized))
     return true
   }
 

@@ -24,6 +24,7 @@ import {
   scopedDartCacheKey,
   type DartReadScope
 } from './dart-read-coordination'
+import { dartScopeViewerId, registerDartCacheAlias } from './dart-task-identity'
 
 type DartReadActions = Pick<
   DartSlice,
@@ -92,6 +93,7 @@ export function createDartReadActions(set: DartSliceSet, get: DartSliceGet): Dar
   return {
     fetchDartTask: async (taskId, options) => {
       const scope = getDartReadScope(get().settings, options?.sourceContext)
+      registerDartCacheAlias(scope, dartScopeViewerId(get(), scope, options?.sourceContext))
       const cacheKey = scopedDartCacheKey(scope, `task::${taskId}`)
       const cached = get().dartTaskCache[cacheKey]
       if (!options?.force && isFreshDartCacheEntry(cached) && cached.data) {
@@ -117,6 +119,7 @@ export function createDartReadActions(set: DartSliceSet, get: DartSliceGet): Dar
 
     listDartTasks: async (args, options) => {
       const scope = getDartReadScope(get().settings, options?.sourceContext)
+      registerDartCacheAlias(scope, dartScopeViewerId(get(), scope, options?.sourceContext))
       const cacheKey = scopedDartCacheKey(scope, listCacheKey(args))
       const cached = get().dartListCache[cacheKey]
       if (!options?.force && isFreshDartCacheEntry(cached) && cached.data) {
@@ -160,6 +163,7 @@ export function createDartReadActions(set: DartSliceSet, get: DartSliceGet): Dar
 
     fetchDartConfig: async (options) => {
       const scope = getDartReadScope(get().settings, options?.sourceContext)
+      registerDartCacheAlias(scope, dartScopeViewerId(get(), scope, options?.sourceContext))
       const cacheKey = scopedDartCacheKey(scope, 'config')
       const cached = get().dartConfigCache[cacheKey]
       if (!options?.force && isFreshDartCacheEntry(cached) && cached.data) {

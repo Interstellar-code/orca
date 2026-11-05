@@ -43,6 +43,12 @@
  * status, type, assignee (name or email; null clears), priority. `tags` replaces the whole set
  * (`[]` clears) and UNKNOWN TAG TITLES CREATE NEW TAGS, so callers validate tag names against
  * `dart.config` tags before sending.
+ *
+ * Description edits go only through `dart.updateTaskDescription` (`POST /tasks/{id}/update-description
+ * {updates}`): a targeted patch that Dart refuses when `oldText` or `anchorText` no longer matches
+ * uniquely. `occurrence` is never sent. A 400 maps to `dart.descriptionPatchRefused` with a fixed
+ * message (Dart may echo task text); it is not proof of an external edit. Every failed write carries
+ * `outcome`: `notApplied` or `unknown` (see `DartFailure`).
  */
 import { z } from 'zod'
 import { DART_TASK_ID_PATTERN } from '../dart/dart-issue-url'
@@ -55,6 +61,13 @@ import type {
   DartUser,
   DartWorkspaceConfig
 } from '../dart/dart-types'
+import {
+  DART_COMMENT_MAX_LENGTH,
+  DART_REQUEST_TEXT_MAX_BYTES,
+  DART_TITLE_MAX_LENGTH,
+  checkDartRequestText,
+  type DartTextField
+} from '../dart/dart-text-limits'
 import type { TaskProviderErrorCode } from '../task-provider-failure'
 import { OptionalPlainString, OptionalString, requiredString } from './rpc-param-primitives'
 
@@ -72,6 +85,7 @@ export const DART_METHOD_NAMES = [
   'dart.listComments',
   'dart.createTask',
   'dart.updateTask',
+  'dart.updateTaskDescription',
   'dart.addComment'
 ] as const
 
@@ -89,12 +103,14 @@ export const DART_METHOD_PERMISSIONS = {
   'dart.listComments': 'workspace',
   'dart.createTask': 'workspace',
   'dart.updateTask': 'workspace',
+  'dart.updateTaskDescription': 'workspace',
   'dart.addComment': 'workspace'
 } as const satisfies Record<DartMethodName, 'workspace' | 'accounts-admin'>
 
 export const DART_UNVERIFIED_WRITE_METHODS: readonly DartMethodName[] = [
   'dart.createTask',
   'dart.updateTask',
+  'dart.updateTaskDescription',
   'dart.addComment'
 ]
 
@@ -157,11 +173,40 @@ export const ListComments = z.object({
   offset: PageOffset
 })
 
-const DartIsoDate = z.union([z.string().datetime({ offset: true }), z.null()]).optional()
+// Text caps are Orca's own (Dart's schema has none); the byte cap keeps a remote request under the host frame limit.
+function textWithin(field: DartTextField, message: string) {
+  return z.union([
+    z.string().refine((text) => checkDartRequestText(field, text).ok, message),
+    z.undefined()
+  ])
+}
+
+const TitleWithinLimit = textWithin(
+  'title',
+  `Title is longer than ${DART_TITLE_MAX_LENGTH} characters`
+)
+const DescriptionWithinLimit = textWithin(
+  'description',
+  `Description is larger than ${DART_REQUEST_TEXT_MAX_BYTES} bytes`
+)
+
+// A datetime with offset (older hosts) or a date-only value (`dart.writes.v2`).
+const DartIsoDate = z
+  .union([z.string().datetime({ offset: true }), z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.null()])
+  .optional()
+
+const DartSize = z.union([z.string(), z.number().int(), z.null()]).optional()
 
 export const CreateTask = z.object({
-  title: requiredString('Title is required'),
-  description: OptionalPlainString,
+  title: requiredString('Title is required').pipe(
+    z
+      .string()
+      .refine(
+        (title) => checkDartRequestText('title', title).ok,
+        `Title is longer than ${DART_TITLE_MAX_LENGTH} characters`
+      )
+  ),
+  description: OptionalPlainString.pipe(DescriptionWithinLimit).optional(),
   dartboard: OptionalString,
   type: OptionalString,
   status: OptionalString,
@@ -169,15 +214,16 @@ export const CreateTask = z.object({
   assignee: OptionalString,
   tags: z.array(requiredString('Tag cannot be empty')).optional(),
   startAt: DartIsoDate,
-  dueAt: DartIsoDate
+  dueAt: DartIsoDate,
+  size: DartSize
 })
 
 export const UpdateTask = z.object({
   taskId: DartTaskId,
   updates: z
     .object({
-      title: OptionalString,
-      description: OptionalPlainString,
+      title: OptionalString.pipe(TitleWithinLimit).optional(),
+      description: OptionalPlainString.pipe(DescriptionWithinLimit).optional(),
       dartboard: OptionalString,
       type: OptionalString,
       status: OptionalString,
@@ -185,26 +231,89 @@ export const UpdateTask = z.object({
       assignee: z.union([z.string(), z.null()]).optional(),
       tags: z.array(requiredString('Tag cannot be empty')).optional(),
       startAt: DartIsoDate,
-      dueAt: DartIsoDate
+      dueAt: DartIsoDate,
+      size: DartSize
     })
     .refine((updates) => Object.values(updates).some((value) => value !== undefined), {
       message: 'At least one update is required'
     })
 })
 
+// Never `occurrence`: a non-unique target must make Dart refuse, not pick one. The strict object turns a stray key into an invalid-argument reply.
+const DescriptionUpdate = z
+  .object({
+    type: z.enum(['replace', 'insert_before', 'insert_after', 'delete']),
+    oldText: z.string().min(1).optional(),
+    anchorText: z.string().min(1).optional(),
+    newText: z.string().optional()
+  })
+  .strict()
+  .superRefine((update, ctx) => {
+    const required = {
+      replace: ['oldText', 'newText'],
+      delete: ['oldText'],
+      insert_before: ['anchorText', 'newText'],
+      insert_after: ['anchorText', 'newText']
+    } as const
+    const needed: readonly string[] = required[update.type]
+    for (const field of ['oldText', 'anchorText', 'newText'] as const) {
+      if (needed.includes(field) && update[field] === undefined) {
+        ctx.addIssue({ code: 'custom', message: `${update.type} needs ${field}`, path: [field] })
+      } else if (!needed.includes(field) && update[field] !== undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          message: `${update.type} does not take ${field}`,
+          path: [field]
+        })
+      }
+    }
+  })
+
+export const UpdateTaskDescription = z.object({
+  taskId: DartTaskId,
+  updates: z
+    .array(DescriptionUpdate)
+    .min(1)
+    .refine(
+      (updates) =>
+        checkDartRequestText(
+          'descriptionPatch',
+          updates
+            .flatMap((update) => [update.oldText, update.anchorText, update.newText])
+            .filter((text) => text !== undefined)
+        ).ok,
+      `Description change is larger than ${DART_REQUEST_TEXT_MAX_BYTES} bytes`
+    )
+})
+
 export const AddComment = z.object({
   taskId: DartTaskId,
-  text: requiredString('Comment text is required'),
+  text: requiredString('Comment text is required').pipe(
+    z
+      .string()
+      .refine(
+        (text) => checkDartRequestText('comment', text).ok,
+        `Comment is longer than ${DART_COMMENT_MAX_LENGTH} characters`
+      )
+  ),
   parentId: OptionalString
 })
 
-export type DartFailure = { ok: false; error: string; errorCode: TaskProviderErrorCode }
+/** `outcome` is set on failed writes only: `notApplied` means Dart certainly did not apply it, `unknown` means it may have. */
+export type DartWriteOutcome = 'notApplied' | 'unknown'
+export type DartFailure = {
+  ok: false
+  error: string
+  errorCode: TaskProviderErrorCode
+  outcome?: DartWriteOutcome
+}
 export type DartResult<T extends object> = ({ ok: true } & T) | DartFailure
 
 export type DartListTasksArgs = z.input<typeof ListTasks>
 export type DartListCommentsArgs = z.input<typeof ListComments>
 export type DartCreateTaskArgs = z.input<typeof CreateTask>
 export type DartUpdateTaskArgs = z.input<typeof UpdateTask>
+export type DartUpdateTaskDescriptionArgs = z.input<typeof UpdateTaskDescription>
 export type DartAddCommentArgs = z.input<typeof AddComment>
 
 /** Params and reply per method; Lane A registers each with `DART_METHOD_PERMISSIONS[name]`. */
@@ -219,5 +328,9 @@ export type DartMethodContract = {
   'dart.listComments': { params: DartListCommentsArgs; reply: DartResult<DartCommentPage> }
   'dart.createTask': { params: DartCreateTaskArgs; reply: DartResult<{ task: DartTask }> }
   'dart.updateTask': { params: DartUpdateTaskArgs; reply: DartResult<{ task: DartTask }> }
+  'dart.updateTaskDescription': {
+    params: DartUpdateTaskDescriptionArgs
+    reply: DartResult<{ task: DartTask }>
+  }
   'dart.addComment': { params: DartAddCommentArgs; reply: DartResult<{ comment: DartComment }> }
 }

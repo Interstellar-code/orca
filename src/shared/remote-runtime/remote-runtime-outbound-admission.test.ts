@@ -124,7 +124,7 @@ describe('remote runtime outbound admission', () => {
 
   it('bounds aggregate prepared bytes across stalled one-shot sockets', async () => {
     const { pairing, server } = await createServer()
-    const params = { value: 'x'.repeat(3 * 1024 * 1024) }
+    const params = { value: 'x'.repeat(700 * 1024) }
     const retainedBytes = retainedRemoteRuntimeJsonStringBytes(
       serializeRemoteRuntimeRpcRequest({
         requestId: '00000000-0000-4000-8000-000000000000',
@@ -181,7 +181,7 @@ describe('remote runtime outbound admission', () => {
 
   it('bounds aggregate prepared request text while both handshakes stall', async () => {
     const { pairing } = await createServer()
-    const params = { value: 'x'.repeat(3 * 1024 * 1024) }
+    const params = { value: 'x'.repeat(700 * 1024) }
     const retainedBytes = retainedRemoteRuntimeJsonStringBytes(
       serializeRemoteRuntimeRpcRequest({
         requestId: '00000000-0000-4000-8000-000000000000',
@@ -267,7 +267,7 @@ describe('remote runtime outbound admission', () => {
 
   it('bounds retained request bytes across stalled environment connections', async () => {
     const { pairing } = await createServer()
-    const params = { value: 'x'.repeat(1024 * 1024) }
+    const params = { value: 'x'.repeat(700 * 1024) }
     const retainedBytes = retainedRemoteRuntimeJsonStringBytes(
       serializeRemoteRuntimeRpcRequest({
         requestId: '00000000-0000-4000-8000-000000000000',

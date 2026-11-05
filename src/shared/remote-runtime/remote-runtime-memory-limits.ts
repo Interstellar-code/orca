@@ -2,6 +2,7 @@ import {
   JsonStringifyByteLimitError,
   stringifyJsonWithinByteLimit
 } from '../node-bounded-json-stringify'
+import { measureUtf8ByteLength } from '../utf8-byte-limits'
 import { RemoteRuntimeClientError } from './remote-runtime-client-error'
 import type { RuntimeOrchestrationEnvelope } from '../runtime-rpc-envelope'
 
@@ -76,7 +77,7 @@ export function serializeRemoteRuntimeRpcRequest(args: {
   params: unknown
   envelope?: RuntimeOrchestrationEnvelope
 }): string {
-  return serializeRemoteRuntimePayload({
+  const serialized = serializeRemoteRuntimePayload({
     id: args.requestId,
     deviceToken: args.deviceToken,
     method: args.method,
@@ -87,6 +88,29 @@ export function serializeRemoteRuntimeRpcRequest(args: {
     compatibilityInvocationId: args.envelope?.compatibilityInvocationId,
     orchestrationCompatibilityEvidence: args.envelope?.orchestrationCompatibilityEvidence
   })
+  assertRemoteRuntimeRequestFitsHostFrame(serialized)
+  return serialized
+}
+
+const REMOTE_RUNTIME_REQUEST_TOO_LARGE_PREFIX = 'Remote runtime request exceeds'
+
+/** Lets a caller tell the size refusal from other invalid_argument errors; the message is all that survives IPC. */
+export function isRemoteRuntimeRequestTooLargeMessage(message: string): boolean {
+  return message.startsWith(REMOTE_RUNTIME_REQUEST_TOO_LARGE_PREFIX)
+}
+
+/** A host closes the socket (1009) on a larger frame, failing every call on it; refuse before sending. */
+export function assertRemoteRuntimeRequestFitsHostFrame(serializedRequest: string): void {
+  if (
+    measureUtf8ByteLength(serializedRequest, {
+      stopAfterBytes: REMOTE_RUNTIME_MAX_INBOUND_REQUEST_JSON_BYTES
+    }).exceededLimit
+  ) {
+    throw new RemoteRuntimeClientError(
+      'invalid_argument',
+      `${REMOTE_RUNTIME_REQUEST_TOO_LARGE_PREFIX} ${REMOTE_RUNTIME_MAX_INBOUND_REQUEST_JSON_BYTES} bytes.`
+    )
+  }
 }
 
 export function retainedRemoteRuntimeJsonStringBytes(value: string): number {
