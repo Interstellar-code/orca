@@ -282,6 +282,11 @@ it('requires an explicit Post anyway for an identical recent comment', async () 
   send()
   await blocked()
   expect(page.add).not.toHaveBeenCalled()
+  fireEvent.keyDown(screen.getByRole('textbox', { name: 'Comment' }), {
+    key: 'Enter',
+    ctrlKey: true
+  })
+  await waitFor(() => expect(page.add).not.toHaveBeenCalled())
   fireEvent.click(screen.getByRole('button', { name: 'Post anyway' }))
   await waitFor(() => expect(page.add).toHaveBeenCalledTimes(1))
   expect(page.append).toHaveBeenCalledTimes(1)
