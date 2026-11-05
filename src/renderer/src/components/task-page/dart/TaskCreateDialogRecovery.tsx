@@ -20,6 +20,7 @@ type TaskCreateDialogRecoveryProps = Pick<
   | 'claimCreateMatch'
   | 'discardCreateDraft'
 > & {
+  createTokenRejected?: boolean
   createSubmitting: boolean
   recoveryBlocked: boolean
   listChecked: boolean
@@ -33,6 +34,7 @@ type TaskCreateDialogRecoveryProps = Pick<
 }
 
 export function TaskCreateDialogRecovery({
+  createTokenRejected,
   createNotice,
   createUnresolved,
   createMatches,
@@ -54,12 +56,26 @@ export function TaskCreateDialogRecovery({
   openDartDetailPage,
   onDiscard
 }: TaskCreateDialogRecoveryProps): React.JSX.Element | null {
-  if (!createNotice && !createUnresolved && !accountChecking && !createWritesV2Pending) {
+  if (
+    !createTokenRejected &&
+    !createNotice &&
+    !createUnresolved &&
+    !accountChecking &&
+    !createWritesV2Pending
+  ) {
     return null
   }
 
   return (
     <div className="flex flex-col gap-2">
+      {createTokenRejected ? (
+        <p role="alert" className="text-xs text-destructive">
+          {translate(
+            'auto.components.task.page.dart.TaskCreateDialog.tokenRejected',
+            'Dart rejected your token. Reconnect to Dart and try again.'
+          )}
+        </p>
+      ) : null}
       {createWritesV2Pending ? (
         <p role="status" className="text-xs text-muted-foreground">
           {translate(
@@ -95,7 +111,7 @@ export function TaskCreateDialogRecovery({
           recheckNotice={checkAgain}
         />
       ) : null}
-      {createUnresolved && !createNotice && !accountChecking ? (
+      {createUnresolved && createNotice?.kind !== 'unknown' && !accountChecking ? (
         <div className="flex items-center gap-2">
           <p role="status" className="min-w-0 flex-1 text-xs text-muted-foreground">
             {translate(

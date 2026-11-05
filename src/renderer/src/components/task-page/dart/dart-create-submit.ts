@@ -1,10 +1,15 @@
-import type { DartTask } from '../../../../../shared/dart/dart-types'
+import type {
+  DartConnectionStatus,
+  DartTask,
+  DartWorkspaceConfig
+} from '../../../../../shared/dart/dart-types'
 import type { DartCreateTaskArgs } from '../../../../../shared/rpc-contract/dart-params'
 import { translate } from '@/i18n/i18n'
 import { taskProviderErrorMessage } from '@/lib/task-provider-error-copy'
 import { dartListTasksForTarget } from '@/runtime/runtime-dart-client'
 import type { DartWriteResult } from '@/runtime/runtime-dart-write-client'
 import { useAppStore } from '@/store'
+import { getDartReadScope } from '@/store/slices/dart/dart-read-coordination'
 import type { DartReadScope } from '@/store/slices/dart/dart-read-coordination'
 import {
   dartAccountIdentity,
@@ -14,7 +19,66 @@ import {
 } from '@/store/slices/dart/dart-task-identity'
 
 import { lookupDartCreateMatches } from './dart-create-lookup'
+import type { DartListFilters } from './task-page-dart-list-model'
+
+export type TaskPageDartCreationInput = {
+  taskSource?: string
+  dartConnected: boolean
+  dartUpdateRequired: boolean
+  dartConfig: DartWorkspaceConfig | null
+  dartConfigError?: string | null
+  dartFilters: DartListFilters
+  dartStatus: DartConnectionStatus
+  setDartRefreshNonce: (updater: (nonce: number) => number) => void
+  noteDartTaskCreated: (task: DartTask) => void
+  openDartDetailPage: (task: DartTask) => void
+}
+
+export type DartCreateExtras = Partial<{
+  createFieldsLocked: boolean
+  accountChecking: boolean
+  retryAccountCheck(): Promise<void>
+  claimCreateMatch(task: DartTask): void
+  createWritesV2Pending: boolean
+  createTokenRejected: boolean
+}>
 let lookupSequence = 0
+
+let watchingSessions = false
+
+function watchDartCreateSessions(): void {
+  if (watchingSessions) {
+    return
+  }
+  watchingSessions = true
+  useAppStore.subscribe((state, previous) => {
+    const scope = getDartReadScope(state.settings)
+    const previousScope = getDartReadScope(previous.settings)
+    const ownerChanged =
+      scope.contextKey !== previousScope.contextKey ||
+      dartScopeViewerId(state, scope) !== dartScopeViewerId(previous, previousScope) ||
+      state.dartStatus.connected !== previous.dartStatus.connected ||
+      Object.keys(state.dartCreateOwners).some(
+        (host) =>
+          state.dartCreateOwners[host]?.activeOwner !== previous.dartCreateOwners[host]?.activeOwner
+      )
+    for (const [key, session] of Object.entries(state.dartCreateSessions)) {
+      const old = previous.dartCreateSessions[key]
+      if (
+        old &&
+        (ownerChanged || old.draft !== session.draft) &&
+        (session.listChecked || session.lookingUp)
+      ) {
+        state.patchDartCreateSession(key, {
+          listChecked: false,
+          lookingUp: false,
+          lookupSequence: ++lookupSequence,
+          matchesDismissed: false
+        })
+      }
+    }
+  })
+}
 
 function ownsDartCreateSession(key: string, scope: DartReadScope): boolean {
   const state = useAppStore.getState()
@@ -34,6 +98,7 @@ export function dartCreateUnknownMessage(): string {
 }
 
 export async function checkDartCreateSession(key: string, scope: DartReadScope): Promise<void> {
+  watchDartCreateSessions()
   const store = useAppStore.getState()
   const current = store.dartCreateSessions[key]
   if (!current) {

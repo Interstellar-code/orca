@@ -35,6 +35,7 @@ export type DartCreateDialogModel = DartCreateTaskModel & {
   createLookingUp?: boolean
   createFieldsLocked?: boolean
   accountChecking?: boolean
+  createTokenRejected?: boolean
   retryAccountCheck?: () => Promise<void>
   createWritesV2Pending?: boolean
   claimCreateMatch?: (task: DartTask) => void
@@ -262,6 +263,7 @@ export function TaskPageDartCreateDialog({
             createLookingUp={model.createLookingUp}
             createFieldsLocked={model.createFieldsLocked}
             accountChecking={model.accountChecking}
+            createTokenRejected={model.createTokenRejected}
             retryAccountCheck={model.retryAccountCheck}
             createWritesV2Pending={model.createWritesV2Pending}
             canCreateAnyway={canCreateAnyway}

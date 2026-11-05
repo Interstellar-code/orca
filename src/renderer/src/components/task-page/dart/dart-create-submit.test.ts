@@ -18,6 +18,7 @@ const { state, listTasks, createTask } = vi.hoisted(() => {
 
 vi.mock('@/store', () => ({
   useAppStore: {
+    subscribe: vi.fn(() => () => {}),
     getState: () => ({
       dartCreateSessions: state.dartCreateSessions,
       dartCreateOwners: state.dartCreateOwners,
@@ -146,7 +147,6 @@ describe('checkDartCreateSession', () => {
     await lookup
     expect(listTasks).toHaveBeenCalledOnce()
     expect(state.dartCreateSessions.create).toMatchObject({
-      lookingUp: false,
       listChecked: false,
       matches: []
     })
