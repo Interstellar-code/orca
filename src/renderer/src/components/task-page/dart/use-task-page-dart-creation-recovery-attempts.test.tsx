@@ -172,7 +172,7 @@ async function twoAttempts(u: U, first: string, second: string) {
   await u.type(screen.getByLabelText('Title'), second)
 }
 
-describe('r10 probes', () => {
+describe('dart create recovery attempts', () => {
   it('pStoredBoard: late config cannot move an uncertain create to another board', async () => {
     const u = userEvent.setup()
     renderDialog(null)

@@ -18653,6 +18653,7 @@
               "allDartboards": "All dartboards",
               "hasWorkspace": "Has Workspace",
               "newTask": "New task",
+              "refresh": "Refresh Dart tasks",
               "searchLabel": "Search",
               "searchLinked": "Search linked tasks",
               "searchTitles": "Search task titles, then press Enter",
