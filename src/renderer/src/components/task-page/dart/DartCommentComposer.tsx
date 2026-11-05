@@ -198,6 +198,7 @@ export function DartCommentComposer({
             patchDartCommentSendState(draftKey, {
               notice: dartCommentUnknownNotice(),
               unknownSubmission: {
+                body: text,
                 parentId,
                 priorIds: comments.map(({ id }) => id)
               }
