@@ -260,10 +260,14 @@ export function useDartTaskDetailReads({
           commentRead === commentReadsRef.current.get(commentReadKey) &&
           isCurrentRead()
         ) {
-          setComments({
-            status: 'error',
-            message: taskProviderErrorText(undefined, 'dart.loadFailed')
-          })
+          setComments((shown) =>
+            shown.status === 'ready'
+              ? shown
+              : {
+                  status: 'error',
+                  message: taskProviderErrorText(undefined, 'dart.loadFailed')
+                }
+          )
         }
       })
     return () => {

@@ -51,6 +51,17 @@ describe('dart reply target store', () => {
     expect(getDartReplyTarget(draftKey)?.id).toBe('root1')
   })
 
+  it('keeps a new reply target when twenty other targets retain text', () => {
+    for (let index = 0; index < 20; index += 1) {
+      const draftKey = key(`retained-${index}`)
+      setDraft(draftKey, `reply ${index}`, { dirty: true })
+      setDartReplyTarget(draftKey, comment(`parent-${index}`))
+    }
+    const fresh = key('fresh')
+    setDartReplyTarget(fresh, comment('fresh-parent'))
+    expect(getDartReplyTarget(fresh)?.id).toBe('fresh-parent')
+  })
+
   it('drops the target when it is cleared and never shares it between tasks', () => {
     const draftKey = key('task-2')
     setDartReplyTarget(draftKey, comment('root2'))

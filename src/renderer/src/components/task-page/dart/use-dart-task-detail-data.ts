@@ -1,3 +1,4 @@
+import { isDartEpochCurrent } from '@/store/slices/dart/dart-task-identity'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DartComment, DartTask } from '../../../../../shared/dart/dart-types'
 import type { TaskSourceContext } from '../../../../../shared/task-source-context'
@@ -176,7 +177,6 @@ export function useDartTaskDetailData(
       applyCommentsRead
     })
   }, [applyCommentsRead, commentReadKey, identity, scope.target])
-
   const readLatestComments = useCallback(async (): Promise<DartComment[]> => {
     if (!commentReadKey || !identity || !identityMatches(identityRef.current, identity)) {
       throw new Error(taskProviderErrorText(undefined, 'dart.loadFailed'))
@@ -184,8 +184,17 @@ export function useDartTaskDetailData(
     const reads = commentReadsRef.current
     const nextRead = (reads.get(commentReadKey) ?? 0) + 1
     reads.set(commentReadKey, nextRead)
+    const capturedEpoch = captureDartEpoch(identity)
+    let epochChanged = false
+    const captureReadEpoch = () => {
+      const next = captureDartEpoch(identity)
+      if (next.key === capturedEpoch.key && next.epoch !== capturedEpoch.epoch) {
+        epochChanged = true
+      }
+      return next
+    }
     const { result, current } = await readPastDartWrites({
-      captureEpoch: () => captureDartEpoch(identity),
+      captureEpoch: captureReadEpoch,
       force: true,
       read: () => readAllDartComments(scope.target, identity.taskId)
     }).catch((error: unknown) => {
@@ -215,17 +224,21 @@ export function useDartTaskDetailData(
     if (
       !identityMatches(identityRef.current, identity) ||
       reads.get(commentReadKey) !== nextRead ||
-      !current
+      !current ||
+      !isDartEpochCurrent(capturedEpoch) ||
+      epochChanged
     ) {
       throw new Error(taskProviderErrorText(undefined, 'dart.loadFailed'))
     }
-    applyCommentsRead(result, true, true)
     if (!result.ok) {
       throw new Error(taskProviderErrorMessage(result))
     }
+    if (result.rawCount !== undefined && result.rawCount !== result.comments.length) {
+      throw new Error(taskProviderErrorText(undefined, 'dart.loadFailed'))
+    }
+    applyCommentsRead(result, true, true)
     return [...withLocalComments(result, localCommentsRef.current).comments]
   }, [applyCommentsRead, commentReadKey, identity, scope.target])
-
   const appendLocalComment = useCallback<DartDetailCommentsApi['appendLocalComment']>(
     (comment) => {
       if (!identity) {

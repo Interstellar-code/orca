@@ -31,7 +31,8 @@ const makeComment = (text: string, parentId?: string, author = 'Alex Example'): 
 function setup(
   initial: DartComment[] = [],
   viewerName: string | null = 'Alex Example',
-  viewerEmail: string | null = null
+  viewerEmail: string | null = null,
+  onRetry: () => void = () => {}
 ) {
   const draftKey = dartDraftKey(
     { hostKey: 'runtime:test', accountKey: 'user-a' },
@@ -71,7 +72,7 @@ function setup(
     viewerName,
     viewerEmail,
     draftKey,
-    onRetry: () => {}
+    onRetry
   })
   const tree = () => (
     <TooltipProvider>
@@ -585,4 +586,13 @@ it('does not post after the task closes during the pre-send read', async () => {
   page.unmount()
   await act(async () => pending.resolve([]))
   expect(page.add).not.toHaveBeenCalled()
+})
+
+it('wires the rendered comments Retry action to the section callback', async () => {
+  const retry = vi.fn()
+  setup([], null, null, retry)
+  type('Hello')
+  send()
+  fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
+  expect(retry).toHaveBeenCalledTimes(1)
 })

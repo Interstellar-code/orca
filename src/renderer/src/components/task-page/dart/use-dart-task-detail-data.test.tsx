@@ -488,6 +488,44 @@ describe('useDartTaskDetailData', () => {
       ).toEqual(['Older', 'Posted'])
     }
   )
+  it('rejects a comments read whose epoch becomes stale before publishing', async () => {
+    const page = await openReady()
+    const shown = { ...commentFixture('shown', 'Already shown'), taskId: page.taskId }
+    act(() => page.hook.result.current.appendLocalComment(shown))
+    const release = page.host.hold('dart.listComments')
+    const pending = page.hook.result.current.readLatestComments()
+    await waitFor(() => expect(page.host.count('dart.listComments')).toBeGreaterThan(1))
+    bumpDartEpochs({
+      hostKey: `runtime:${page.env}`,
+      accountKey: viewer.id,
+      taskId: page.taskId
+    })
+    await act(async () => release())
+    await expect(pending).rejects.toThrow()
+    expect(page.hook.result.current.comments).toMatchObject({
+      status: 'ready',
+      value: { comments: [shown] }
+    })
+  })
+
+  it('keeps displayed comments when a raw row cannot be mapped', async () => {
+    const page = await openReady()
+    const shown = { ...commentFixture('shown', 'Already shown'), taskId: page.taskId }
+    act(() => page.hook.result.current.appendLocalComment(shown))
+    const handle = page.host.handle.bind(page.host)
+    page.host.handle = async (method, params) => {
+      if (method === 'dart.listComments') {
+        page.host.requests.push({ method, params })
+        return { ok: true, comments: [shown], totalCount: 2, rawCount: 2 }
+      }
+      return handle(method, params)
+    }
+    await expect(page.hook.result.current.readLatestComments()).rejects.toThrow()
+    expect(page.hook.result.current.comments).toMatchObject({
+      status: 'ready',
+      value: { comments: [shown] }
+    })
+  })
   it('does not replace a newer comments reload with a superseded failure', async () => {
     const { hook, host, comments } = await openReady()
     const pending = Promise.withResolvers<object>()

@@ -12,6 +12,7 @@ export async function readAllDartComments(
   const comments: DartComment[] = []
   const ids = new Set<string>()
   let totalCount = 0
+  let rawTotalCount = 0
   let offset = 0
   do {
     const page = await dartListCommentsForTarget(target, {
@@ -24,10 +25,13 @@ export async function readAllDartComments(
     }
     totalCount = page.totalCount
     const rawCount = page.rawCount ?? page.comments.length
-    if (rawCount <= 0 && offset < totalCount) {
+    if (!Number.isInteger(rawCount) || rawCount < 0 || rawCount < page.comments.length) {
       throw new Error(taskProviderErrorText(undefined, 'dart.loadFailed'))
     }
     offset += rawCount
+    if (rawCount <= 0 && offset < totalCount) {
+      throw new Error(taskProviderErrorText(undefined, 'dart.loadFailed'))
+    }
     for (const comment of page.comments) {
       if (ids.has(comment.id)) {
         throw new Error(taskProviderErrorText(undefined, 'dart.loadFailed'))
@@ -36,7 +40,7 @@ export async function readAllDartComments(
       comments.push(comment)
     }
   } while (offset < totalCount)
-  return { ok: true, comments, totalCount }
+  return { ok: true, comments, totalCount, rawCount: rawTotalCount }
 }
 
 export async function reloadDartComments(args: {
