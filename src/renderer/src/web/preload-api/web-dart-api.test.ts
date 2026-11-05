@@ -53,6 +53,23 @@ describe('web dart supportsWritesV2', () => {
   })
 })
 
+describe('web dart status capability gate', () => {
+  it('throws update-required and sends no Dart request to a host without dart.provider.v1', async () => {
+    mocks.getRemoteRuntimeStatus.mockResolvedValue({ capabilities: [] })
+    await expect(createWebDartApi().status()).rejects.toMatchObject({
+      name: 'DartUpdateRequiredError'
+    })
+    expect(mocks.callRuntimeEnvelope).not.toHaveBeenCalled()
+  })
+
+  it('sends dart.status to a host with dart.provider.v1', async () => {
+    mocks.getRemoteRuntimeStatus.mockResolvedValue({ capabilities: ['dart.provider.v1'] })
+    mocks.callRuntimeEnvelope.mockResolvedValue({ ok: true, result: { ok: true } })
+    await createWebDartApi().status()
+    expect(mocks.callRuntimeEnvelope).toHaveBeenCalledWith('dart.status', undefined, 45_000)
+  })
+})
+
 describe('web dart writes', () => {
   it('sends the description patch with the write timeout', async () => {
     mocks.callRuntimeEnvelope.mockResolvedValue({ ok: true, result: { ok: true } })

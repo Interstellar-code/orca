@@ -4,8 +4,12 @@ import {
   type DartMethodContract,
   type DartMethodName
 } from '../../../../shared/rpc-contract/dart-params'
-import { DART_WRITES_V2_RUNTIME_CAPABILITY } from '../../../../shared/dart/dart-capabilities'
+import {
+  DART_PROVIDER_RUNTIME_CAPABILITY,
+  DART_WRITES_V2_RUNTIME_CAPABILITY
+} from '../../../../shared/dart/dart-capabilities'
 import { taskProviderFailure } from '../../../../shared/task-provider-failure'
+import { DartUpdateRequiredError } from '../../runtime/runtime-dart-client'
 import { callRuntimeEnvelope, getRemoteRuntimeStatus } from './web-runtime-calls'
 import { assertActiveEnvironment, requireActiveEnvironment } from './web-runtime-session'
 
@@ -16,12 +20,22 @@ const DART_SETTINGS_TIMEOUT_MS = 15_000
 
 const DART_WRITE_METHODS = new Set<DartMethodName>(DART_UNVERIFIED_WRITE_METHODS)
 
-async function supportsWritesV2(): Promise<boolean> {
+async function hostAdvertises(capability: string): Promise<boolean> {
   const environmentId = requireActiveEnvironment().id
   const status = await getRemoteRuntimeStatus().catch(() => null)
   // Why: the verdict belongs to the probed host; a host switched in mid-probe is never trusted.
   assertActiveEnvironment(environmentId)
-  return status?.capabilities?.includes(DART_WRITES_V2_RUNTIME_CAPABILITY) === true
+  return status?.capabilities?.includes(capability) === true
+}
+
+const supportsWritesV2 = (): Promise<boolean> => hostAdvertises(DART_WRITES_V2_RUNTIME_CAPABILITY)
+
+// Why: a host without the capability must be updated; its Dart calls are never sent.
+async function dartStatus(): Promise<DartMethodContract['dart.status']['reply']> {
+  if (!(await hostAdvertises(DART_PROVIDER_RUNTIME_CAPABILITY))) {
+    throw new DartUpdateRequiredError()
+  }
+  return dartCall('dart.status')
 }
 
 async function dartCall<M extends DartMethodName>(
@@ -48,7 +62,7 @@ async function dartCall<M extends DartMethodName>(
 
 export function createWebDartApi(): PreloadApi['dart'] {
   return {
-    status: () => dartCall('dart.status'),
+    status: dartStatus,
     connect: (args) => dartCall('dart.connect', args),
     disconnect: () => dartCall('dart.disconnect', undefined, DART_SETTINGS_TIMEOUT_MS),
     testConnection: () => dartCall('dart.testConnection'),
