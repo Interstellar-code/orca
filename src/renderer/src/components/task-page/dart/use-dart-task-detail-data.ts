@@ -7,7 +7,7 @@ import type {
 } from '../../../../../shared/dart/dart-types'
 import type { TaskSourceContext } from '../../../../../shared/task-source-context'
 import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
-import { taskProviderErrorMessage } from '@/lib/task-provider-error-copy'
+import { taskProviderErrorMessage, taskProviderErrorText } from '@/lib/task-provider-error-copy'
 import { runtimeTargetEnvironmentId } from '@/runtime/runtime-client-target'
 import type { DartClientResult } from '@/runtime/runtime-dart-client'
 import { dartSupportsWritesV2ForTarget } from '@/runtime/runtime-dart-write-client'
@@ -19,8 +19,7 @@ import {
   dartScopeViewerId
 } from '@/store/slices/dart/dart-task-identity'
 import { dartDraftKey } from './dart-draft-store'
-import { reloadDartComments } from './dart-comment-reload'
-import { retireDartLandedComments } from './dart-comment-send-state'
+import { readAllDartComments, reloadDartComments } from './dart-comment-reload'
 import type { DartDetailCommentsApi, DartDetailDescriptionApi } from './dart-detail-contracts'
 import { readPastDartWrites, withLocalComments } from './dart-stale-read'
 import { pendingDartPatches, subscribeDartTaskWrites } from './dart-task-write-queue'
@@ -131,13 +130,6 @@ export function useDartTaskDetailData(
   const applyCommentsRead = useCallback(
     (result: DartClientResult<DartCommentPage>, current: boolean, reload: boolean) => {
       if (result.ok) {
-        const active = identityRef.current
-        if (active) {
-          retireDartLandedComments(
-            dartDraftKey(active, active.taskId, 'comment'),
-            new Set(result.comments.map((comment) => comment.id))
-          )
-        }
         // Once Dart lists a comment its order wins; until then a just-added one must not vanish.
         localCommentsRef.current = localCommentsRef.current.filter(
           (local) => !result.comments.some((comment) => comment.id === local.id)
@@ -226,6 +218,32 @@ export function useDartTaskDetailData(
     })
   }, [applyCommentsRead, commentReadKey, identity, listDartComments, sourceContext])
 
+  const readLatestComments = useCallback(async (): Promise<DartComment[]> => {
+    if (!commentReadKey || !identity || !identityMatches(identityRef.current, identity)) {
+      throw new Error(taskProviderErrorText(undefined, 'dart.loadFailed'))
+    }
+    const reads = commentReadsRef.current
+    const nextRead = (reads.get(commentReadKey) ?? 0) + 1
+    reads.set(commentReadKey, nextRead)
+    const { result, current } = await readPastDartWrites({
+      captureEpoch: () => captureDartEpoch(identity),
+      force: true,
+      read: () => readAllDartComments(scope.target, identity.taskId)
+    })
+    if (
+      !identityMatches(identityRef.current, identity) ||
+      reads.get(commentReadKey) !== nextRead ||
+      !current
+    ) {
+      throw new Error(taskProviderErrorText(undefined, 'dart.loadFailed'))
+    }
+    applyCommentsRead(result, true, true)
+    if (!result.ok) {
+      throw new Error(taskProviderErrorMessage(result))
+    }
+    return result.comments
+  }, [applyCommentsRead, commentReadKey, identity, scope.target])
+
   const appendLocalComment = useCallback<DartDetailCommentsApi['appendLocalComment']>(
     (comment) => {
       if (!identity) {
@@ -291,6 +309,7 @@ export function useDartTaskDetailData(
     viewerName,
     writeScope: sourceContext,
     reloadComments,
+    readLatestComments,
     appendLocalComment,
     commentDraftKey: identity ? dartDraftKey(identity, identity.taskId, 'comment') : null,
     description,

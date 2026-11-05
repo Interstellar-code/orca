@@ -26,7 +26,10 @@ const threadComments: readonly DartComment[] = [...fixtureComments, reply]
 function fixtureApi(options: {
   draftKey: string
   onAddComment?: DartDetailCommentsApi['onAddComment']
-}): DartDetailCommentsApi {
+}): DartDetailCommentsApi & {
+  readLatestComments(): Promise<DartComment[]>
+  viewerName: string
+} {
   return {
     comments: {
       status: 'ready',
@@ -36,6 +39,8 @@ function fixtureApi(options: {
       options.onAddComment ??
       ((): Promise<never> => Promise.reject(new Error('Fixture does not write.'))),
     reloadComments: () => Promise.resolve(),
+    readLatestComments: () => Promise.resolve([...threadComments]),
+    viewerName: 'Priya Example',
     appendLocalComment: noop,
     draftKey: options.draftKey
   }
@@ -58,16 +63,16 @@ async function nextTick(): Promise<void> {
   await promise
 }
 
-/** The unknown outcome keeps Send blocked until the reload finishes and offers the deliberate resend. */
-async function waitForSendAgain(frame: HTMLElement): Promise<void> {
+/** The unknown outcome keeps the draft and offers a fresh comments check. */
+async function waitForCheckAgain(frame: HTMLElement): Promise<void> {
   for (let attempt = 0; attempt < 100; attempt += 1) {
-    const button = findButton(frame, 'Send again')
+    const button = findButton(frame, 'Check again')
     if (button && !button.disabled) {
       return
     }
     await nextTick()
   }
-  throw new Error('Comments fixture: the unknown-outcome resend never became available.')
+  throw new Error('Comments fixture: the unknown-outcome check never became available.')
 }
 
 function send(frame: HTMLElement): void {
@@ -124,6 +129,41 @@ export const unknownOutcome = defineFixture({
   ),
   interact: async (frame) => {
     send(frame)
-    await waitForSendAgain(frame)
+    await waitForCheckAgain(frame)
+  }
+})
+
+export const duplicate = defineFixture({
+  width: 720,
+  setup: () => setDraft(draftKey('duplicate'), draftText, { dirty: true }),
+  render: () => (
+    <Sheet>
+      <DartTaskDetailComments
+        {...fixtureApi({ draftKey: draftKey('duplicate') })}
+        readLatestComments={() =>
+          Promise.resolve([
+            ...threadComments,
+            {
+              ...reply,
+              id: 'duplicate',
+              parentId: null,
+              text: draftText,
+              createdAt: new Date().toISOString()
+            }
+          ])
+        }
+        onRetry={noop}
+      />
+    </Sheet>
+  ),
+  interact: async (frame) => {
+    send(frame)
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      if (findButton(frame, 'Post anyway')) {
+        return
+      }
+      await nextTick()
+    }
+    throw new Error('Comments fixture: duplicate warning did not appear.')
   }
 })

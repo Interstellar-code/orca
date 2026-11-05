@@ -40,7 +40,7 @@ export function setDartReplyTarget(draftKey: string, comment: DartComment | null
     replyTargets.delete(draftKey)
     replyTargets.set(draftKey, comment)
     while (replyTargets.size > MAX_REPLY_TARGETS) {
-      const oldest = [...replyTargets.keys()].find((key) => !getDartCommentSendState(key).blocked)
+      const oldest = [...replyTargets.keys()].find((key) => !getDartCommentSendState(key).inFlight)
       if (oldest === undefined) {
         break
       }

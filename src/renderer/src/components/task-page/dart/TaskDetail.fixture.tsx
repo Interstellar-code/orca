@@ -46,13 +46,15 @@ function fixtureProps(
     supportsWritesV2: false,
     viewerName: null
   }
-  const commentsApi: DartDetailCommentsApi = {
+  const commentsApi: DartTaskDetailViewProps['commentsApi'] = {
     comments: options.comments ?? {
       status: 'ready',
       value: { comments: fixtureComments, totalCount: fixtureComments.length }
     },
     onAddComment: notRun,
     reloadComments: () => Promise.resolve(),
+    readLatestComments: () => Promise.resolve([...fixtureComments]),
+    viewerName: 'Priya Example',
     appendLocalComment: noop,
     draftKey: 'fixture-comment'
   }

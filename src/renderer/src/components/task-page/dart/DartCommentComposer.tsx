@@ -10,11 +10,10 @@ import { getScreenSubmitShortcutLabel, isScreenSubmitShortcut } from '@/lib/scre
 import { useAppStore } from '@/store'
 import {
   beginDartCommentSend,
+  clearCompletedDartComment,
   clearDartCommentSendState,
-  dartCommentBlockedReason,
-  dartUncertainReplyTarget,
-  claimDartLandedCommentReload,
-  forgetDartCommentBody,
+  dartCommentReadFailedNotice,
+  dartCommentViewerUnknownNotice,
   dartCommentRefusedNotice,
   dartCommentUnknownNotice,
   dartDraftsFullWarning,
@@ -23,14 +22,14 @@ import {
   draftCommentText,
   getDartCommentSendState,
   patchDartCommentSendState,
-  isDartCommentBodyBlocked,
   readDartCommentSubmission,
+  reconcileDartCommentRead,
   subscribeDartCommentSendState
 } from './dart-comment-send-state'
+import { canSubmitDartComment, hasRecentDartComment } from './dart-comment-duplicate'
 import { clearDraft, oldestDirtyDraft, setDraft } from './dart-draft-store'
 import { setDartReplyTarget } from './dart-reply-target-store'
 import type { DartDetailCommentsApi } from './dart-detail-contracts'
-import { DartCommentUncertainActions } from './DartCommentUncertainActions'
 import { DartTaskDetailNotice } from './TaskDetailNotice'
 
 export function DartCommentComposer({
@@ -39,7 +38,9 @@ export function DartCommentComposer({
   onCancelReply,
   onAddComment,
   reloadComments,
-  appendLocalComment
+  appendLocalComment,
+  readLatestComments,
+  viewerName
 }: {
   draftKey: string
   replyTo: DartComment | null
@@ -47,26 +48,27 @@ export function DartCommentComposer({
   onAddComment: DartDetailCommentsApi['onAddComment']
   reloadComments: DartDetailCommentsApi['reloadComments']
   appendLocalComment: DartDetailCommentsApi['appendLocalComment']
+  readLatestComments: () => Promise<DartComment[]>
+  viewerName: string | null
 }): React.JSX.Element {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
-  // A write outlives its task: once this unmounts, its results belong to no screen.
   const mountedRef = useRef(true)
   const getSendState = useCallback(() => getDartCommentSendState(draftKey), [draftKey])
   const sendState = useSyncExternalStore(subscribeDartCommentSendState, getSendState, getSendState)
+  const currentReplyId = useRef(replyTo?.id ?? null)
+  currentReplyId.current = replyTo?.id ?? null
+  const currentDraftKey = useRef(draftKey)
+  currentDraftKey.current = draftKey
+  const currentContext = useRef({ viewerName, onAddComment, readLatestComments })
+  currentContext.current = { viewerName, onAddComment, readLatestComments }
   const oldest = sendState.saved ? null : oldestDirtyDraft()
   const draftsFullWarning = useAppStore((state) =>
     oldest ? dartDraftsFullWarning(state, oldest) : null
   )
   const submitting = sendState.inFlight
   const text = sendState.text ?? draftCommentText(draftKey)
-  useDartCommentReplyEscape(
-    rootRef,
-    textareaRef,
-    replyTo,
-    onCancelReply,
-    !sendState.inFlight && !isDartCommentBodyBlocked(draftKey, text)
-  )
+  useDartCommentReplyEscape(rootRef, textareaRef, replyTo, onCancelReply)
   useEffect(() => {
     mountedRef.current = true
     return () => {
@@ -74,23 +76,17 @@ export function DartCommentComposer({
     }
   }, [])
 
+  const previousReplyId = useRef(replyTo?.id ?? null)
   useEffect(() => {
     if (replyTo) {
       textareaRef.current?.focus()
     }
-  }, [replyTo])
-  useEffect(() => {
-    if (sendState.inFlight || sendState.landedComments.length === 0) {
-      return
+    const nextReplyId = replyTo?.id ?? null
+    if (previousReplyId.current !== nextReplyId) {
+      patchDartCommentSendState(draftKey, { duplicate: null, notice: null })
     }
-    for (const comment of sendState.landedComments) {
-      appendLocalComment(comment)
-    }
-    if (claimDartLandedCommentReload(draftKey)) {
-      void reloadComments().catch(() => {})
-    }
-  }, [appendLocalComment, draftKey, reloadComments, sendState.inFlight, sendState.landedComments])
-
+    previousReplyId.current = nextReplyId
+  }, [draftKey, replyTo])
   const persistDraft = useCallback(
     (next: string): void => {
       // `full` means the bounded store kept nothing: the draft state holds it, unsaved.
@@ -108,129 +104,141 @@ export function DartCommentComposer({
   const updateText = useCallback(
     (next: string): void => {
       persistDraft(next)
-      patchDartCommentSendState(draftKey, {
-        blocked: isDartCommentBodyBlocked(draftKey, next),
-        refusalNotice: null
-      })
+      patchDartCommentSendState(draftKey, { duplicate: null, refusalNotice: null, notice: null })
     },
     [draftKey, persistDraft]
   )
 
   const submit = useCallback(
-    async ({ resend }: { resend: boolean }): Promise<void> => {
+    async ({ postAnyway }: { postAnyway: boolean }): Promise<void> => {
       const before = getDartCommentSendState(draftKey)
-      const blocked = isDartCommentBodyBlocked(draftKey, text)
-      if (before.inFlight || (blocked ? !resend || !before.reconciled : resend)) {
-        return
-      }
       const submission = readDartCommentSubmission(text)
-      if (submission.status === 'empty') {
+      if (before.inFlight || submission.status === 'empty') {
         return
       }
       if (submission.status === 'refused') {
-        patchDartCommentSendState(draftKey, {
-          refusalNotice: submission.notice
-        })
+        patchDartCommentSendState(draftKey, { refusalNotice: submission.notice })
         return
       }
-      if (!beginDartCommentSend(draftKey)) {
+      const parentId = replyTo?.id ?? null
+      if (
+        !canSubmitDartComment(before.duplicate, submission.body, parentId, postAnyway) ||
+        !beginDartCommentSend(draftKey)
+      ) {
         return
       }
-      const sentText = text
-      const originalTarget = dartUncertainReplyTarget(draftKey, submission.body)
-      const target = resend ? originalTarget : replyTo
       try {
+        if (!viewerName) {
+          patchDartCommentSendState(draftKey, { refusalNotice: dartCommentViewerUnknownNotice() })
+          return
+        }
+        let comments: DartComment[]
+        try {
+          comments = await readLatestComments()
+        } catch {
+          patchDartCommentSendState(draftKey, {
+            duplicate: null,
+            refusalNotice: dartCommentReadFailedNotice()
+          })
+          return
+        }
+        const latest = getDartCommentSendState(draftKey)
+        if (
+          !mountedRef.current ||
+          currentDraftKey.current !== draftKey ||
+          latest.generation !== before.generation ||
+          currentContext.current.viewerName !== viewerName ||
+          currentContext.current.onAddComment !== onAddComment ||
+          currentContext.current.readLatestComments !== readLatestComments ||
+          (latest.text ?? draftCommentText(draftKey)) !== text ||
+          currentReplyId.current !== parentId
+        ) {
+          return
+        }
+        if (
+          !postAnyway &&
+          hasRecentDartComment(comments, viewerName, submission.body, parentId, Date.now())
+        ) {
+          patchDartCommentSendState(draftKey, {
+            duplicate: { body: submission.body, parentId },
+            refusalNotice: null
+          })
+          return
+        }
+        patchDartCommentSendState(draftKey, { duplicate: null, refusalNotice: null })
         const result = await onAddComment({
           text: submission.body,
-          ...(target ? { parentId: target.id } : {})
-        })
+          ...(parentId ? { parentId } : {})
+        }).catch(() => ({ ok: false as const, outcome: 'unknown' as const, error: '' }))
         const current = getDartCommentSendState(draftKey)
-        const uncertainBodies = new Map(current.uncertainBodies)
         if (result.ok) {
-          for (const body of uncertainBodies.keys()) {
-            if (body.trim() === submission.body.trim()) {
-              uncertainBodies.delete(body)
-            }
-          }
-          patchDartCommentSendState(draftKey, {
-            landedComments: [...current.landedComments, result.comment],
-            uncertainBodies,
-            blocked: [...uncertainBodies.keys()].some(
-              (body) => body.trim() === (current.text ?? draftCommentText(draftKey)).trim()
-            ),
-            ...(uncertainBodies.size === 0 ? { notice: null, reconciled: false } : {})
-          })
           if (
-            (current.text ?? draftCommentText(draftKey)) === sentText &&
-            current.generation === before.generation
+            (current.text ?? draftCommentText(draftKey)) === text &&
+            current.generation === before.generation &&
+            currentReplyId.current === parentId &&
+            currentDraftKey.current === draftKey
           ) {
-            clearDraft(draftKey)
-            patchDartCommentSendState(draftKey, { text: null, saved: true, refusalNotice: null })
-            setDartReplyTarget(draftKey, null)
+            clearCompletedDartComment(draftKey)
           }
-          if (mountedRef.current && claimDartLandedCommentReload(draftKey)) {
-            await reloadComments().catch(() => {})
+          appendLocalComment(result.comment)
+          await reloadComments().catch(() => {})
+        } else if (result.outcome === 'unknown') {
+          if (current.generation === before.generation) {
+            patchDartCommentSendState(draftKey, { notice: dartCommentUnknownNotice() })
           }
-          return
+          await reloadComments().catch(() => {})
+        } else {
+          patchDartCommentSendState(draftKey, { refusalNotice: dartCommentRefusedNotice(result) })
         }
-        if (result.outcome === 'unknown') {
-          uncertainBodies.set(
-            submission.body,
-            resend
-              ? (originalTarget ?? null)
-              : replyTo
-                ? { id: replyTo.id, author: replyTo.author }
-                : null
-          )
-          patchDartCommentSendState(draftKey, {
-            uncertainBodies,
-            blocked: (current.text ?? draftCommentText(draftKey)).trim() === submission.body.trim(),
-            notice: dartCommentUnknownNotice(),
-            reconciled: false
-          })
-          if (!mountedRef.current) {
-            return
-          }
-          try {
-            await reloadComments()
-          } catch {
-            return
-          }
-          patchDartCommentSendState(draftKey, (latest) => ({
-            ...(latest.uncertainBodies.size > 0 ? { reconciled: true } : {}),
-            ...(latest.notice?.kind === 'unknown'
-              ? { notice: { ...latest.notice, checkedAt: Date.now() } }
-              : {})
-          }))
-          return
-        }
-        patchDartCommentSendState(draftKey, { refusalNotice: dartCommentRefusedNotice(result) })
       } finally {
         endDartCommentSend(draftKey)
       }
     },
-    [draftKey, onAddComment, reloadComments, replyTo, text]
+    [
+      appendLocalComment,
+      draftKey,
+      onAddComment,
+      readLatestComments,
+      reloadComments,
+      replyTo,
+      text,
+      viewerName
+    ]
   )
 
   const recheck = useCallback(async (): Promise<void> => {
+    const before = getDartCommentSendState(draftKey)
+    const body = before.text ?? draftCommentText(draftKey)
+    const parentId = currentReplyId.current
     try {
-      await reloadComments()
+      const comments = await readLatestComments()
+      if (
+        !mountedRef.current ||
+        currentDraftKey.current !== draftKey ||
+        currentContext.current.viewerName !== viewerName ||
+        currentContext.current.readLatestComments !== readLatestComments
+      ) {
+        return
+      }
+      if (
+        reconcileDartCommentRead(
+          draftKey,
+          before,
+          body,
+          parentId,
+          viewerName,
+          comments,
+          currentReplyId.current
+        )
+      ) {
+        clearCompletedDartComment(draftKey)
+      }
     } catch {
-      // A failed or unconfirmed read proves nothing: no "Last checked" and no Send again.
-      return
+      patchDartCommentSendState(draftKey, { refusalNotice: dartCommentReadFailedNotice() })
     }
-    patchDartCommentSendState(draftKey, (current) => ({
-      ...(current.uncertainBodies.size > 0 ? { reconciled: true } : {}),
-      ...(current.notice?.kind === 'unknown'
-        ? { notice: { ...current.notice, checkedAt: Date.now() } }
-        : {})
-    }))
-  }, [draftKey, reloadComments])
+  }, [draftKey, readLatestComments, viewerName])
 
-  const resendTarget = dartUncertainReplyTarget(draftKey, text)
-  const replyAuthor = resendTarget === undefined ? replyTo?.author : resendTarget?.author
-  const cancelReplyBlocked = isDartCommentBodyBlocked(draftKey, text)
-  const canResendCurrentBody = cancelReplyBlocked
+  const replyAuthor = replyTo?.author
   const canSend = hasBoundedCommentBodyText(text)
   const submitShortcutLabel = getScreenSubmitShortcutLabel()
 
@@ -247,11 +255,11 @@ export function DartCommentComposer({
           </span>
           <Button
             type="button"
-            disabled={cancelReplyBlocked || sendState.inFlight}
+            disabled={sendState.inFlight}
             variant="ghost"
             size="xs"
             onClick={() => {
-              if (!cancelReplyBlocked && !sendState.inFlight) {
+              if (!sendState.inFlight) {
                 onCancelReply()
               }
               textareaRef.current?.focus()
@@ -265,49 +273,48 @@ export function DartCommentComposer({
         notice={sendState.refusalNotice}
         dismissNotice={() => patchDartCommentSendState(draftKey, { refusalNotice: null })}
         recheckNotice={recheck}
-      />
-      <DartTaskDetailNotice
-        notice={sendState.notice}
-        dismissNotice={() => patchDartCommentSendState(draftKey, { notice: null })}
-        recheckNotice={recheck}
         actions={
-          sendState.notice?.kind === 'unknown' && sendState.blocked && canResendCurrentBody ? (
-            <DartCommentUncertainActions
-              reconciled={sendState.reconciled}
-              submitting={submitting}
-              onResend={() => void submit({ resend: true })}
-              onPosted={() => forgetDartCommentBody(draftKey, text)}
-            />
-          ) : undefined
-        }
-      />
-      {sendState.blocked && !sendState.notice ? (
-        <div
-          role="status"
-          className="flex items-start justify-between gap-3 rounded-md border border-border/50 bg-muted/35 px-2.5 py-1.5 text-xs text-muted-foreground"
-        >
-          <p className="min-w-0 break-words">{dartCommentBlockedReason()}</p>
-          {sendState.reconciled && canResendCurrentBody ? (
+          sendState.refusalNotice ? (
             <Button
               type="button"
               variant="outline"
               size="xs"
               disabled={submitting}
-              onClick={() => void submit({ resend: true })}
+              onClick={() => void submit({ postAnyway: false })}
             >
-              {translate(
-                'auto.components.task.page.dart.DartCommentComposer.sendAgain',
-                'Send again'
-              )}
+              {translate('auto.components.task.page.dart.DartCommentComposer.retry', 'Retry')}
             </Button>
-          ) : (
-            <Button type="button" variant="outline" size="xs" onClick={() => void recheck()}>
-              {translate(
-                'auto.components.task.page.dart.DartCommentComposer.checkAgain',
-                'Check again'
-              )}
-            </Button>
-          )}
+          ) : undefined
+        }
+      />
+      <DartTaskDetailNotice
+        notice={sendState.notice}
+        dismissNotice={() => patchDartCommentSendState(draftKey, { notice: null })}
+        recheckNotice={recheck}
+      />
+      {sendState.duplicate ? (
+        <div
+          role="status"
+          className="flex items-start justify-between gap-3 rounded-md border border-border/50 bg-muted/35 px-2.5 py-1.5 text-xs text-muted-foreground"
+        >
+          <p>
+            {translate(
+              'auto.components.task.page.dart.DartCommentComposer.duplicate',
+              'This comment is already posted'
+            )}
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            disabled={submitting}
+            onClick={() => void submit({ postAnyway: true })}
+          >
+            {translate(
+              'auto.components.task.page.dart.DartCommentComposer.postAnyway',
+              'Post anyway'
+            )}
+          </Button>
         </div>
       ) : null}
       {oldest ? (
@@ -358,7 +365,7 @@ export function DartCommentComposer({
               return
             }
             event.preventDefault()
-            void submit({ resend: false })
+            void submit({ postAnyway: false })
           }}
           placeholder={translate(
             'auto.components.task.page.dart.DartCommentComposer.placeholder',
@@ -375,12 +382,12 @@ export function DartCommentComposer({
           type="button"
           size="icon-sm"
           className="size-8 flex-none"
-          disabled={!canSend || submitting || sendState.blocked}
+          disabled={!canSend || submitting || !!sendState.duplicate}
           aria-label={translate(
             'auto.components.task.page.dart.DartCommentComposer.send',
             'Send comment'
           )}
-          onClick={() => void submit({ resend: false })}
+          onClick={() => void submit({ postAnyway: false })}
         >
           {submitting ? (
             <LoaderCircle className="size-3.5 animate-spin" />

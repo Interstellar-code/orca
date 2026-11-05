@@ -18729,13 +18729,17 @@
               "send": "Send comment",
               "shortcutHint": "{{shortcut}} to send",
               "commentTooLarge": "This comment is too long to send to Dart. Shorten it and try again.",
-              "mayHavePosted": "Dart may have posted this comment. Check the list before sending again.",
+              "mayHavePosted": "Not sure it posted",
               "notSaved": "Comment wasn't saved: {{message}}",
-              "blockedReason": "Dart may have posted this comment. Check the list before sending again.",
               "unknownHost": "unknown host",
               "draftsFull": "Orca keeps a bounded number of unsaved Dart drafts, and this text is not saved yet. The oldest ({{kind}} on {{host}}, task {{task}}) has to be copied or discarded first.",
               "draftKindDescription": "description",
-              "draftKindComment": "comment"
+              "draftKindComment": "comment",
+              "readFailed": "Could not check comments. Retry before sending.",
+              "viewerUnknown": "Cannot check for duplicate comments without the current Dart user. Retry after reconnecting.",
+              "duplicate": "This comment is already posted",
+              "postAnyway": "Post anyway",
+              "retry": "Retry"
             },
             "TaskDetailNotice": {
               "fieldTitle": "Title",

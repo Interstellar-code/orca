@@ -10,8 +10,7 @@ export function useDartCommentReplyEscape(
   rootRef: RefObject<HTMLDivElement | null>,
   textareaRef: RefObject<HTMLTextAreaElement | null>,
   replyTo: DartComment | null,
-  onCancelReply: () => void,
-  canCancelReply: boolean
+  onCancelReply: () => void
 ): void {
   // Radix dismisses the sheet from a capture listener that runs before the textarea's own keydown;
   // this window listener runs earlier still, so vetoing cancels the reply, not the sheet.
@@ -34,12 +33,10 @@ export function useDartCommentReplyEscape(
       }
       event.preventDefault()
       event.stopPropagation()
-      if (canCancelReply) {
-        onCancelReply()
-      }
+      onCancelReply()
       textareaRef.current?.focus()
     }
     window.addEventListener('keydown', onKeyDown, { capture: true })
     return () => window.removeEventListener('keydown', onKeyDown, { capture: true })
-  }, [canCancelReply, onCancelReply, replyTo, rootRef, textareaRef])
+  }, [onCancelReply, replyTo, rootRef, textareaRef])
 }

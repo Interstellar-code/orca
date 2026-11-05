@@ -1,9 +1,41 @@
-import type { DartCommentPage } from '../../../../../shared/dart/dart-types'
+import type { DartComment, DartCommentPage } from '../../../../../shared/dart/dart-types'
+import type { RuntimeClientTarget } from '../../../../../shared/runtime-client-target'
 import type { TaskSourceContext } from '../../../../../shared/task-source-context'
 import { taskProviderErrorMessage, taskProviderErrorText } from '@/lib/task-provider-error-copy'
-import type { DartClientResult } from '@/runtime/runtime-dart-client'
+import { dartListCommentsForTarget, type DartClientResult } from '@/runtime/runtime-dart-client'
 import { captureDartEpoch, type DartTaskIdentity } from '@/store/slices/dart/dart-task-identity'
 import { readPastDartWrites } from './dart-stale-read'
+
+export async function readAllDartComments(
+  target: RuntimeClientTarget,
+  taskId: string
+): Promise<DartClientResult<DartCommentPage>> {
+  const comments: DartComment[] = []
+  const ids = new Set<string>()
+  let totalCount = 0
+  do {
+    const page = await dartListCommentsForTarget(target, {
+      taskId,
+      limit: 250,
+      offset: comments.length
+    })
+    if (!page.ok) {
+      return page
+    }
+    totalCount = page.totalCount
+    if (page.comments.length === 0 && comments.length < totalCount) {
+      throw new Error(taskProviderErrorText(undefined, 'dart.loadFailed'))
+    }
+    for (const comment of page.comments) {
+      if (ids.has(comment.id)) {
+        throw new Error(taskProviderErrorText(undefined, 'dart.loadFailed'))
+      }
+      ids.add(comment.id)
+      comments.push(comment)
+    }
+  } while (comments.length < totalCount)
+  return { ok: true, comments, totalCount }
+}
 
 export async function reloadDartComments(args: {
   identity: DartTaskIdentity

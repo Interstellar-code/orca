@@ -17,7 +17,6 @@ import { DartIntegrationCard } from './dart-integration-card'
 import {
   clearDartCommentSendState,
   getDartCommentSendState,
-  isDartCommentBodyBlocked,
   patchDartCommentSendState
 } from '../task-page/dart/dart-comment-send-state'
 import { getDartReplyTarget, setDartReplyTarget } from '../task-page/dart/dart-reply-target-store'
@@ -199,8 +198,6 @@ describe('DartIntegrationCard', () => {
       clearDraft(REMOTE_DRAFT)
       clearDartCommentSendState(LOCAL_DRAFT)
       clearDartCommentSendState(REMOTE_DRAFT)
-      patchDartCommentSendState(LOCAL_DRAFT, { uncertainBodies: new Map(), landedComments: [] })
-      patchDartCommentSendState(REMOTE_DRAFT, { uncertainBodies: new Map(), landedComments: [] })
       setDartReplyTarget(LOCAL_DRAFT, null)
       setDartReplyTarget(REMOTE_DRAFT, null)
       discardDirtyDrafts('local')
@@ -238,11 +235,10 @@ describe('DartIntegrationCard', () => {
       expect(getDraft(LOCAL_DRAFT)).toBe('typed text')
     })
 
-    it('discards this host’s drafts but keeps uncertain bodies', async () => {
+    it('discards this host’s drafts and reply target only after disconnect succeeds', async () => {
       setDraft(LOCAL_DRAFT, 'typed text', { dirty: true })
       patchDartCommentSendState(LOCAL_DRAFT, {
-        text: 'typed text',
-        uncertainBodies: new Map([['typed text', { id: 'parent', author: 'Pat' }]])
+        text: 'typed text'
       })
       setDartReplyTarget(LOCAL_DRAFT, {
         id: 'parent',
@@ -258,10 +254,6 @@ describe('DartIntegrationCard', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Discard and disconnect' }))
       await waitFor(() => expect(getDraft(LOCAL_DRAFT)).toBeUndefined())
       expect(state.disconnectDart).toHaveBeenCalledOnce()
-      expect(getDartCommentSendState(LOCAL_DRAFT).uncertainBodies.get('typed text')).toEqual({
-        id: 'parent',
-        author: 'Pat'
-      })
       expect(getDraft(REMOTE_DRAFT)).toBe('other host text')
       expect(getDartCommentSendState(LOCAL_DRAFT).text).toBeNull()
       expect(getDartReplyTarget(LOCAL_DRAFT)).toBeNull()
@@ -269,7 +261,6 @@ describe('DartIntegrationCard', () => {
       installStore({ dartStatus: CONNECTED })
       renderCard()
       expect(getDartCommentSendState(LOCAL_DRAFT).text).toBeNull()
-      expect(isDartCommentBodyBlocked(LOCAL_DRAFT, 'typed text')).toBe(true)
       expect(getDartReplyTarget(LOCAL_DRAFT)).toBeNull()
     })
 
@@ -305,11 +296,10 @@ describe('DartIntegrationCard', () => {
       expect(getDraft(REMOTE_DRAFT)).toBe('other host text')
     })
 
-    it('counts and copies refused text without treating uncertain bodies as drafts (C3)', async () => {
+    it('counts and copies refused text outside the bounded draft store (C3)', async () => {
       patchDartCommentSendState(LOCAL_DRAFT, {
         text: 'Only copy',
-        saved: false,
-        uncertainBodies: new Map([['Already sent', null]])
+        saved: false
       })
       const state = installStore({ dartStatus: CONNECTED })
       renderCard()
@@ -322,24 +312,6 @@ describe('DartIntegrationCard', () => {
       expect(writeClipboardText).toHaveBeenCalledWith('Only copy')
       fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
       expect(getDartCommentSendState(LOCAL_DRAFT).text).toBe('Only copy')
-      expect(getDartCommentSendState(LOCAL_DRAFT).uncertainBodies.has('Already sent')).toBe(true)
-    })
-
-    it('keeps unknown bodies blocking across disconnect and reconnect (C4)', async () => {
-      patchDartCommentSendState(LOCAL_DRAFT, {
-        uncertainBodies: new Map([['Body', null]])
-      })
-      const state = installStore({ dartStatus: CONNECTED })
-      const view = renderCard()
-      fireEvent.click(screen.getByRole('button', { name: 'Disconnect Dart' }))
-      await waitFor(() => expect(state.disconnectDart).toHaveBeenCalledOnce())
-      expect(screen.queryByRole('dialog')).toBeNull()
-      view.unmount()
-      installStore({ dartStatus: CONNECTED })
-      renderCard()
-      expect(getDartCommentSendState(LOCAL_DRAFT).uncertainBodies.has('Body')).toBe(true)
-      expect(isDartCommentBodyBlocked(LOCAL_DRAFT, ' Body ')).toBe(true)
-      expect(isDartCommentBodyBlocked(REMOTE_DRAFT, 'Body')).toBe(false)
     })
   })
 
