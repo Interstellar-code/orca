@@ -1,5 +1,5 @@
 import { checkDartRequestText } from '../../../../../shared/dart/dart-text-limits'
-import type { DartTask } from '../../../../../shared/dart/dart-types'
+import type { DartComment, DartTask } from '../../../../../shared/dart/dart-types'
 import {
   normalizeExecutionHostId,
   parseExecutionHostId
@@ -31,32 +31,29 @@ export type DartCommentSendState = {
   /** False when the bounded draft store refused this text, so the warning can say it is not saved. */
   saved: boolean
   inFlight: boolean
+  landedComments: readonly DartComment[]
   /** An unknown outcome blocks Send until the user edits the text or sends again on purpose. */
   blocked: boolean
   /** Set of normalized bodies whose delivery remains unknown, even after edits. */
-  uncertainBodies: ReadonlySet<string>
+  uncertainBodies: ReadonlyMap<string, string | null>
   refusalNotice: DartWriteNotice | null
-  uncertainParentId: string | null
   generation: number
   /** A successful list read happened after the unknown write, so Send again may appear. */
   reconciled: boolean
   notice: DartWriteNotice | null
-  /** The notice came from the local size check, so shortening the text clears it. */
-  noticeIsSize: boolean
 }
 
 const EMPTY_STATE: DartCommentSendState = {
   text: null,
   saved: true,
   inFlight: false,
+  landedComments: [],
   blocked: false,
-  uncertainBodies: new Set<string>(),
+  uncertainBodies: new Map<string, string | null>(),
   refusalNotice: null,
-  uncertainParentId: null,
   generation: 0,
   reconciled: false,
-  notice: null,
-  noticeIsSize: false
+  notice: null
 }
 
 const states = new Map<string, DartCommentSendState>()
@@ -118,8 +115,9 @@ export function endDartCommentSend(draftKey: string): void {
 export function clearDartCommentSendState(draftKey: string): void {
   const current = getDartCommentSendState(draftKey)
   patchDartCommentSendState(draftKey, {
-    ...EMPTY_STATE,
-    inFlight: current.inFlight,
+    text: null,
+    saved: true,
+    refusalNotice: null,
     generation: current.generation + 1
   })
 }
@@ -127,14 +125,7 @@ export function clearDartCommentSendState(draftKey: string): void {
 export function clearDartCommentSendStatesForHost(hostKey: string): void {
   for (const key of states.keys()) {
     if (dartDraftKeyParts(key).hostKey === hostKey) {
-      const current = getDartCommentSendState(key)
       clearDartCommentSendState(key)
-      patchDartCommentSendState(key, {
-        uncertainBodies: current.uncertainBodies,
-        uncertainParentId: current.uncertainParentId,
-        reconciled: current.reconciled,
-        notice: current.uncertainBodies.size > 0 ? dartCommentUnknownNotice() : null
-      })
     }
   }
 }
@@ -232,7 +223,7 @@ export function isDartCommentBodyBlocked(draftKey: string, text: string): boolea
   if (trimmed === '') {
     return false
   }
-  for (const body of uncertainBodies) {
+  for (const [body] of uncertainBodies) {
     if (body.trim() === trimmed) {
       return true
     }

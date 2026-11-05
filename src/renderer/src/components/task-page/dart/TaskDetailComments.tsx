@@ -86,9 +86,8 @@ function DartTaskDetailCommentsForTask({
                   <Button
                     type="button"
                     variant="ghost"
-                    size="xs"
+                    disabled={sendState.uncertainBodies.size > 0 || sendState.inFlight}
                     className="ms-auto"
-                    disabled={sendState.blocked || sendState.inFlight}
                     onClick={() => setDartReplyTarget(draftKey, comment)}
                   >
                     {translate(

@@ -131,6 +131,10 @@ export function openRenderedDartDetail(
     task,
     onClose,
     addTask,
+    unmount: (): void => view.unmount(),
+    remount: (): void => {
+      render(tree(task))
+    },
     showTask: (shown: DartTask | null): void => view.rerender(tree(shown))
   }
 }

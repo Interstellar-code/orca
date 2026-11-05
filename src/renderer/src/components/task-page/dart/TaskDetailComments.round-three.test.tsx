@@ -8,6 +8,8 @@ import {
   setUpRenderedDartDetail,
   tearDownRenderedDartDetail
 } from './dart-task-detail.test-support'
+import { clearDartCommentSendState, getDartCommentSendState } from './dart-comment-send-state'
+import { dartDraftKey } from './dart-draft-store'
 
 const UNKNOWN = {
   ok: false,
@@ -47,6 +49,93 @@ afterEach(() => {
   tearDownRenderedDartDetail()
 })
 
+it('records an unknown result after its draft was discarded mid-send', async () => {
+  const page = openRenderedDartDetail()
+  await screen.findByText('No comments yet.')
+  const key = dartDraftKey(
+    { hostKey: `runtime:${page.pageEnv}`, accountKey: 'user-a' },
+    page.task.id,
+    'comment'
+  )
+  page.host.lostReplies.push(UNKNOWN)
+  const release = page.host.hold('dart.addComment')
+  type('Discarded pending')
+  fireEvent.click(send())
+  await waitFor(() => expect(page.host.count('dart.addComment')).toBe(1))
+  act(() => clearDartCommentSendState(key))
+  await act(async () => release())
+  expect(getDartCommentSendState(key).uncertainBodies.has('Discarded pending')).toBe(true)
+  type('Discarded pending')
+  expect(send().disabled).toBe(true)
+})
+it('locks reply and cancel while an edited unknown reply remains unresolved', async () => {
+  const page = openRenderedDartDetail({
+    comments: [comment('p', 'Parent P'), comment('q', 'Parent Q', 'Quinn')]
+  })
+  await screen.findByText('Parent P')
+  const replies = screen.getAllByRole('button', { name: 'Reply' })
+  fireEvent.click(replies[0])
+  page.host.lostReplies.push(UNKNOWN)
+  type('Body')
+  fireEvent.click(send())
+  await screen.findByRole('button', { name: 'Send again' })
+  type('Edited')
+  expect(replies[1].hasAttribute('disabled')).toBe(true)
+  expect(screen.getByRole('button', { name: 'Cancel' }).hasAttribute('disabled')).toBe(true)
+  type('Body')
+  fireEvent.click(screen.getByRole('button', { name: 'Send again' }))
+  await waitFor(() => expect(page.host.count('dart.addComment')).toBe(2))
+  expect(
+    page.host.requests.filter((request) => request.method === 'dart.addComment')[1].params
+  ).toEqual(expect.objectContaining({ parentId: 'p' }))
+})
+
+it('resends each unknown body to its original parent after discard', async () => {
+  const page = openRenderedDartDetail({ comments: [comment('p', 'Parent P')] })
+  await screen.findByText('Parent P')
+  fireEvent.click(screen.getByRole('button', { name: 'Reply' }))
+  page.host.lostReplies.push(UNKNOWN)
+  type('Reply body')
+  fireEvent.click(send())
+  await screen.findByRole('button', { name: 'Send again' })
+  const key = dartDraftKey(
+    { hostKey: `runtime:${page.pageEnv}`, accountKey: 'user-a' },
+    page.task.id,
+    'comment'
+  )
+  act(() => clearDartCommentSendState(key))
+  type('Reply body')
+  fireEvent.click(screen.getByRole('button', { name: 'Send again' }))
+  await waitFor(() => expect(page.host.count('dart.addComment')).toBe(2))
+  expect(
+    page.host.requests.filter((request) => request.method === 'dart.addComment')[1].params
+  ).toEqual(expect.objectContaining({ parentId: 'p' }))
+})
+
+it.each(['success', 'unknown'] as const)(
+  'retains %s landing after the entire task view unmounts',
+  async (outcome) => {
+    const page = openRenderedDartDetail()
+    await screen.findByText('No comments yet.')
+    if (outcome === 'unknown') {
+      page.host.lostReplies.push(UNKNOWN)
+    }
+    const release = page.host.hold('dart.addComment')
+    type('Late outcome')
+    fireEvent.click(send())
+    await waitFor(() => expect(page.host.count('dart.addComment')).toBe(1))
+    page.unmount()
+    await act(async () => release())
+    page.remount()
+    if (outcome === 'success') {
+      await screen.findByText('Late outcome')
+    } else {
+      expect((await screen.findByRole('status')).textContent).toContain('may have posted')
+      expect(send().disabled).toBe(true)
+    }
+    expect(page.host.count('dart.addComment')).toBe(1)
+  }
+)
 it.each(['close', 'switch'] as const)(
   'shows a success after returning from %s before it lands (R1/M6)',
   async (leave) => {

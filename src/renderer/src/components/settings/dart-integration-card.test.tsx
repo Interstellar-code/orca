@@ -236,7 +236,10 @@ describe('DartIntegrationCard', () => {
 
     it('discards only this host’s drafts once the disconnect succeeded', async () => {
       setDraft(LOCAL_DRAFT, 'typed text', { dirty: true })
-      patchDartCommentSendState(LOCAL_DRAFT, { text: 'typed text' })
+      patchDartCommentSendState(LOCAL_DRAFT, {
+        text: 'typed text',
+        uncertainBodies: new Map([['typed text', 'parent']])
+      })
       setDartReplyTarget(LOCAL_DRAFT, {
         id: 'parent',
         text: 'Parent',
@@ -253,6 +256,7 @@ describe('DartIntegrationCard', () => {
 
       await waitFor(() => expect(getDraft(LOCAL_DRAFT)).toBeUndefined())
       expect(state.disconnectDart).toHaveBeenCalledOnce()
+      expect(getDartCommentSendState(LOCAL_DRAFT).uncertainBodies.get('typed text')).toBe('parent')
       expect(getDraft(REMOTE_DRAFT)).toBe('other host text')
       expect(getDartCommentSendState(LOCAL_DRAFT).text).toBeNull()
       expect(getDartReplyTarget(LOCAL_DRAFT)).toBeNull()
@@ -306,7 +310,7 @@ describe('DartIntegrationCard', () => {
 
     it('keeps unknown bodies blocking across plain disconnect and reconnect (C4)', async () => {
       patchDartCommentSendState(LOCAL_DRAFT, {
-        uncertainBodies: new Set(['Body']),
+        uncertainBodies: new Map([['Body', null]]),
         notice: { kind: 'unknown', message: 'May have posted' }
       })
       const state = installStore({ dartStatus: CONNECTED })

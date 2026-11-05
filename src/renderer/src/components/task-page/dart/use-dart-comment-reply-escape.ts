@@ -35,7 +35,7 @@ export function useDartCommentReplyEscape(
       }
       event.preventDefault()
       event.stopPropagation()
-      if (!getDartCommentSendState(draftKey).blocked) {
+      if (getDartCommentSendState(draftKey).uncertainBodies.size === 0) {
         onCancelReply()
       }
       textareaRef.current?.focus()
