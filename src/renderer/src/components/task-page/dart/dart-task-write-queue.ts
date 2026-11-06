@@ -1,3 +1,4 @@
+import { toast } from 'sonner'
 import type { DartTask } from '../../../../../shared/dart/dart-types'
 import { translate } from '@/i18n/i18n'
 import { taskProviderErrorMessage } from '@/lib/task-provider-error-copy'
@@ -100,6 +101,11 @@ async function settleSaved(
 
 function settleRefused(entry: TaskWrites, queued: QueuedWrite, result: DartWriteFailure): void {
   publishRollback(entry, queued)
+  if (result.errorCode === 'dart.rateLimited') {
+    // D4: a rate limit is transient, so it gets a toast and no notice to dismiss.
+    toast.error(taskProviderErrorMessage(result))
+    return
+  }
   const overlaps = (open: OpenNotice): boolean =>
     open.notice.kind === 'refused' && open.fields.some((field) => queued.fields.includes(field))
   entry.notices = entry.notices.filter((open) => !overlaps(open))

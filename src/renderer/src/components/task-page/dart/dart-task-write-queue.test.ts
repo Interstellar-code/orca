@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 
+import { toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DartTask } from '../../../../../shared/dart/dart-types'
 import type { TaskSourceContext } from '../../../../../shared/task-source-context'
@@ -240,27 +241,49 @@ describe('dart task write queue: refused writes', () => {
     expect(page.state().notice).toBeNull()
   })
 
-  it.each([
-    ['dart.rateLimited', 'Dart is rate limiting requests. Try again shortly.'],
-    ['dart.unauthorized', 'Dart rejected the API token.']
-  ] as const)(
-    'rolls back on %s, whatever its outcome, and sends once',
-    async (errorCode, error) => {
-      const page = await openPage()
-      const failure = { ok: false, error, errorCode, outcome: 'unknown' } as const
-      page.host.refusals.push(failure)
+  it('rolls back on a rate limit with a toast and no notice, and sends once', async () => {
+    const toastError = vi.spyOn(toast, 'error').mockReturnValue('toast-id')
+    const page = await openPage()
+    const failure = {
+      ok: false,
+      error: 'Dart is rate limiting requests. Try again shortly.',
+      errorCode: 'dart.rateLimited',
+      outcome: 'unknown'
+    } as const
+    page.host.refusals.push(failure)
 
-      const result = await page.edit({ status: 'Doing' })
+    const result = await page.edit({ status: 'Doing' })
 
-      expect(result).toEqual(failure)
-      expect(page.detailShown.task.status).toBe('To-do')
-      expect(page.listRow()?.status).toBe('To-do')
-      expect(page.host.count('dart.updateTask')).toBe(1)
-      expect(page.host.tasks.get(page.taskId)?.status).toBe('To-do')
-      expect(page.state().notice).toMatchObject({ kind: 'refused', field: 'status' })
-      expect(page.state().pendingFields.size).toBe(0)
-    }
-  )
+    expect(result).toEqual(failure)
+    expect(page.detailShown.task.status).toBe('To-do')
+    expect(page.listRow()?.status).toBe('To-do')
+    expect(page.host.count('dart.updateTask')).toBe(1)
+    expect(page.host.tasks.get(page.taskId)?.status).toBe('To-do')
+    expect(toastError).toHaveBeenCalledTimes(1)
+    expect(toastError.mock.calls[0]?.[0]).toContain('rate limiting')
+    expect(page.state().notice).toBeNull()
+    expect(page.state().pendingFields.size).toBe(0)
+    toastError.mockRestore()
+  })
+
+  it('rolls back on an unauthorized reply, whatever its outcome, with a notice', async () => {
+    const page = await openPage()
+    const failure = {
+      ok: false,
+      error: 'Dart rejected the API token.',
+      errorCode: 'dart.unauthorized',
+      outcome: 'unknown'
+    } as const
+    page.host.refusals.push(failure)
+
+    const result = await page.edit({ status: 'Doing' })
+
+    expect(result).toEqual(failure)
+    expect(page.detailShown.task.status).toBe('To-do')
+    expect(page.host.count('dart.updateTask')).toBe(1)
+    expect(page.state().notice).toMatchObject({ kind: 'refused', field: 'status' })
+    expect(page.state().pendingFields.size).toBe(0)
+  })
 })
 
 describe('dart task write queue: ordering', () => {

@@ -131,19 +131,19 @@ describe('TaskPageDartTaskDetail write notice', () => {
     const { host } = openDetail()
     host.refusals.push({
       ok: false,
-      error: 'Slow down',
-      errorCode: 'dart.rateLimited',
+      error: 'rejected the request',
+      errorCode: 'dart.badRequest',
       outcome: 'notApplied'
     })
 
     await user.click(await screen.findByRole('button', { name: 'set status' }))
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain("Status wasn't saved:")
-    expect(alert.textContent).toContain('rate limiting')
+    expect(alert.textContent).toContain('rejected the request')
 
     await user.click(screen.getByRole('button', { name: 'set priority' }))
     await waitFor(() => expect(host.count('dart.updateTask')).toBe(2))
-    expect(screen.getByRole('alert').textContent).toContain('rate limiting')
+    expect(screen.getByRole('alert').textContent).toContain('rejected the request')
 
     await user.click(within(screen.getByRole('alert')).getByRole('button', { name: 'Dismiss' }))
     expect(screen.queryByRole('alert')).toBeNull()
