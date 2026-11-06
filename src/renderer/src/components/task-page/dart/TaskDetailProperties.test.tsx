@@ -23,7 +23,7 @@ const CONFIG: DartWorkspaceConfig = {
   statuses: ['To-do', 'Done'],
   types: [],
   tags: ['search', 'backend', 'billing'],
-  priorities: ['High', 'Medium', 'Low'],
+  priorities: ['high', 'medium', 'low'],
   sizes: ['1', '3', '5'],
   assignees: [dartDetailViewer.name, 'Sam Example']
 }
@@ -127,6 +127,18 @@ describe('detail property editors', () => {
     await user.click(await screen.findByRole('combobox', { name: 'Status' }))
     const options = await screen.findAllByRole('option')
     expect(options.map((option) => option.textContent)).toEqual(['To-do', 'Alpha', 'Beta'])
+  })
+
+  it('matches the capitalized task priority from Dart (Medium) to the lowercase config option and writes the config spelling', async () => {
+    const user = userEvent.setup()
+    const { host } = openDetail()
+    const chip = await screen.findByRole('combobox', { name: 'Priority' })
+    expect(chip.textContent).toBe('medium')
+    await user.click(chip)
+    const options = await screen.findAllByRole('option')
+    expect(options.map((option) => option.textContent)).toEqual(['None', 'high', 'medium', 'low'])
+    await user.click(screen.getByRole('option', { name: 'low' }))
+    await waitFor(() => expect(lastUpdate(host).updates).toEqual({ priority: 'low' }))
   })
 
   it('sends null for priority None and for Unassigned', async () => {

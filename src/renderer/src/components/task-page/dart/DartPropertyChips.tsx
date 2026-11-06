@@ -92,13 +92,17 @@ export function DartSelectChip({
   toneClass?: string
   onChange: (value: string | null) => void
 }): React.JSX.Element {
+  // Dart returns `High` where `/config` lists `high`; the config spelling is the one that is written back.
+  const selected = value
+    ? (options.find((option) => option.toLowerCase() === value.toLowerCase()) ?? value)
+    : null
   // An applied value missing from the config stays selectable.
-  const choices = value && !options.includes(value) ? [value, ...options] : options
+  const choices = selected && !options.includes(selected) ? [selected, ...options] : options
   const [open, setOpen] = useState(false)
   return (
     <DartChipRow state={state}>
       <Select
-        value={value ?? NONE_VALUE}
+        value={selected ?? NONE_VALUE}
         // Typeahead on the closed trigger reaches here without opening, so the guard lives on the value path.
         onValueChange={(next) => !state.disabled && onChange(next === NONE_VALUE ? null : next)}
         open={open}
@@ -113,7 +117,7 @@ export function DartSelectChip({
           aria-disabled={state.disabled || undefined}
         >
           <SelectValue>
-            <span className={toneClass}>{value ?? noneLabel ?? '—'}</span>
+            <span className={toneClass}>{selected ?? noneLabel ?? '—'}</span>
           </SelectValue>
         </SelectTrigger>
         <SelectContent>
