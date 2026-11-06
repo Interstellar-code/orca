@@ -36,14 +36,16 @@ export function dartDetailSourceContext(env: string): TaskSourceContext {
 /** The shared fake answers neither comments nor config. */
 function answerCommentsAndConfig(
   host: FakeDartHost,
-  config: DartWorkspaceConfig,
+  config: DartWorkspaceConfig | null,
   comments: readonly DartComment[]
 ): void {
   const handle = host.handle.bind(host)
   host.handle = async (method, params) => {
     if (method === 'dart.config') {
       host.requests.push({ method, params })
-      return { ok: true, config }
+      return config
+        ? { ok: true, config }
+        : { ok: false, error: 'Config is unavailable.', errorCode: 'dart.loadFailed' }
     }
     if (method === 'dart.listComments') {
       host.requests.push({ method, params })
@@ -74,7 +76,8 @@ export function openRenderedDartDetail(
   options: {
     detailEnv?: string
     onClose?: () => void
-    config?: DartWorkspaceConfig
+    /** `null` makes the config read fail, so the detail has no options. */
+    config?: DartWorkspaceConfig | null
     comments?: readonly DartComment[]
   } = {}
 ) {
@@ -84,15 +87,17 @@ export function openRenderedDartDetail(
   const host = runtime.host(detailEnv)
   answerCommentsAndConfig(
     host,
-    options.config ?? {
-      dartboards: [`Board of ${detailEnv}`],
-      statuses: ['To-do', 'Done'],
-      types: [],
-      tags: [],
-      priorities: [],
-      sizes: [],
-      assignees: []
-    },
+    options.config !== undefined
+      ? options.config
+      : {
+          dartboards: [`Board of ${detailEnv}`],
+          statuses: ['To-do', 'Done'],
+          types: [],
+          tags: [],
+          priorities: [],
+          sizes: [],
+          assignees: []
+        },
     options.comments ?? []
   )
   const addTask = (suffix: string): DartTask => {

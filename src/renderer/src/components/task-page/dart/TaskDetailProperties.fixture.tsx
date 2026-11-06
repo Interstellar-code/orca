@@ -108,3 +108,8 @@ export const oldHost = defineFixture({
   width: 780,
   render: () => frame(<DartTaskDetailProperties {...editApi({ supportsWritesV2: false })} />)
 })
+
+export const noConfig = defineFixture({
+  width: 780,
+  render: () => frame(<DartTaskDetailProperties {...editApi({ config: null })} />)
+})

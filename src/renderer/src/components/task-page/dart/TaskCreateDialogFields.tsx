@@ -120,12 +120,13 @@ export function DartCreateFields({
         </div>
       ))}
       <div className="flex min-w-0 flex-col gap-1">
-        <label className="text-2xs font-medium text-muted-foreground">
+        <label className="text-2xs font-medium text-muted-foreground" htmlFor="dart-create-tags">
           {translate('auto.components.task.page.dart.TaskCreateDialog.tags', 'Tags')}
         </label>
         <Popover>
           <PopoverTrigger asChild>
             <Button
+              id="dart-create-tags"
               type="button"
               variant="outline"
               size="sm"

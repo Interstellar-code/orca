@@ -188,6 +188,14 @@ export function DartTaskDetailProperties({
           disabled={noConfig}
           onChange={(tags) => set({ tags }, { tags })}
         />
+        {noConfig ? (
+          <p className="pt-2 text-2xs text-muted-foreground">
+            {translate(
+              'auto.components.task.page.dart.TaskDetail.noConfig',
+              'Field options are not available from Dart right now, so these fields cannot be edited.'
+            )}
+          </p>
+        ) : null}
       </div>
     </>
   )
