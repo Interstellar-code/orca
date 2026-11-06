@@ -50,7 +50,7 @@ Click **New task** in the Tasks header (it is off until Dart is connected and th
 
 Press **Create task** or the submit shortcut. Orca opens the new task in the preview and shows **Created**. Size is set afterwards, on the task.
 
-Orca never creates a task twice. If the reply to **Create task** is lost, the dialog says "Dart may have created this task. Check before creating it again." and lists tasks with exactly the same title on that dartboard. Open one with **This is mine**, press **Check again**, or choose **None of these is mine** to unlock **Create anyway**. A refused create keeps your draft and shows Dart's message in the dialog.
+Orca never re-sends a create without asking you. If the reply to **Create task** is lost, the dialog says "Dart may have created this task. Check before creating it again." and lists tasks with exactly the same title on that dartboard. Open one with **This is mine**, press **Check again**, or choose **None of these is mine** to unlock **Create anyway**. A refused create keeps your draft and shows Dart's message in the dialog.
 
 ## Edit a task
 
@@ -86,7 +86,7 @@ Press **Edit** on the description. It opens as Markdown text with a **Preview**;
 
 ## Older hosts
 
-On a [Remote Orca Server](/docs/remote-servers) that supports Dart but not its newer writes, status, priority, assignee, tags, title, dartboard, and comments work as above. **Size** and the **Start**, **Due**, and create-dialog date fields are read-only text, and the description is read-only with "Update the remote Orca server to edit descriptions." plus **Copy** and **Open in Dart**. The fields unlock once the host is updated; nothing else changes.
+On a [Remote Orca Server](/docs/remote-servers) that supports Dart but not its newer writes, status, priority, assignee, tags, title, dartboard, and comments work as above. **Size** and the **Start** and **Due** dates are read-only text, the New task dialog has no **Due date** field, and the description is read-only with "Update the remote Orca server to edit descriptions." plus **Copy** and **Open in Dart**. The fields unlock once the host is updated; nothing else changes.
 
 ## Link a task to a workspace
 
