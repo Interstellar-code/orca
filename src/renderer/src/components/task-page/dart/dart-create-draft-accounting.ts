@@ -90,8 +90,19 @@ export function clearDartCreateSessionsForHost(hostKey: string): void {
   }
 }
 
-/** Discarding the oldest draft when it is a New task draft also drops its session. */
+/** A create that is in flight or may have landed keeps its session: it holds the recovery state that prevents a blind duplicate (D3, T7 step 5). */
+export function isCreateDraftProtected(draftKey: string): boolean {
+  const sessions = useAppStore.getState().dartCreateSessions
+  return Object.entries(sessions).some(
+    ([key, session]) => draftStoreKey(key) === draftKey && (session.submitting || session.unknown)
+  )
+}
+
+/** Discarding an evicted New task draft also drops its session, unless that session is protected. */
 export function clearDartCreateSessionForDraftKey(draftKey: string): void {
+  if (isCreateDraftProtected(draftKey)) {
+    return
+  }
   const { clearDartCreateSession } = useAppStore.getState()
   for (const key of Object.keys(useAppStore.getState().dartCreateSessions)) {
     if (draftStoreKey(key) === draftKey) {

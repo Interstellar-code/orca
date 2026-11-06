@@ -10,13 +10,8 @@ import {
   type DartDescriptionLineage,
   type DartDescriptionSaveOutcome
 } from './dart-description-save-flow'
-import {
-  clearDraft,
-  getDraft,
-  oldestDirtyDraft,
-  setDraft,
-  type DartDraftValue
-} from './dart-draft-store'
+import { dartFullDraftTarget, type DartFullDraftTarget } from './dart-draft-eviction'
+import { clearDraft, getDraft, setDraft } from './dart-draft-store'
 import { useDartDescriptionDiscardPrompt } from './use-dart-description-discard-prompt'
 import { useDartDescriptionFocus } from './use-dart-description-focus'
 import { useDartDescriptionUnknownNotice } from './use-dart-description-unknown-notice'
@@ -35,7 +30,7 @@ export function useDartDescriptionEditor(api: DartDetailDescriptionApi) {
   const [saving, setSaving] = useState(() => descriptionSaveInFlight(key) !== undefined)
   const [conflict, setConflict] = useState<DartDescriptionConflict | null>(null)
   const [localNotice, setLocalNotice] = useState<DartWriteNotice | null>(null)
-  const [fullDraft, setFullDraft] = useState<{ key: string; value: DartDraftValue } | null>(null)
+  const [fullDraft, setFullDraft] = useState<DartFullDraftTarget | null>(null)
   const [preview, setPreview] = useState(false)
   const discardPrompt = useDartDescriptionDiscardPrompt()
   const lineageRef = useRef(lineage)
@@ -57,7 +52,7 @@ export function useDartDescriptionEditor(api: DartDetailDescriptionApi) {
   const commitLineage = useCallback(
     (next: DartDescriptionLineage): boolean => {
       if (setDraft(key, next, { dirty: isDescriptionLineageDirty(next) }) === 'full') {
-        setFullDraft(oldestDirtyDraft())
+        setFullDraft(dartFullDraftTarget())
         return false
       }
       setFullDraft(null)
@@ -310,12 +305,8 @@ export function useDartDescriptionEditor(api: DartDetailDescriptionApi) {
       leaveEditing()
     },
     dismissLocalNotice: () => setLocalNotice(null),
-    discardOldestDraft: (): void => {
-      if (fullDraft) {
-        clearDraft(fullDraft.key)
-        setFullDraft(null)
-      }
-    }
+    /** The warning already discarded the draft; the editor only closes it. */
+    discardOldestDraft: (): void => setFullDraft(null)
   }
 }
 

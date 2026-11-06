@@ -8,7 +8,8 @@ import { getShortcutPlatform } from '@/lib/shortcut-platform'
 import { cn } from '@/lib/utils'
 import { copyDescriptionText, descriptionLineageText } from './dart-description-copy'
 import { textareaText } from './dart-description-patch'
-import { dartDraftKeyParts, type DartDescriptionDraft } from './dart-draft-store'
+import type { DartDescriptionDraft } from './dart-draft-store'
+import { DartDraftsFullAlert } from './DartCommentDraftWarning'
 import { DartDescriptionHunkTexts } from './DartDescriptionHunkTexts'
 import type { DartDescriptionEditorState } from './use-dart-description-editor'
 
@@ -63,37 +64,9 @@ export function DartDescriptionEditorActions({
 
 function FullDraftsWarning({ editor }: { editor: DartDescriptionEditorState }) {
   const oldest = editor.fullDraft
-  if (!oldest) {
-    return null
-  }
-  const { taskId } = dartDraftKeyParts(oldest.key)
-  const text =
-    typeof oldest.value === 'string' ? oldest.value : descriptionLineageText(oldest.value)
-  return (
-    <div
-      role="alert"
-      className="flex items-start gap-2 rounded-md border border-border/50 bg-muted/35 px-2.5 py-1.5 text-xs text-muted-foreground"
-    >
-      <p className="min-w-0 flex-1 break-words">
-        {translate(
-          'auto.components.task.page.dart.DartDescription.draftsFull',
-          'Orca is holding as many unsaved Dart drafts as it can. Copy and discard the oldest one, from task {{taskId}}, to start this one.',
-          { taskId }
-        )}
-      </p>
-      <Button
-        type="button"
-        variant="outline"
-        size="xs"
-        onClick={() => void copyDescriptionText(text)}
-      >
-        {translate('auto.components.task.page.dart.DartDescription.copy', 'Copy')}
-      </Button>
-      <Button type="button" variant="ghost" size="xs" onClick={editor.discardOldestDraft}>
-        {translate('auto.components.task.page.dart.DartDescription.discardIt', 'Discard it')}
-      </Button>
-    </div>
-  )
+  return oldest ? (
+    <DartDraftsFullAlert target={oldest} onDiscard={editor.discardOldestDraft} />
+  ) : null
 }
 
 function UnresolvedHunks({

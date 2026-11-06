@@ -18797,9 +18797,7 @@
               "copyMyText": "Copy my text",
               "discard": "Discard",
               "discardHunk": "Discard this change",
-              "discardIt": "Discard it",
               "discardPrompt": "Discard unsaved description changes?",
-              "draftsFull": "Orca is holding as many unsaved Dart drafts as it can. Copy and discard the oldest one, from task {{taskId}}, to start this one.",
               "edit": "Edit",
               "editingHint": "Editing · only the parts you change are sent to Dart",
               "editorLabel": "Description (Markdown)",
@@ -18889,7 +18887,8 @@
               "duplicate": "A matching comment is already posted",
               "postAnyway": "Post anyway",
               "retry": "Retry",
-              "draftsFullCreate": "Orca keeps a bounded number of unsaved Dart drafts, and this text is not saved yet. The oldest (a new task on {{host}}) has to be copied or discarded first."
+              "draftsFullCreate": "Orca keeps a bounded number of unsaved Dart drafts, and this text is not saved yet. The oldest (a new task on {{host}}) has to be copied or discarded first.",
+              "draftsFullCreateKept": "Orca keeps a bounded number of unsaved Dart drafts, and this text is not saved yet. The oldest (a new task on {{host}}) is waiting for a Dart check, so copy it and finish it in the New task dialog first."
             }
           },
           "task": {
