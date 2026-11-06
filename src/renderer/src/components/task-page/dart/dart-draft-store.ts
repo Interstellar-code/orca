@@ -2,7 +2,7 @@ import type { DartAccountIdentity } from '@/store/slices/dart/dart-task-identity
 
 const MAX_DART_DRAFTS = 20
 
-export type DartDraftKind = 'comment' | 'description'
+export type DartDraftKind = 'comment' | 'description' | 'create'
 
 /** One unresolved description hunk (T6 step 4): never applied automatically. */
 export type DartDescriptionDraftHunk = {

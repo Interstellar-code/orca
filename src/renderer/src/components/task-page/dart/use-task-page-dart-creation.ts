@@ -25,7 +25,8 @@ import {
   useDartCreateDraft,
   useDartCreateMounted,
   useDartCreateOpen,
-  useDartCreateOpenKey
+  useDartCreateOpenKey,
+  useDartCreateSessionActions
 } from './use-dart-create-state'
 export type { TaskPageDartCreationInput } from './dart-create-input-types'
 function isLiveDartCreateOwner(hostKey: string, ownerUserId: string | null): boolean {
@@ -104,15 +105,10 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
     dartStatus.viewer?.name
   )
   const closeCreate = useCallback((): void => setOpenKey(null), [setOpenKey])
-  const dismissCreateNotice = useCallback(
-    (): void => patchSession(key, { notice: null }),
-    [key, patchSession]
+  const { dismissCreateNotice, dismissMatches, retryCreateDraftSave } = useDartCreateSessionActions(
+    key,
+    hasCurrentViewer
   )
-  const dismissMatches = useCallback((): void => {
-    if (hasCurrentViewer()) {
-      patchSession(key, { matchesDismissed: true })
-    }
-  }, [hasCurrentViewer, key, patchSession])
   const checkAgain = useCallback(async (): Promise<void> => {
     if (!hasCurrentViewer()) {
       return
@@ -160,7 +156,10 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
         delete args.type
       }
       if (!createSupportsWritesV2 && (input.dueAt || createDraft.dueAt)) {
-        const error = 'A due date requires Dart writes v2, which is unavailable.'
+        const error = translate(
+          'auto.components.task.page.dart.TaskCreateDialog.errorDueNeedsWritesV2',
+          'A due date requires Dart writes v2, which is unavailable.'
+        )
         patchSession(key, {
           notice: { kind: 'refused', message: error },
           editable: true,
@@ -275,6 +274,8 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
       !ownerUserId &&
       Boolean(ownerRecord?.activeOwner && tokenRejections[hostKey]?.[ownerRecord.activeOwner]),
     createSubmitting: session.submitting,
+    createDraftUnsaved: session.draftUnsaved === true,
+    retryCreateDraftSave,
     openCreate,
     closeCreate,
     createTask,

@@ -274,6 +274,13 @@ export function dartDraftsFullWarning(
     !selectedLabel || (parsedHost?.kind === 'runtime' && selectedLabel === parsedHost.environmentId)
       ? translate('auto.components.task.page.dart.DartCommentComposer.unknownHost', 'unknown host')
       : selectedLabel
+  if (kind === 'create') {
+    return translate(
+      'auto.components.task.page.dart.DartCommentComposer.draftsFullCreate',
+      'Orca keeps a bounded number of unsaved Dart drafts, and this text is not saved yet. The oldest (a new task on {{host}}) has to be copied or discarded first.',
+      { host: hostLabel }
+    )
+  }
   return translate(
     'auto.components.task.page.dart.DartCommentComposer.draftsFull',
     'Orca keeps a bounded number of unsaved Dart drafts, and this text is not saved yet. The oldest ({{kind}} on {{host}}, task {{task}}) has to be copied or discarded first.',

@@ -5,6 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DartConnectionStatus } from '../../../../shared/dart/dart-types'
 import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
 import {
+  EMPTY_DART_CREATE_SESSION,
+  type DartCreateSession
+} from '@/store/slices/task-creation-drafts'
+import {
   clearDraft,
   dartDraftKey,
   dirtyDraftCount,
@@ -35,6 +39,8 @@ type StoreState = {
   testDartConnection: () => Promise<ClientResult>
   disconnectDart: () => Promise<ClientResult>
   settings: { activeRuntimeEnvironmentId: string | null }
+  dartCreateSessions: Record<string, DartCreateSession>
+  clearDartCreateSession: (key: string) => void
   openSettingsPage: () => void
   openSettingsTarget: (target: unknown) => void
 }
@@ -78,6 +84,10 @@ function installStore(
     testDartConnection: vi.fn(async () => ({ ok: true as const })),
     disconnectDart: vi.fn(async () => ({ ok: true as const })),
     settings,
+    dartCreateSessions: {},
+    clearDartCreateSession: vi.fn((key: string) => {
+      delete state.dartCreateSessions[key]
+    }),
     openSettingsPage: vi.fn(),
     openSettingsTarget: vi.fn(),
     ...overrides
@@ -312,6 +322,45 @@ describe('DartIntegrationCard', () => {
       expect(writeClipboardText).toHaveBeenCalledWith('Only copy')
       fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
       expect(getDartCommentSendState(LOCAL_DRAFT).text).toBe('Only copy')
+    })
+  })
+
+  describe('with a New task draft', () => {
+    const LOCAL_CREATE_KEY = JSON.stringify(['local', 'create', 'a'])
+    const REMOTE_CREATE_KEY = JSON.stringify(['runtime:runtime-1', 'create', 'a'])
+    const writeClipboardText = vi.fn(async () => {})
+    const refusedSession = (title: string): DartCreateSession => ({
+      ...EMPTY_DART_CREATE_SESSION,
+      draft: { ...EMPTY_DART_CREATE_SESSION.draft, title },
+      draftUnsaved: true
+    })
+
+    beforeEach(() => {
+      writeClipboardText.mockClear()
+      Object.assign(window, { api: { ui: { writeClipboardText } } })
+    })
+
+    it('counts one the bounded store refused, copies it and discards it with the others', async () => {
+      const state = installStore({
+        dartStatus: CONNECTED,
+        dartCreateSessions: {
+          [LOCAL_CREATE_KEY]: refusedSession('Ship the thing'),
+          [REMOTE_CREATE_KEY]: refusedSession('Other host task')
+        }
+      })
+      renderCard()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Disconnect Dart' }))
+      expect(screen.getByText('You have 1 unsaved Dart draft')).toBeTruthy()
+      expect(state.disconnectDart).not.toHaveBeenCalled()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Copy all' }))
+      await screen.findByRole('button', { name: 'Copied' })
+      expect(writeClipboardText).toHaveBeenCalledWith('Ship the thing')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Discard and disconnect' }))
+      await waitFor(() => expect(state.disconnectDart).toHaveBeenCalledOnce())
+      expect(Object.keys(state.dartCreateSessions)).toEqual([REMOTE_CREATE_KEY])
     })
   })
 

@@ -6,6 +6,7 @@ import {
   dartFullDraftCopyText,
   clearDartCommentSendState
 } from './dart-comment-send-state'
+import { clearDartCreateSessionForDraftKey } from './dart-create-draft-accounting'
 import { clearDraft, oldestDirtyDraft } from './dart-draft-store'
 import { setDartReplyTarget } from './dart-reply-target-store'
 
@@ -42,6 +43,7 @@ export function DartCommentDraftWarning({
           size="xs"
           onClick={() => {
             clearDraft(oldest.key)
+            clearDartCreateSessionForDraftKey(oldest.key)
             clearDartCommentSendState(oldest.key)
             setDartReplyTarget(oldest.key, null)
             onDiscard()

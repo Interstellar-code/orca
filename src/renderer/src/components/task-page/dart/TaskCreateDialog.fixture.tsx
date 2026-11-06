@@ -1,6 +1,7 @@
 import { defineFixture } from '../../../component-fixtures/component-fixture'
 import type { DartTask } from '../../../../../shared/dart/dart-types'
 import type { DartCreateDraft, DartWriteNotice } from './dart-detail-contracts'
+import { dartDraftKey, setDraft } from './dart-draft-store'
 import { fixtureConfig, fixtureTasks } from './dart-task.mock'
 import { TaskPageDartCreateDialog, type DartCreateDialogModel } from './TaskCreateDialog'
 
@@ -168,4 +169,31 @@ export const discardConfirmation = defineFixture({
       .find((button) => button.textContent === 'Discard draft')
       ?.click()
   }
+})
+
+export const draftsFull = defineFixture({
+  width: 640,
+  setup: () => {
+    for (let index = 0; index < 20; index += 1) {
+      setDraft(
+        dartDraftKey(
+          { hostKey: 'local', accountKey: 'fixture-account' },
+          `fixtureTask${index}`,
+          'comment'
+        ),
+        `Unsent comment ${index}`,
+        { dirty: true }
+      )
+    }
+  },
+  render: () => (
+    <TaskPageDartCreateDialog
+      model={model({
+        createDraft: filledDraft,
+        dartConfig: filledConfig,
+        createDraftUnsaved: true,
+        retryCreateDraftSave: noop
+      })}
+    />
+  )
 })

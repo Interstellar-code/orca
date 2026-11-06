@@ -26,4 +26,6 @@ export type DartCreateExtras = Partial<{
   claimCreateMatch(task: DartTask): void
   createWritesV2Pending: boolean
   createTokenRejected: boolean
+  createDraftUnsaved: boolean
+  retryCreateDraftSave(): void
 }>

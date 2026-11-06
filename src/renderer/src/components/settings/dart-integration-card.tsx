@@ -32,6 +32,10 @@ import {
   clearDartCommentSendStatesForHost,
   dirtyDartCommentTextsForHost
 } from '../task-page/dart/dart-comment-send-state'
+import {
+  clearDartCreateSessionsForHost,
+  unsavedDartCreateTextsForHost
+} from '../task-page/dart/dart-create-draft-accounting'
 import { clearDartReplyTargetsForHost } from '../task-page/dart/dart-reply-target-store'
 import { DartAgentSkillInstallCta } from './dart-agent-skill-install-cta'
 import { IntegrationCardDetails, IntegrationCardShell } from './integration-card-shell'
@@ -59,7 +63,11 @@ function DartDisconnectDraftsDialog({
   const copyAll = (): void => {
     void window.api.ui
       .writeClipboardText(
-        [...dirtyDraftTexts(hostKey), ...dirtyDartCommentTextsForHost(hostKey)].join('\n\n---\n\n')
+        [
+          ...dirtyDraftTexts(hostKey),
+          ...dirtyDartCommentTextsForHost(hostKey),
+          ...unsavedDartCreateTextsForHost(hostKey)
+        ].join('\n\n---\n\n')
       )
       .then(
         () => setCopyState('copied'),
@@ -163,6 +171,7 @@ export function DartIntegrationCard(): React.JSX.Element {
         discardDirtyDrafts(discardDraftsOfHost)
         clearDartCommentSendStatesForHost(discardDraftsOfHost)
         clearDartReplyTargetsForHost(discardDraftsOfHost)
+        clearDartCreateSessionsForHost(discardDraftsOfHost)
       }
     }
     if (!mountedRef.current) {
@@ -176,7 +185,9 @@ export function DartIntegrationCard(): React.JSX.Element {
 
   const requestDisconnect = (): void => {
     const count =
-      dirtyDraftCount(disconnectHostKey) + dirtyDartCommentTextsForHost(disconnectHostKey).length
+      dirtyDraftCount(disconnectHostKey) +
+      dirtyDartCommentTextsForHost(disconnectHostKey).length +
+      unsavedDartCreateTextsForHost(disconnectHostKey).length
     if (count > 0) {
       setDraftPrompt({ hostKey: disconnectHostKey, count })
       return
