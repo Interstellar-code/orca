@@ -12,6 +12,7 @@ import { dartUpdateRequiredMessage } from '@/runtime/runtime-dart-client'
 import type { TaskPageComposerActionsModel } from '../use-task-page-composer-actions'
 import { TaskPageDartTaskList } from './TaskList'
 import { TaskPageDartTaskDetail } from './TaskDetail'
+import { TaskPageDartCreateDialog } from './TaskCreateDialog'
 import { isDartAuthFailureCode, isDartListTruncated } from './task-page-dart-list-model'
 
 function CenteredState({ children }: { children: React.ReactNode }): React.JSX.Element {
@@ -43,6 +44,7 @@ export function TaskPageDartContent({
     getDartTaskWorkspaces,
     selectedDartTask,
     dartDetailSourceContext,
+    providerRuntimeContextKey,
     openDartDetailPage,
     closeTaskDetailPage,
     handleUseDartItem
@@ -126,6 +128,7 @@ export function TaskPageDartContent({
           </div>
         </CenteredState>
         {connectDialog}
+        <TaskPageDartCreateDialog model={model} />
       </>
     )
   }
@@ -243,11 +246,13 @@ export function TaskPageDartContent({
       <TaskPageDartTaskDetail
         task={selectedDartTask}
         sourceContext={dartDetailSourceContext}
+        providerRuntimeContextKey={providerRuntimeContextKey}
         workspaces={selectedDartTask ? getDartTaskWorkspaces(selectedDartTask) : []}
         onUse={(task: DartTask) => handleUseDartItem(task)}
         onClose={closeTaskDetailPage}
         onOpenWorkspace={openWorkspace}
       />
+      <TaskPageDartCreateDialog model={model} />
       {connectDialog}
     </div>
   )

@@ -1,12 +1,19 @@
 import { taskProviderErrorMessage, taskProviderErrorText } from '@/lib/task-provider-error-copy'
 import { UnsealedCredentialNotice } from './UnsealedCredentialNotice'
 import { useState } from 'react'
-import { AlertCircle, CheckCircle2, LoaderCircle, TriangleAlert, Unlink } from 'lucide-react'
+import { AlertCircle, TriangleAlert } from 'lucide-react'
 import { DartConnectDialog } from '@/components/dart/dart-connect-dialog'
 import { dartCredentialStorageCopy } from '@/components/dart/dart-credential-storage-copy'
 import { DartIcon } from '@/components/icons/DartIcon'
 import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog'
 import { useMountedRef } from '@/hooks/useMountedRef'
 import {
   getProviderRuntimeContextKey,
@@ -14,15 +21,105 @@ import {
 } from '@/lib/provider-runtime-context'
 import { dartUpdateRequiredMessage } from '@/runtime/runtime-dart-client'
 import { useAppStore } from '@/store'
+import { dartPageScopeFromContextKey } from '@/store/slices/dart/dart-read-coordination'
+import { dartScopeHostKey } from '@/store/slices/dart/dart-task-identity'
+import {
+  dirtyDraftCount,
+  dirtyDraftTexts,
+  discardDirtyDrafts
+} from '../task-page/dart/dart-draft-store'
+import {
+  clearDartCommentSendStatesForHost,
+  dirtyDartCommentTextsForHost
+} from '../task-page/dart/dart-comment-send-state'
+import { clearDartReplyTargetsForHost } from '../task-page/dart/dart-reply-target-store'
 import { DartAgentSkillInstallCta } from './dart-agent-skill-install-cta'
 import { IntegrationCardDetails, IntegrationCardShell } from './integration-card-shell'
 import { useIntegrationSubordinateRowClass } from './integration-card-presentation'
 import { getProviderAccountScope } from './provider-account-scope'
 import { ProviderHostScopeControl } from './ProviderHostScopeControl'
 import { DART_INTEGRATION_SECTION_ID } from './task-provider-integration-section-ids'
+import { DartConnectedAccountRow } from './dart-connected-account-row'
 import { translate } from '@/i18n/i18n'
 
 type VerificationResult = { state: 'ok' | 'error'; error?: string }
+
+function DartDisconnectDraftsDialog({
+  count,
+  hostKey,
+  onCancel,
+  onDiscardAndDisconnect
+}: {
+  count: number
+  hostKey: string
+  onCancel: () => void
+  onDiscardAndDisconnect: () => void
+}): React.JSX.Element {
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const copyAll = (): void => {
+    void window.api.ui
+      .writeClipboardText(
+        [...dirtyDraftTexts(hostKey), ...dirtyDartCommentTextsForHost(hostKey)].join('\n\n---\n\n')
+      )
+      .then(
+        () => setCopyState('copied'),
+        () => setCopyState('failed')
+      )
+  }
+  return (
+    <Dialog open onOpenChange={(open) => !open && onCancel()}>
+      <DialogContent showCloseButton={false} overlayClassName="z-[110]" className="z-[120]">
+        <DialogHeader>
+          <DialogTitle>
+            {count === 1
+              ? translate(
+                  'auto.components.settings.dart.integration.card.unsavedDraftsTitleOne',
+                  'You have 1 unsaved Dart draft'
+                )
+              : translate(
+                  'auto.components.settings.dart.integration.card.unsavedDraftsTitle',
+                  'You have {{count}} unsaved Dart drafts',
+                  { count }
+                )}
+          </DialogTitle>
+          <DialogDescription>
+            {translate(
+              'auto.components.settings.dart.integration.card.unsavedDraftsBody',
+              'Drafts are kept only in memory. Disconnecting discards the ones made on this host.'
+            )}
+          </DialogDescription>
+        </DialogHeader>
+        {copyState === 'failed' ? (
+          <p role="alert" className="text-xs text-destructive">
+            {translate(
+              'auto.components.settings.dart.integration.card.copyDraftsFailed',
+              'Could not copy the drafts. They are still saved here.'
+            )}
+          </p>
+        ) : null}
+        <DialogFooter>
+          <Button variant="ghost" onClick={onCancel}>
+            {translate('auto.components.settings.dart.integration.card.cancelDisconnect', 'Cancel')}
+          </Button>
+          <Button variant="outline" onClick={copyAll}>
+            {copyState === 'copied'
+              ? translate('auto.components.settings.dart.integration.card.draftsCopied', 'Copied')
+              : translate(
+                  'auto.components.settings.dart.integration.card.copyAllDrafts',
+                  'Copy all'
+                )}
+          </Button>
+          <Button variant="destructive" onClick={onDiscardAndDisconnect}>
+            {translate(
+              'auto.components.settings.dart.integration.card.discardAndDisconnect',
+              'Discard and disconnect'
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 export function DartIntegrationCard(): React.JSX.Element {
   const dartStatus = useAppStore((s) => s.dartStatus)
@@ -39,6 +136,7 @@ export function DartIntegrationCard(): React.JSX.Element {
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<VerificationResult | null>(null)
   const [disconnectError, setDisconnectError] = useState<string | null>(null)
+  const [draftPrompt, setDraftPrompt] = useState<{ hostKey: string; count: number } | null>(null)
 
   const providerRuntimeContextKey = getProviderRuntimeContextKey(settings)
   const contextMatches = dartStatusContextKey === providerRuntimeContextKey
@@ -52,9 +150,21 @@ export function DartIntegrationCard(): React.JSX.Element {
   const subordinateRowClass = useIntegrationSubordinateRowClass('flex items-center gap-3')
   const accountScopeRowClass = useIntegrationSubordinateRowClass('text-xs')
 
-  const handleDisconnect = async (): Promise<void> => {
+  // The same host `disconnectDart` acts on, so another host's drafts neither ask nor get discarded.
+  const disconnectHostKey = dartScopeHostKey(dartPageScopeFromContextKey(providerRuntimeContextKey))
+
+  const handleDisconnect = async (discardDraftsOfHost?: string): Promise<void> => {
     setDisconnectError(null)
+    setDraftPrompt(null)
     const result = await disconnectDart()
+    // A failed disconnect keeps the connection, so the drafts stay too.
+    if (result.ok) {
+      if (discardDraftsOfHost) {
+        discardDirtyDrafts(discardDraftsOfHost)
+        clearDartCommentSendStatesForHost(discardDraftsOfHost)
+        clearDartReplyTargetsForHost(discardDraftsOfHost)
+      }
+    }
     if (!mountedRef.current) {
       return
     }
@@ -62,6 +172,16 @@ export function DartIntegrationCard(): React.JSX.Element {
     if (!result.ok) {
       setDisconnectError(taskProviderErrorMessage(result))
     }
+  }
+
+  const requestDisconnect = (): void => {
+    const count =
+      dirtyDraftCount(disconnectHostKey) + dirtyDartCommentTextsForHost(disconnectHostKey).length
+    if (count > 0) {
+      setDraftPrompt({ hostKey: disconnectHostKey, count })
+      return
+    }
+    void handleDisconnect()
   }
 
   const handleTest = async (): Promise<void> => {
@@ -181,76 +301,14 @@ export function DartIntegrationCard(): React.JSX.Element {
           </p>
         ) : null}
         {connected && viewer ? (
-          <div className={subordinateRowClass}>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-foreground">
-                {viewer.email ? `${viewer.name} (${viewer.email})` : viewer.name}
-              </p>
-              <p className="truncate text-xs text-muted-foreground">
-                {translate(
-                  'auto.components.settings.dart.integration.card.connectedAs',
-                  'Connected with an authorization token'
-                )}
-              </p>
-            </div>
-            {testResult?.state === 'ok' ? (
-              <span className="flex shrink-0 items-center gap-1 text-xs text-status-success">
-                <CheckCircle2 className="size-3.5" />
-                {translate(
-                  'auto.components.settings.task.tracker.integration.cards.a2c0015fb8',
-                  'Verified'
-                )}
-              </span>
-            ) : null}
-            {testResult?.state === 'error' ? (
-              <span className="flex min-w-0 max-w-[220px] shrink items-center gap-1 truncate text-xs text-destructive">
-                <AlertCircle className="size-3.5 shrink-0" />
-                <span className="truncate">{testResult.error}</span>
-              </span>
-            ) : null}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void handleTest()}
-              disabled={testing}
-            >
-              {testing ? (
-                <>
-                  <LoaderCircle className="size-3.5 mr-1.5 animate-spin" />
-                  {translate(
-                    'auto.components.settings.task.tracker.integration.cards.3e7c10d286',
-                    'Testing...'
-                  )}
-                </>
-              ) : (
-                translate(
-                  'auto.components.settings.task.tracker.integration.cards.c24e56c532',
-                  'Test'
-                )
-              )}
-            </Button>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={() => void handleDisconnect()}
-                  aria-label={translate(
-                    'auto.components.settings.dart.integration.card.disconnect',
-                    'Disconnect Dart'
-                  )}
-                  className="rounded-md p-1 text-muted-foreground/50 transition-colors hover:text-destructive"
-                >
-                  <Unlink className="size-3.5" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="top" sideOffset={4}>
-                {translate(
-                  'auto.components.settings.dart.integration.card.disconnect',
-                  'Disconnect Dart'
-                )}
-              </TooltipContent>
-            </Tooltip>
-          </div>
+          <DartConnectedAccountRow
+            viewer={viewer}
+            testResult={testResult}
+            testing={testing}
+            onTest={() => void handleTest()}
+            onDisconnect={requestDisconnect}
+            className={subordinateRowClass}
+          />
         ) : connected ? (
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" onClick={() => void checkDartConnection()}>
@@ -259,7 +317,7 @@ export function DartIntegrationCard(): React.JSX.Element {
                 'Re-check'
               )}
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => void handleDisconnect()}>
+            <Button variant="ghost" size="sm" onClick={requestDisconnect}>
               {translate(
                 'auto.components.settings.task.tracker.integration.cards.disconnect_all',
                 'Disconnect'
@@ -294,6 +352,14 @@ export function DartIntegrationCard(): React.JSX.Element {
         onConnected={() => setTestResult(null)}
         elevated
       />
+      {draftPrompt?.hostKey === disconnectHostKey ? (
+        <DartDisconnectDraftsDialog
+          count={draftPrompt.count}
+          hostKey={draftPrompt.hostKey}
+          onCancel={() => setDraftPrompt(null)}
+          onDiscardAndDisconnect={() => void handleDisconnect(draftPrompt.hostKey)}
+        />
+      ) : null}
     </IntegrationCardShell>
   )
 }

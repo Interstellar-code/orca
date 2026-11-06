@@ -12,5 +12,7 @@ export const dartApi: DartApi = {
   listComments: (args) => ipcRenderer.invoke('dart:listComments', args),
   createTask: (args) => ipcRenderer.invoke('dart:createTask', args),
   updateTask: (args) => ipcRenderer.invoke('dart:updateTask', args),
+  updateTaskDescription: (args) => ipcRenderer.invoke('dart:updateTaskDescription', args),
+  supportsWritesV2: async () => true,
   addComment: (args) => ipcRenderer.invoke('dart:addComment', args)
 }

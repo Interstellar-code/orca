@@ -11,11 +11,12 @@ import {
   type ListComments,
   type ListTasks,
   type TaskId,
-  type UpdateTask
+  type UpdateTask,
+  type UpdateTaskDescription
 } from '../../shared/rpc-contract/dart-params'
 import { taskProviderFailure } from '../../shared/task-provider-failure'
 import { noteRequestFailure, readConfig, readToken } from './client'
-import { toDartFailure, type DartOperation } from './dart-failure'
+import { isDartWriteOperation, toDartFailure, type DartOperation } from './dart-failure'
 import { DartApiError, dartRequest, type DartQueryValue } from './dart-request'
 import { mapDartComment, mapDartTask, readDartPage, unwrapDartItem } from './dart-task-mapping'
 
@@ -43,19 +44,35 @@ export function buildTaskListQuery(
   return query
 }
 
+/** Called immediately before the write's own request, so a failure before it is known not to have applied. */
+type MarkRequestSent = () => void
+
 async function withToken<T extends object>(
   operation: DartOperation,
-  run: (token: string) => Promise<({ ok: true } & T) | DartFailure>
+  run: (
+    token: string,
+    markRequestSent: MarkRequestSent
+  ) => Promise<({ ok: true } & T) | DartFailure>
 ): Promise<({ ok: true } & T) | DartFailure> {
+  const isWrite = isDartWriteOperation(operation)
   const token = readToken()
   if ('failure' in token) {
-    return token.failure
+    return isWrite ? { ...token.failure, outcome: 'notApplied' } : token.failure
   }
+  let requestSent = false
   try {
-    return await run(token.token)
+    const result = await run(token.token, () => {
+      requestSent = true
+    })
+    // A returned failure (unknown name) was decided before any write was sent.
+    return isWrite && !result.ok && result.outcome === undefined
+      ? { ...result, outcome: 'notApplied' }
+      : result
   } catch (error) {
     noteRequestFailure(error)
-    return toDartFailure(error, operation)
+    return isDartWriteOperation(operation)
+      ? toDartFailure(error, operation, requestSent)
+      : toDartFailure(error, operation)
   }
 }
 
@@ -97,10 +114,11 @@ export function listComments(
     const page = readDartPage(
       await dartRequest<unknown>(token, '/comments/list', {
         query: { task_id: args.taskId, limit: pageLimit(args.limit), offset: args.offset ?? 0 }
-      })
+      }),
+      true
     )
     const comments = page.results.flatMap((raw) => mapDartComment(raw) ?? [])
-    return { ok: true, comments, totalCount: countAfterDrops(page, comments.length) }
+    return { ok: true, comments, totalCount: page.count, rawCount: page.results.length }
   })
 }
 
@@ -187,11 +205,12 @@ async function validateNamedFields<T extends NamedFields>(
 }
 
 export function createTask(args: z.output<typeof CreateTask>): Promise<Reply<'dart.createTask'>> {
-  return withToken('create', async (token) => {
+  return withToken('create', async (token, markRequestSent) => {
     const validated = await validateNamedFields(token, args)
     if ('failure' in validated) {
       return validated.failure
     }
+    markRequestSent()
     const task = mapDartTask(
       unwrapDartItem(
         await dartRequest<unknown>(token, '/tasks', {
@@ -208,11 +227,12 @@ export function createTask(args: z.output<typeof CreateTask>): Promise<Reply<'da
 }
 
 export function updateTask(args: z.output<typeof UpdateTask>): Promise<Reply<'dart.updateTask'>> {
-  return withToken('update', async (token) => {
+  return withToken('update', async (token, markRequestSent) => {
     const validated = await validateNamedFields(token, args.updates)
     if ('failure' in validated) {
       return validated.failure
     }
+    markRequestSent()
     const task = mapDartTask(
       unwrapDartItem(
         await dartRequest<unknown>(token, `/tasks/${encodeURIComponent(args.taskId)}`, {
@@ -228,8 +248,31 @@ export function updateTask(args: z.output<typeof UpdateTask>): Promise<Reply<'da
   })
 }
 
+/** Targeted patch: Dart refuses it when `oldText` or `anchorText` no longer matches uniquely. */
+export function updateTaskDescription(
+  args: z.output<typeof UpdateTaskDescription>
+): Promise<Reply<'dart.updateTaskDescription'>> {
+  return withToken('descriptionPatch', async (token, markRequestSent) => {
+    markRequestSent()
+    const task = mapDartTask(
+      unwrapDartItem(
+        await dartRequest<unknown>(
+          token,
+          `/tasks/${encodeURIComponent(args.taskId)}/update-description`,
+          { method: 'POST', body: { updates: args.updates } }
+        )
+      )
+    )
+    if (!task) {
+      throw invalidResponse()
+    }
+    return { ok: true, task }
+  })
+}
+
 export function addComment(args: z.output<typeof AddComment>): Promise<Reply<'dart.addComment'>> {
-  return withToken('comment', async (token) => {
+  return withToken('comment', async (token, markRequestSent) => {
+    markRequestSent()
     const comment = mapDartComment(
       unwrapDartItem(
         await dartRequest<unknown>(token, '/comments', {

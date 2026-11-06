@@ -202,7 +202,8 @@ import {
   ListComments,
   ListTasks,
   TaskId,
-  UpdateTask
+  UpdateTask,
+  UpdateTaskDescription
 } from './dart-params'
 import {
   AttachParams as AttachParamsOfEmulatorParams,
@@ -995,6 +996,7 @@ export const RPC_PARAMS_BY_METHOD = {
   'dart.status': null,
   'dart.testConnection': null,
   'dart.updateTask': UpdateTask,
+  'dart.updateTaskDescription': UpdateTaskDescription,
   'desktopBrowserBridge.attach': DesktopBrowserBridgeAttachParams,
   'desktopBrowserBridge.result': DesktopBrowserBridgeResultParams,
   'diagnostics.memory': null,

@@ -9,6 +9,7 @@ import type { DartListTasksArgs } from '../../../../../shared/rpc-contract/dart-
 import type { TaskProvider } from '../../../../../shared/task-providers'
 import type { TaskSourceContext } from '../../../../../shared/task-source-context'
 import type { Worktree } from '../../../../../shared/worktree/types'
+import { translate } from '@/i18n/i18n'
 import {
   buildDartTaskWorkspaceAttachmentIndex,
   collectLinkedDartTaskRefs,
@@ -16,13 +17,22 @@ import {
 } from '@/lib/dart-issue-workspace-attachment'
 import { taskProviderErrorMessage } from '@/lib/task-provider-error-copy'
 import type { DartClientResult } from '@/runtime/runtime-dart-client'
+import { useAppStore } from '@/store'
+import { dartPageScopeFromContextKey } from '@/store/slices/dart/dart-read-coordination'
+import {
+  captureDartEpoch,
+  dartAccountIdentity,
+  dartScopeViewerId
+} from '@/store/slices/dart/dart-task-identity'
+import { readPastDartWrites } from './dart-stale-read'
 import {
   buildDartListArgs,
-  DEFAULT_DART_LIST_FILTERS,
   sortDartTasksByRecency,
   type DartListFilters
 } from './task-page-dart-list-model'
 import { filterLinkedDartTasks, readLinkedDartTasks } from './task-page-dart-linked-issues'
+import { useDartAccountFilters } from './use-dart-account-filters'
+import { useDartListPinnedRows } from './use-dart-list-pinned-rows'
 
 export type TaskPageDartError = { message: string; code?: string }
 
@@ -33,6 +43,7 @@ type DartListOutcome = {
 }
 
 export type TaskPageDartStateInput = {
+  providerRuntimeContextKey: string
   taskSource: TaskProvider
   dartConnected: boolean
   dartStatus: DartConnectionStatus
@@ -53,6 +64,7 @@ export type TaskPageDartStateInput = {
 
 export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(model: TModel) {
   const {
+    providerRuntimeContextKey,
     taskSource,
     dartConnected,
     dartStatus,
@@ -62,7 +74,6 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
     fetchDartTask,
     fetchDartConfig
   } = model
-  const [dartFilters, setDartFilters] = useState<DartListFilters>(DEFAULT_DART_LIST_FILTERS)
   const [dartSearchInput, setDartSearchInput] = useState('')
   const [dartHasWorkspace, setDartHasWorkspace] = useState(false)
   const [dartRefreshNonce, setDartRefreshNonce] = useState(0)
@@ -71,8 +82,28 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
   const [dartLoading, setDartLoading] = useState(false)
   const [dartError, setDartError] = useState<TaskPageDartError | null>(null)
   const [dartConfig, setDartConfig] = useState<DartWorkspaceConfig | null>(null)
+  const [dartConfigError, setDartConfigError] = useState<string | null>(null)
   const active = taskSource === 'dart' && dartConnected
   const viewerId = dartStatus.viewer?.id ?? null
+  const pageScope = useMemo(
+    () => dartPageScopeFromContextKey(providerRuntimeContextKey),
+    [providerRuntimeContextKey]
+  )
+  const accountViewerId = useAppStore((s) => dartScopeViewerId(s, pageScope))
+  const { hostKey, accountKey } = dartAccountIdentity(pageScope, accountViewerId)
+  const [dartFilters, setDartFilters] = useDartAccountFilters(hostKey, accountKey)
+  const configOwnerKey = JSON.stringify([hostKey, accountViewerId])
+  const configOwnerRef = useRef(configOwnerKey)
+  const configIsCurrent = configOwnerRef.current === configOwnerKey
+  const shownRowsKeyRef = useRef<string | null>(null)
+  const { clearPinsOnNewList, mergeListRead, noteDartTaskCreated } = useDartListPinnedRows({
+    active,
+    hostKey,
+    accountKey,
+    dartTasks,
+    setDartTasks,
+    setDartTotalCount
+  })
   // Latest callbacks stay out of effect deps so identity churn never refetches.
   const actionsRef = useRef({ listDartTasks, fetchDartTask, fetchDartConfig })
   useEffect(() => {
@@ -99,18 +130,35 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
       return
     }
     let cancelled = false
+    configOwnerRef.current = configOwnerKey
+    setDartConfigError(null)
+    setDartConfig(null)
     void actionsRef.current
       .fetchDartConfig({ force: dartRefreshNonce > 0 })
       .then((result) => {
-        if (!cancelled && result.ok) {
+        if (cancelled) {
+          return
+        }
+        if (result.ok) {
           setDartConfig(result.config)
+        } else {
+          setDartConfigError(taskProviderErrorMessage(result))
         }
       })
-      .catch(() => {})
+      .catch(() => {
+        if (!cancelled) {
+          setDartConfigError(
+            translate(
+              'auto.components.task.page.dart.TaskCreateDialog.configFailed',
+              'Could not load Dart configuration.'
+            )
+          )
+        }
+      })
     return () => {
       cancelled = true
     }
-  }, [active, dartRefreshNonce])
+  }, [active, dartRefreshNonce, accountViewerId, configOwnerKey])
 
   const searchKey = dartFilters.search
   const listKey = JSON.stringify([
@@ -125,55 +173,80 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
       return
     }
     let cancelled = false
-    const force = dartRefreshNonce > 0
+    clearPinsOnNewList(JSON.stringify([hostKey, listKey, dartHasWorkspace, dartRefreshNonce]))
+    const rowsKey = JSON.stringify([hostKey, listKey, dartHasWorkspace, linkedRefsSignature])
     setDartLoading(true)
     setDartError(null)
     const listArgs = dartHasWorkspace ? null : buildDartListArgs(dartFilters, viewerId)
-    const request: Promise<DartListOutcome> = dartHasWorkspace
-      ? readLinkedDartTasks(
-          linkedRefs,
-          (taskId, options) => actionsRef.current.fetchDartTask(taskId, options),
-          dartTaskSourceContext,
-          force
-        ).then((linked) => ({
-          tasks: linked.tasks,
-          totalCount: linked.tasks.length,
-          error: linked.error
-        }))
-      : listArgs === null
-        ? Promise.resolve({ tasks: [], totalCount: 0, error: null })
-        : actionsRef.current.listDartTasks(listArgs, { force }).then((result) =>
-            result.ok
-              ? {
-                  tasks: result.tasks,
-                  totalCount: result.totalCount,
-                  error: null
-                }
-              : {
-                  tasks: [],
-                  totalCount: 0,
-                  error: {
-                    message: taskProviderErrorMessage(result),
-                    code: result.errorCode
+    const readList = (force: boolean): Promise<DartListOutcome> => {
+      const request: Promise<DartListOutcome> = dartHasWorkspace
+        ? readLinkedDartTasks(
+            linkedRefs,
+            (taskId, options) => actionsRef.current.fetchDartTask(taskId, options),
+            dartTaskSourceContext,
+            force
+          ).then((linked) => ({
+            tasks: linked.tasks,
+            totalCount: linked.tasks.length,
+            error: linked.error
+          }))
+        : listArgs === null
+          ? Promise.resolve({ tasks: [], totalCount: 0, error: null })
+          : actionsRef.current.listDartTasks(listArgs, { force }).then((result) =>
+              result.ok
+                ? {
+                    tasks: result.tasks,
+                    totalCount: result.totalCount,
+                    error: null
                   }
-                }
-          )
-    void request
-      .catch((): DartListOutcome => ({ tasks: [], totalCount: 0, error: { message: '' } }))
-      .then((outcome) => {
-        if (cancelled) {
-          return
-        }
-        setDartTasks(outcome.tasks)
-        setDartTotalCount(outcome.totalCount)
-        setDartError(outcome.error)
-        setDartLoading(false)
-      })
+                : {
+                    tasks: [],
+                    totalCount: 0,
+                    error: {
+                      message: taskProviderErrorMessage(result),
+                      code: result.errorCode
+                    }
+                  }
+            )
+      return request.catch((): DartListOutcome => ({
+        tasks: [],
+        totalCount: 0,
+        error: { message: '' }
+      }))
+    }
+    void readPastDartWrites({
+      captureEpoch: () => captureDartEpoch({ hostKey }),
+      cancelled: () => cancelled,
+      force: dartRefreshNonce > 0,
+      read: readList
+    }).then(({ result, current }) => {
+      if (cancelled) {
+        return
+      }
+      setDartLoading(false)
+      // Past the re-read limit the rows on screen stay, unless they answer another filter.
+      if (!current && shownRowsKeyRef.current === rowsKey) {
+        return
+      }
+      shownRowsKeyRef.current = rowsKey
+      const outcome = mergeListRead(result)
+      setDartTasks(outcome.tasks)
+      setDartTotalCount(outcome.totalCount)
+      setDartError(outcome.error)
+    })
     return () => {
       cancelled = true
     }
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- Why: listKey/linkedRefsSignature fingerprint the filters and refs read here.
-  }, [active, listKey, dartHasWorkspace, linkedRefsSignature, dartRefreshNonce])
+  }, [
+    active,
+    listKey,
+    dartHasWorkspace,
+    linkedRefsSignature,
+    dartRefreshNonce,
+    hostKey,
+    accountKey
+  ])
 
   const displayedDartTasks = useMemo(
     () =>
@@ -186,7 +259,7 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
   const setDartFilter = useCallback(
     <K extends keyof DartListFilters>(key: K, value: DartListFilters[K]) =>
       setDartFilters((current) => ({ ...current, [key]: value })),
-    []
+    [setDartFilters]
   )
   const applyDartSearch = useCallback(
     (value: string) => {
@@ -197,7 +270,7 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
     [setDartFilter]
   )
 
-  // SAFETY: the fields added below are assigned right after this cast, before the model is returned.
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the fields added below are assigned right after this cast, before the model is returned.
   const nextModel = model as TModel & {
     dartFilters: typeof dartFilters
     setDartFilter: typeof setDartFilter
@@ -212,7 +285,9 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
     dartLoading: typeof dartLoading
     dartError: typeof dartError
     dartConfig: typeof dartConfig
+    dartConfigError?: typeof dartConfigError
     getDartTaskWorkspaces: typeof getDartTaskWorkspaces
+    noteDartTaskCreated: typeof noteDartTaskCreated
   }
   nextModel.dartFilters = dartFilters
   nextModel.setDartFilter = setDartFilter
@@ -226,8 +301,10 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
   nextModel.dartTotalCount = dartTotalCount
   nextModel.dartLoading = dartLoading
   nextModel.dartError = dartError
-  nextModel.dartConfig = dartConfig
+  nextModel.dartConfig = configIsCurrent && accountViewerId ? dartConfig : null
+  nextModel.dartConfigError = configIsCurrent && accountViewerId ? dartConfigError : null
   nextModel.getDartTaskWorkspaces = getDartTaskWorkspaces
+  nextModel.noteDartTaskCreated = noteDartTaskCreated
   return nextModel
 }
 export type TaskPageDartStateFields = Omit<

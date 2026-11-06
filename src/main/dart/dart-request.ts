@@ -11,6 +11,7 @@ export const DART_REQUEST_TIMEOUT_MS = 30_000
 const DART_RESPONSE_MAX_BYTES = 8 * 1024 * 1024
 const DART_ERROR_BODY_MAX_BYTES = 64 * 1024
 const DART_ERROR_DETAIL_MAX_CHARS = 300
+const DESCRIPTION_PATCH_PATH_SUFFIX = '/update-description'
 
 export type DartRequestFailureKind = 'http' | 'network' | 'timeout' | 'invalidResponse'
 
@@ -147,7 +148,10 @@ export async function dartRequest<T>(
         }
         span.setAttribute('dart.status', response.status)
         if (!response.ok) {
-          const detail = await readErrorDetail(response)
+          // Dart may echo the patched task text in this body.
+          const detail = path.endsWith(DESCRIPTION_PATCH_PATH_SUFFIX)
+            ? ''
+            : await readErrorDetail(response)
           const summary = `Dart request failed (HTTP ${response.status})`
           throw new DartApiError(
             detail ? `${summary}: ${detail}` : `${summary}.`,

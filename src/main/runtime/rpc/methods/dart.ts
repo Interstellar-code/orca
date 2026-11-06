@@ -7,7 +7,8 @@ import {
   ListComments,
   ListTasks,
   TaskId,
-  UpdateTask
+  UpdateTask,
+  UpdateTaskDescription
 } from '../../../../shared/rpc-contract/dart-params'
 
 // dart.connect carries the API token: no handler here may log or echo params.
@@ -71,6 +72,12 @@ export const DART_METHODS = [
     permission: DART_METHOD_PERMISSIONS['dart.updateTask'],
     params: UpdateTask,
     handler: async (params, { runtime }) => runtime.dartUpdateTask(params)
+  }),
+  defineMethod({
+    name: 'dart.updateTaskDescription',
+    permission: DART_METHOD_PERMISSIONS['dart.updateTaskDescription'],
+    params: UpdateTaskDescription,
+    handler: async (params, { runtime }) => runtime.dartUpdateTaskDescription(params)
   }),
   defineMethod({
     name: 'dart.addComment',

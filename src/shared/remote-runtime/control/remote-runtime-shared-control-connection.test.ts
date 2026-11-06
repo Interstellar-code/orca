@@ -514,7 +514,7 @@ describe('RemoteRuntimeSharedControlConnection', () => {
   it('keeps sent request bytes admitted while a ready socket stops responding', async () => {
     const server = await createServer({ silentMethods: ['worktree.large'] })
     const connection = new RemoteRuntimeSharedControlConnection(server.pairing)
-    const params = { value: 'x'.repeat(3 * 1024 * 1024) }
+    const params = { value: 'x'.repeat(700 * 1024) }
     const retainedBytes = retainedRemoteRuntimeJsonStringBytes(
       serializeRemoteRuntimeRpcRequest({
         requestId: '00000000-0000-4000-8000-000000000000',

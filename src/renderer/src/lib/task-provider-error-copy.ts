@@ -154,6 +154,11 @@ const COPY: Record<TaskProviderErrorCode, () => string> = {
       'taskProviders.errors.dart.rateLimited',
       'Dart is rate limiting requests. Try again shortly.'
     ),
+  'dart.descriptionPatchRefused': () =>
+    translate(
+      'taskProviders.errors.dart.descriptionPatchRefused',
+      'Dart did not accept this change.'
+    ),
   'dart.invalidTaskUrl': () =>
     translate('taskProviders.errors.dart.invalidTaskUrl', 'Enter a valid Dart task URL.')
 }

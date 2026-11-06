@@ -104,7 +104,8 @@ describe('dart error mapping', () => {
     await expect(tasks.updateTask({ taskId: TASK_ID, updates: { title: 'x' } })).resolves.toEqual({
       ok: false,
       errorCode: 'dart.badRequest',
-      error: 'Dart request failed (HTTP 400): title: too long'
+      error: 'Dart request failed (HTTP 400): title: too long',
+      outcome: 'notApplied'
     })
     // No POST /comments route: the fixture fetch rejects like a dropped connection.
     await expect(tasks.addComment({ taskId: TASK_ID, text: 'hi' })).resolves.toMatchObject({
@@ -112,12 +113,27 @@ describe('dart error mapping', () => {
     })
   })
 
-  it('maps comments for an unknown task (400 bare array) to dart.taskNotFound', async () => {
+  it('returns an empty list for comments of an unknown task, as real Dart does (200)', async () => {
     const { host, tasks } = await connected()
-    host.route('GET', '/comments/list', () => jsonResponse(400, ['Unknown task']))
+    host.route('GET', '/comments/list', () => jsonResponse(200, { count: 0, results: [] }))
 
-    await expect(tasks.listComments({ taskId: TASK_ID })).resolves.toMatchObject({
-      errorCode: 'dart.taskNotFound'
+    await expect(tasks.listComments({ taskId: TASK_ID })).resolves.toEqual({
+      ok: true,
+      comments: [],
+      totalCount: 0,
+      rawCount: 0
+    })
+  })
+
+  it('maps addComment on an unknown task (400 taskId error) to dart.taskNotFound, notApplied', async () => {
+    const { host, tasks } = await connected()
+    host.route('POST', '/comments', () =>
+      jsonResponse(400, { errors: [`taskId: No Task found with ID: ${TASK_ID}`] })
+    )
+
+    await expect(tasks.addComment({ taskId: TASK_ID, text: 'hi' })).resolves.toMatchObject({
+      errorCode: 'dart.taskNotFound',
+      outcome: 'notApplied'
     })
   })
 
@@ -250,7 +266,8 @@ describe('dart task writes', () => {
     await expect(tasks.createTask({ title: 'x', tags: ['brand-new'] })).resolves.toEqual({
       ok: false,
       errorCode: 'dart.badRequest',
-      error: 'Unknown Dart tags: brand-new'
+      error: 'Unknown Dart tags: brand-new',
+      outcome: 'notApplied'
     })
     expect(requestsTo(host, '/tasks')).toHaveLength(0)
     expect(requestsTo(host, '/config')).toHaveLength(2)
@@ -284,5 +301,87 @@ describe('dart task writes', () => {
       comment: { id: 'cmt000000001', author: 'Ada', text: 'hi' }
     })
     expect(host.lastBody()).toEqual({ item: { taskId: TASK_ID, text: 'hi' } })
+  })
+
+  it('sends a date-only date and a size of 3, "M" and null in the update body', async () => {
+    const { host, tasks } = await connected()
+    host.route('PUT', `/tasks/${TASK_ID}`, () => jsonResponse(200, { item: RAW_TASK }))
+
+    for (const size of [3, 'M', null]) {
+      await tasks.updateTask({ taskId: TASK_ID, updates: { size, dueAt: '2026-11-30' } })
+      expect(host.lastBody()).toEqual({ item: { id: TASK_ID, size, dueAt: '2026-11-30' } })
+    }
+  })
+
+  it('sends size and a date-only start in the create body', async () => {
+    const { host, tasks } = await connected()
+    host.route('POST', '/tasks', () => jsonResponse(200, { item: RAW_TASK }))
+
+    await tasks.createTask({ title: 'x', size: 'L', startAt: '2026-11-01' })
+
+    expect(host.lastBody()).toEqual({ item: { title: 'x', size: 'L', startAt: '2026-11-01' } })
+  })
+
+  it('patches the description with POST update-description and a bare {updates} body', async () => {
+    const { host, tasks } = await connected()
+    host.route('POST', `/tasks/${TASK_ID}/update-description`, () =>
+      jsonResponse(200, { item: RAW_TASK })
+    )
+    const updates = [
+      { type: 'replace' as const, oldText: 'a', newText: 'b' },
+      { type: 'insert_after' as const, anchorText: 'b', newText: 'c' }
+    ]
+
+    await expect(tasks.updateTaskDescription({ taskId: TASK_ID, updates })).resolves.toMatchObject({
+      ok: true,
+      task: { id: TASK_ID }
+    })
+    expect(host.lastBody()).toEqual({ updates })
+  })
+
+  it('keeps task text Dart echoes in a patch 400 out of the reply', async () => {
+    const { host, tasks } = await connected()
+    host.route('POST', `/tasks/${TASK_ID}/update-description`, () =>
+      jsonResponse(400, { errors: ['oldText "SECRET PARAGRAPH" was not found'] })
+    )
+
+    const result = await tasks.updateTaskDescription({
+      taskId: TASK_ID,
+      updates: [{ type: 'delete', oldText: 'SECRET PARAGRAPH' }]
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      errorCode: 'dart.descriptionPatchRefused',
+      error: 'Dart did not accept this change.',
+      outcome: 'notApplied'
+    })
+  })
+
+  it.each([
+    [400, 'dart.descriptionPatchRefused'],
+    [404, 'dart.taskNotFound'],
+    [429, 'dart.rateLimited']
+  ])('maps a %s description patch to %s', async (status, errorCode) => {
+    const { host, tasks } = await connected()
+    host.route(
+      'POST',
+      `/tasks/${TASK_ID}/update-description`,
+      () =>
+        new Response(JSON.stringify({ errors: ['x'] }), {
+          status,
+          headers: { 'content-type': 'application/json', 'retry-after': '30' }
+        })
+    )
+
+    const result = await tasks.updateTaskDescription({
+      taskId: TASK_ID,
+      updates: [{ type: 'delete', oldText: 'a' }]
+    })
+
+    expect(result).toMatchObject({ ok: false, errorCode, outcome: 'notApplied' })
+    if (status === 429 && !result.ok) {
+      expect(result.error).toContain('Retry after 30 seconds.')
+    }
   })
 })

@@ -4,8 +4,22 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DartConnectionStatus } from '../../../../shared/dart/dart-types'
 import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
+import {
+  clearDraft,
+  dartDraftKey,
+  dirtyDraftCount,
+  discardDirtyDrafts,
+  getDraft,
+  setDraft
+} from '../task-page/dart/dart-draft-store'
 import { TooltipProvider } from '../ui/tooltip'
 import { DartIntegrationCard } from './dart-integration-card'
+import {
+  clearDartCommentSendState,
+  getDartCommentSendState,
+  patchDartCommentSendState
+} from '../task-page/dart/dart-comment-send-state'
+import { getDartReplyTarget, setDartReplyTarget } from '../task-page/dart/dart-reply-target-store'
 
 const FAKE_TOKEN = 'dsa_FAKE0000000000000000'
 
@@ -163,6 +177,142 @@ describe('DartIntegrationCard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Disconnect Dart' }))
 
     expect(await screen.findByText('Dart rejected the request.')).toBeTruthy()
+  })
+
+  describe('with unsaved drafts', () => {
+    const LOCAL_DRAFT = dartDraftKey({ hostKey: 'local', accountKey: 'a' }, 'task-1', 'comment')
+    const REMOTE_DRAFT = dartDraftKey(
+      { hostKey: 'runtime:runtime-1', accountKey: 'a' },
+      'task-2',
+      'comment'
+    )
+    const writeClipboardText = vi.fn(async () => {})
+
+    beforeEach(() => {
+      writeClipboardText.mockClear()
+      Object.assign(window, { api: { ui: { writeClipboardText } } })
+    })
+
+    afterEach(() => {
+      clearDraft(LOCAL_DRAFT)
+      clearDraft(REMOTE_DRAFT)
+      clearDartCommentSendState(LOCAL_DRAFT)
+      clearDartCommentSendState(REMOTE_DRAFT)
+      setDartReplyTarget(LOCAL_DRAFT, null)
+      setDartReplyTarget(REMOTE_DRAFT, null)
+      discardDirtyDrafts('local')
+    })
+
+    it('asks first and Cancel keeps the connection and the draft', () => {
+      setDraft(LOCAL_DRAFT, 'typed text', { dirty: true })
+      const state = installStore({ dartStatus: CONNECTED })
+      renderCard()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Disconnect Dart' }))
+
+      expect(screen.getByText('You have 1 unsaved Dart draft')).toBeTruthy()
+      expect(state.disconnectDart).not.toHaveBeenCalled()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+      expect(screen.queryByText('You have 1 unsaved Dart draft')).toBeNull()
+      expect(state.disconnectDart).not.toHaveBeenCalled()
+      expect(getDraft(LOCAL_DRAFT)).toBe('typed text')
+    })
+
+    it('copies every draft of this host and stays open so the user can still cancel', async () => {
+      setDraft(LOCAL_DRAFT, 'typed text', { dirty: true })
+      setDraft(REMOTE_DRAFT, 'other host text', { dirty: true })
+      const state = installStore({ dartStatus: CONNECTED })
+      renderCard()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Disconnect Dart' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Copy all' }))
+
+      expect(await screen.findByRole('button', { name: 'Copied' })).toBeTruthy()
+      expect(writeClipboardText).toHaveBeenCalledWith('typed text')
+      expect(state.disconnectDart).not.toHaveBeenCalled()
+      expect(getDraft(LOCAL_DRAFT)).toBe('typed text')
+    })
+
+    it('discards this host’s drafts and reply target only after disconnect succeeds', async () => {
+      setDraft(LOCAL_DRAFT, 'typed text', { dirty: true })
+      patchDartCommentSendState(LOCAL_DRAFT, {
+        text: 'typed text'
+      })
+      setDartReplyTarget(LOCAL_DRAFT, {
+        id: 'parent',
+        text: 'Parent',
+        author: 'Pat',
+        taskId: 'task-1',
+        htmlUrl: 'https://app.dartai.com/c/parent'
+      })
+      setDraft(REMOTE_DRAFT, 'other host text', { dirty: true })
+      const state = installStore({ dartStatus: CONNECTED })
+      const view = renderCard()
+      fireEvent.click(screen.getByRole('button', { name: 'Disconnect Dart' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Discard and disconnect' }))
+      await waitFor(() => expect(getDraft(LOCAL_DRAFT)).toBeUndefined())
+      expect(state.disconnectDart).toHaveBeenCalledOnce()
+      expect(getDraft(REMOTE_DRAFT)).toBe('other host text')
+      expect(getDartCommentSendState(LOCAL_DRAFT).text).toBeNull()
+      expect(getDartReplyTarget(LOCAL_DRAFT)).toBeNull()
+      view.unmount()
+      installStore({ dartStatus: CONNECTED })
+      renderCard()
+      expect(getDartCommentSendState(LOCAL_DRAFT).text).toBeNull()
+      expect(getDartReplyTarget(LOCAL_DRAFT)).toBeNull()
+    })
+
+    it('keeps the drafts when the disconnect fails', async () => {
+      setDraft(LOCAL_DRAFT, 'typed text', { dirty: true })
+      installStore({
+        dartStatus: CONNECTED,
+        disconnectDart: vi.fn(async () => ({
+          ok: false as const,
+          error: 'x',
+          errorCode: 'dart.badRequest'
+        }))
+      })
+      renderCard()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Disconnect Dart' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Discard and disconnect' }))
+
+      expect(await screen.findByText('Dart rejected the request.')).toBeTruthy()
+      expect(dirtyDraftCount('local')).toBe(1)
+    })
+
+    it('does not ask for a dirty draft of another host and leaves it alone', async () => {
+      setDraft(REMOTE_DRAFT, 'other host text', { dirty: true })
+      const state = installStore({ dartStatus: CONNECTED })
+      renderCard()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Disconnect Dart' }))
+
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(state.disconnectDart).toHaveBeenCalledOnce()
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+      expect(getDraft(REMOTE_DRAFT)).toBe('other host text')
+    })
+
+    it('counts and copies refused text outside the bounded draft store (C3)', async () => {
+      patchDartCommentSendState(LOCAL_DRAFT, {
+        text: 'Only copy',
+        saved: false
+      })
+      const state = installStore({ dartStatus: CONNECTED })
+      renderCard()
+      fireEvent.click(screen.getByRole('button', { name: 'Disconnect Dart' }))
+      expect(screen.getByText('You have 1 unsaved Dart draft')).toBeTruthy()
+      expect(state.disconnectDart).not.toHaveBeenCalled()
+      fireEvent.click(screen.getByRole('button', { name: 'Copy all' }))
+      await screen.findByRole('button', { name: 'Copied' })
+      expect(writeClipboardText).toHaveBeenCalledOnce()
+      expect(writeClipboardText).toHaveBeenCalledWith('Only copy')
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+      expect(getDartCommentSendState(LOCAL_DRAFT).text).toBe('Only copy')
+    })
   })
 
   it('shows the update-server message for an old remote host and no connect action', () => {

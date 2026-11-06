@@ -282,6 +282,19 @@ describe('Escape on the Tasks page', () => {
     expect(closeTaskPage).toHaveBeenCalledTimes(1)
   })
 
+  it('closes the page despite a non-modal dialog elsewhere', async () => {
+    seedTasksPage(['github', 'dart'], 'dart')
+    const closeTaskPage = vi.fn()
+    useAppStore.setState({ closeTaskPage })
+    renderTaskPage()
+    render(<div role="dialog" aria-label="Restart another pane" />)
+    await screen.findByText('Search results ignore archived projects')
+
+    pressEscape()
+
+    expect(closeTaskPage).toHaveBeenCalledTimes(1)
+  })
+
   it('leaves the page open while a Dart detail is open', async () => {
     const task = makeTask()
     seedTasksPage(['github', 'dart'], 'dart', { tasks: [task] })

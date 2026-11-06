@@ -27,7 +27,7 @@ import { callRuntimeRpc, runtimeEnvironmentSupportsCapability } from './runtime-
 export type DartClientFailure = { ok: false; error: string; errorCode?: TaskProviderErrorCode }
 export type DartClientResult<T extends object> = ({ ok: true } & T) | DartClientFailure
 
-const CAPABILITY_PROBE_TIMEOUT_MS = 15_000
+export const CAPABILITY_PROBE_TIMEOUT_MS = 15_000
 const READ_TIMEOUT_MS = 30_000
 
 export function dartUpdateRequiredMessage(): string {
@@ -48,7 +48,7 @@ const SECRET_AT_REST_PROTECTIONS = { sealed: true, plaintext: true } as const sa
   Record<SecretAtRestProtection, true>
 >
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
@@ -84,19 +84,19 @@ export function parseDartConnectionStatus(value: unknown): DartConnectionStatus 
 }
 
 // Dart replies are untrusted: a task whose link fails validation keeps its data and loses the link.
-function sanitizeDartTask(task: DartTask): DartTask {
+export function sanitizeDartTask(task: DartTask): DartTask {
   return isTrustedDartHtmlUrl(task.htmlUrl) ? task : { ...task, htmlUrl: '' }
 }
 
-function sanitizeDartComment(comment: DartComment): DartComment {
+export function sanitizeDartComment(comment: DartComment): DartComment {
   return isTrustedDartHtmlUrl(comment.htmlUrl) ? comment : { ...comment, htmlUrl: '' }
 }
 
-function isFailureShape(value: unknown): value is DartClientFailure {
+export function isFailureShape(value: unknown): value is DartClientFailure {
   return isRecord(value) && value.ok === false && typeof value.error === 'string'
 }
 
-function malformedReplyFailure(): DartClientFailure {
+export function malformedReplyFailure(): DartClientFailure {
   return taskProviderFailure('dart.loadFailed', 'Dart returned an unreadable reply.')
 }
 
