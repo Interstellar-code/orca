@@ -196,7 +196,6 @@ export function TaskPageDartCreateDialog({
               maxLength={DART_TITLE_MAX_LENGTH}
               aria-invalid={titleInvalid}
               disabled={blocked}
-              className="disabled:opacity-100"
               placeholder={translate(
                 'auto.components.task.page.dart.TaskCreateDialog.titlePlaceholder',
                 'Task title'
@@ -232,7 +231,6 @@ export function TaskPageDartCreateDialog({
               rows={4}
               value={createDraft.description}
               disabled={blocked}
-              className="disabled:opacity-100"
               aria-invalid={!descriptionCheck.ok}
               placeholder={translate(
                 'auto.components.task.page.dart.TaskCreateDialog.bodyPlaceholder',
