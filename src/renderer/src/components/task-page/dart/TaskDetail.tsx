@@ -92,6 +92,7 @@ export function TaskPageDartTaskDetail({
               pendingFields: data.pendingFields,
               blockedFields: data.blockedFields,
               config: data.config,
+              configFailed: data.configFailed,
               supportsWritesV2: data.supportsWritesV2,
               viewerName: data.viewerName
             }}

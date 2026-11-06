@@ -23,8 +23,11 @@ export function DartTitleField({
   onSave: (title: string) => void
 }): React.JSX.Element {
   const [typed, setTyped] = useState<{ text: string; source: string } | null>(null)
-  // An untouched draft follows Dart's title; an edited one is kept, and the user is told Dart moved on.
-  const draft = typed && !(typed.source !== title && typed.text === typed.source) ? typed : null
+  const [focused, setFocused] = useState(false)
+  // An untouched draft follows Dart's title unless the user is in the field; an edited one is kept, and the user is told Dart moved on.
+  const untouched =
+    !focused && typed !== null && typed.source !== title && typed.text === typed.source
+  const draft = untouched ? null : typed
   const serverChanged = draft !== null && draft.source !== title && draft.text !== title
   const { describedBy, hint } = useDartBlockedHint(state.blocked)
   const reverting = useRef(false)
@@ -37,7 +40,7 @@ export function DartTitleField({
       return
     }
     const next = draft.text.replace(/\s*[\r\n]+\s*/g, ' ').trim()
-    if (next === title) {
+    if (next === title || next === draft.source) {
       setTyped(null)
       return
     }
@@ -79,7 +82,11 @@ export function DartTitleField({
         onChange={(event) =>
           !state.disabled && setTyped({ text: event.target.value, source: draft?.source ?? title })
         }
-        onBlur={commit}
+        onFocus={() => setFocused(true)}
+        onBlur={() => {
+          setFocused(false)
+          commit()
+        }}
         onKeyDown={(event) => {
           if (event.key === 'Enter') {
             event.preventDefault()

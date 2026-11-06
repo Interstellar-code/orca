@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import { Check } from 'lucide-react'
 import type { DartWorkspaceConfig } from '../../../../../shared/dart/dart-types'
 import { Button } from '@/components/ui/button'
@@ -37,6 +38,7 @@ export function DartCreateFields({
   createSupportsWritesV2,
   blocked
 }: DartCreateFieldsProps): React.JSX.Element {
+  const tagsId = useId()
   if (dartConfigError) {
     return <InlineError message={dartConfigError} onRetry={retryConfig} />
   }
@@ -120,13 +122,13 @@ export function DartCreateFields({
         </div>
       ))}
       <div className="flex min-w-0 flex-col gap-1">
-        <label className="text-2xs font-medium text-muted-foreground" htmlFor="dart-create-tags">
+        <label className="text-2xs font-medium text-muted-foreground" htmlFor={tagsId}>
           {translate('auto.components.task.page.dart.TaskCreateDialog.tags', 'Tags')}
         </label>
         <Popover>
           <PopoverTrigger asChild>
             <Button
-              id="dart-create-tags"
+              id={tagsId}
               type="button"
               variant="outline"
               size="sm"

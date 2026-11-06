@@ -32,6 +32,7 @@ export function DartTaskDetailProperties({
   pendingFields,
   blockedFields,
   config,
+  configFailed,
   supportsWritesV2,
   viewerName
 }: DartDetailEditApi): React.JSX.Element {
@@ -188,7 +189,7 @@ export function DartTaskDetailProperties({
           disabled={noConfig}
           onChange={(tags) => set({ tags }, { tags })}
         />
-        {noConfig ? (
+        {noConfig && configFailed ? (
           <p className="pt-2 text-2xs text-muted-foreground">
             {translate(
               'auto.components.task.page.dart.TaskDetail.noConfig',

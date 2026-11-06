@@ -21,7 +21,7 @@ function renderTitle(title: string, onSave = vi.fn()) {
 }
 
 describe('DartTitleField reconcile with a changed server title', () => {
-  it('follows Dart while nothing was typed or the typing was undone', () => {
+  it('follows Dart when the field is not focused and the typing was undone', () => {
     const title = renderTitle('Original')
     fireEvent.change(title.input(), { target: { value: 'Orig' } })
     fireEvent.change(title.input(), { target: { value: 'Original' } })
@@ -55,5 +55,19 @@ describe('DartTitleField reconcile with a changed server title', () => {
     expect(screen.queryByRole('status')).toBeNull()
     fireEvent.blur(title.input())
     expect(title.onSave).not.toHaveBeenCalled()
+  })
+
+  it('does not jump while focused when the user types the old title back, and never saves it over Dart', () => {
+    const title = renderTitle('Original')
+    fireEvent.focus(title.input())
+    fireEvent.change(title.input(), { target: { value: 'Original!' } })
+    title.serverTitleChanged('Renamed in Dart')
+    fireEvent.change(title.input(), { target: { value: 'Original' } })
+
+    expect(title.input().value).toBe('Original')
+
+    fireEvent.blur(title.input())
+    expect(title.onSave).not.toHaveBeenCalled()
+    expect(title.input().value).toBe('Renamed in Dart')
   })
 })
