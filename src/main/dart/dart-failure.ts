@@ -35,7 +35,14 @@ const TASK_TARGETED = new Set<DartOperation>([
   'descriptionPatch'
 ])
 
-function codeForStatus(status: number, operation: DartOperation): TaskProviderErrorCode | null {
+// Dart answers a comment on an unknown task id with 400 `{errors: ["taskId: No Task found ..."]}`.
+const UNKNOWN_TASK_400 = /\btaskId: No Task found\b/i
+
+function codeForStatus(
+  status: number,
+  operation: DartOperation,
+  message: string
+): TaskProviderErrorCode | null {
   if (status === 401 || status === 403) {
     return 'dart.unauthorized'
   }
@@ -45,8 +52,7 @@ function codeForStatus(status: number, operation: DartOperation): TaskProviderEr
   if (status === 404 && TASK_TARGETED.has(operation)) {
     return 'dart.taskNotFound'
   }
-  // Comments for an unknown (well-formed) task id answer 400 with a bare string array.
-  if (status === 400 && operation === 'comments') {
+  if (status === 400 && operation === 'comment' && UNKNOWN_TASK_400.test(message)) {
     return 'dart.taskNotFound'
   }
   if (status === 400 && operation === 'descriptionPatch') {
@@ -124,7 +130,7 @@ function mapFailure(error: unknown, operation: DartOperation): DartFailure {
   if (!(error instanceof DartApiError)) {
     return taskProviderFailure(fallback.code, fallback.message)
   }
-  const code = error.status === null ? null : codeForStatus(error.status, operation)
+  const code = error.status === null ? null : codeForStatus(error.status, operation, error.message)
   if (code === 'dart.rateLimited') {
     const wait = retryAfterWait(error.retryAfter)
     return taskProviderFailure(code, wait ? `${error.message} ${wait}` : error.message)

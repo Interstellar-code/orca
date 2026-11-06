@@ -22,6 +22,19 @@ describe('toDartFailure description patch', () => {
   it('keeps 400 as a plain bad request for the other writes', () => {
     expect(toDartFailure(http(400), 'update', true).errorCode).toBe('dart.badRequest')
   })
+  it('maps only the taskId "No Task found" 400 of a comment to dart.taskNotFound', () => {
+    const unknownTask = new DartApiError(
+      'Dart request failed (HTTP 400): taskId: No Task found with ID: abc',
+      'http',
+      400
+    )
+    expect(toDartFailure(unknownTask, 'comment', true)).toMatchObject({
+      errorCode: 'dart.taskNotFound',
+      outcome: 'notApplied'
+    })
+    expect(toDartFailure(unknownTask, 'update', true).errorCode).toBe('dart.badRequest')
+    expect(toDartFailure(http(400), 'comment', true).errorCode).toBe('dart.badRequest')
+  })
 })
 
 describe('toDartFailure write outcome', () => {

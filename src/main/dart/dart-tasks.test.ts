@@ -113,12 +113,27 @@ describe('dart error mapping', () => {
     })
   })
 
-  it('maps comments for an unknown task (400 bare array) to dart.taskNotFound', async () => {
+  it('returns an empty list for comments of an unknown task, as real Dart does (200)', async () => {
     const { host, tasks } = await connected()
-    host.route('GET', '/comments/list', () => jsonResponse(400, ['Unknown task']))
+    host.route('GET', '/comments/list', () => jsonResponse(200, { count: 0, results: [] }))
 
-    await expect(tasks.listComments({ taskId: TASK_ID })).resolves.toMatchObject({
-      errorCode: 'dart.taskNotFound'
+    await expect(tasks.listComments({ taskId: TASK_ID })).resolves.toEqual({
+      ok: true,
+      comments: [],
+      totalCount: 0,
+      rawCount: 0
+    })
+  })
+
+  it('maps addComment on an unknown task (400 taskId error) to dart.taskNotFound, notApplied', async () => {
+    const { host, tasks } = await connected()
+    host.route('POST', '/comments', () =>
+      jsonResponse(400, { errors: [`taskId: No Task found with ID: ${TASK_ID}`] })
+    )
+
+    await expect(tasks.addComment({ taskId: TASK_ID, text: 'hi' })).resolves.toMatchObject({
+      errorCode: 'dart.taskNotFound',
+      outcome: 'notApplied'
     })
   })
 

@@ -26,8 +26,10 @@
  *    substring searches; there is no generic text query.
  * 5. Error bodies are not always JSON. 401: JSON `{detail}` -> `dart.unauthorized`. Unknown
  *    well-formed task id: 404 JSON `{errors: [string]}`; malformed id: 404 text/html with an empty
- *    body; both -> `dart.taskNotFound`. Comments for an unknown task: 400 JSON bare `[string]`.
- *    Other 400s are JSON field errors -> `dart.badRequest`. 429 -> `dart.rateLimited` (no limit or
+ *    body; both -> `dart.taskNotFound`. Listing comments for an unknown or deleted task is NOT an
+ *    error: 200 `{count: 0, results: []}`, indistinguishable from a task with no comments.
+ *    `addComment` on an unknown task: 400 `{errors: ["taskId: No Task found ..."]}` ->
+ *    `dart.taskNotFound`. Other 400s are JSON field errors -> `dart.badRequest`. 429 -> `dart.rateLimited` (no limit or
  *    rate-limit header seen yet). 5xx and network errors -> the operation's failure code
  *    (`dart.loadFailed`, `dart.createFailed`, `dart.updateFailed`, `dart.commentFailed`).
  * 6. List items carry no description; `GET /tasks/{id}` wraps the task as `{item}` and adds the
