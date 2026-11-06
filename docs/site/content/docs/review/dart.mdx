@@ -1,6 +1,6 @@
 ---
 title: Dart tasks
-description: Connect Dart with an authorization token, browse tasks in Orca, link a Dart task to a workspace, and read or update tasks from agents with the orca dart CLI.
+description: Connect Dart with an authorization token, browse, create, and edit tasks in Orca, link a Dart task to a workspace, and read or update tasks from agents with the orca dart CLI.
 ---
 
 import { Callout } from '@/components/docs/prose'
@@ -34,11 +34,59 @@ Pick **Dart** in the Tasks source picker. The header shows **Dart · signed in a
 - Switch between **Assigned to me** and **All tasks**, filter by **Status** or **Dartboard**, or turn on **Has Workspace** to see only tasks linked to a workspace.
 - Type in the search box and press Enter to search task titles.
 - The list loads a page at a time. If a view is cut off, Orca says "Showing first N of M tasks. Narrow the filters to see the rest."
-- Open a task to read its status, priority, assignee, due date, description, comments, and **Linked workspaces**. **Open in Dart** opens it in your browser.
+- Open a task to read its status, priority, assignee, size, dates, description, comments, and **Linked workspaces**. **Open in Dart** opens it in your browser. Fields, description, and comments are editable; see below.
 
 When posting a comment, Orca checks the current comments for duplicates. If the result of a post is unknown, keep the draft and use **Check again** before sending it again. Only matching comments not present before the send can confirm that it posted. If the comments cannot be read, Orca will not post until you can check them.
 
 Orca only opens task links that point at Dart's own host over HTTPS. If Dart returns anything else, the task shows "Dart sent a link for this task that Orca could not verify, so it is not shown."
+
+## Create a task
+
+Click **New task** in the Tasks header (it is off until Dart is connected and the host is current). The **New Dart task** dialog has:
+
+- **Title** (required, up to 500 characters) and **Dartboard** (required; it starts on the dartboard you are filtering by).
+- **Description**, plus **Status**, **Priority**, **Assignee**, and **Tags**, all chosen from your Dart workspace. **Assignee** starts as you when **Assigned to me** is on.
+- **Type**, only when your workspace defines types, and **Due date**, only on a host with newer Dart write support (see [Older hosts](#older-hosts)).
+
+Press **Create task** or the submit shortcut. Orca opens the new task in the preview and shows **Created**. Size is set afterwards, on the task.
+
+Orca never creates a task twice. If the reply to **Create task** is lost, the dialog says "Dart may have created this task. Check before creating it again." and lists tasks with exactly the same title on that dartboard. Open one with **This is mine**, press **Check again**, or choose **None of these is mine** to unlock **Create anyway**. A refused create keeps your draft and shows Dart's message in the dialog.
+
+## Edit a task
+
+Open a task and change its fields in place. Each change shows at once and saves in the background, one write at a time per task.
+
+- **Status**, **Priority**, and **Size** are pickers. Priority and Size also offer **None**.
+- **Assignee** is a searchable picker with **Unassigned** and **Assign to me**. **Dartboard** moves the task; Dart may change its status to one the new board has, and the preview shows what Dart returned.
+- **Tags** picks from tags your workspace already has. New tag names can't be typed, because Dart would create them.
+- **Start** and **Due** are date fields with a clear button.
+- **Title** saves on blur or Enter and goes back with Escape. An empty title or one over 500 characters is refused. If the title changes in Dart while you are typing, your text is kept and Orca says so before you save.
+
+A spinner marks a field that is saving. If Dart refuses a change, the field goes back to its saved value and a message above the fields names it ("Status wasn't saved: …") until you **Dismiss** it. If Dart is rate limiting, the change is undone and the message appears as a toast; Orca doesn't retry.
+
+If the connection drops mid-save, Orca can't know whether the change landed. It re-reads the task, shows what Dart had, and says "Dart may have applied this change. Showing what Dart had when Orca last checked." That field stays off until you press **Check again** or **Dismiss**; other fields still work.
+
+The pickers list what Dart's workspace configuration offers. If that can't be loaded, the fields stay off and the preview says "Field options are not available from Dart right now, so these fields cannot be edited."
+
+## Edit a description
+
+Press **Edit** on the description. It opens as Markdown text with a **Preview**; **Save** or Ctrl+Enter (⌘↵ on macOS) saves, and **Cancel** or Escape asks first when you have unsaved changes.
+
+- Orca sends only the text you changed, as a targeted edit, never the whole description. It re-reads the task right before saving and sends nothing if Dart's description is no longer the one you started from.
+- If it changed, **This description changed in Dart while you were editing** compares **Now in Dart** with **Your text**. Choose **Back to editing** (Orca merges what it safely can and lists the changes it couldn't apply) or **Discard my changes**. Nothing is overwritten.
+- If Dart refuses the edit and the description is unchanged, the editor stays open with your text.
+- A task with no description yet is read-only here ("No description yet. Add one in Dart."), because the edit needs text to anchor on. **Copy** and **Open in Dart** are always offered.
+
+<Callout title="Unsaved drafts">
+  Comment boxes, description edits, and the New task dialog are kept in memory only, per host and
+  Dart account, and never written to disk. Orca keeps up to 20 unsaved drafts; past that, the editor
+  asks you to **Copy** or **Discard it** for the oldest one first. **Disconnect Dart** asks first
+  when the host has unsaved drafts: **Copy all**, **Discard and disconnect**, or **Cancel**.
+</Callout>
+
+## Older hosts
+
+On a [Remote Orca Server](/docs/remote-servers) that supports Dart but not its newer writes, status, priority, assignee, tags, title, dartboard, and comments work as above. **Size** and the **Start**, **Due**, and create-dialog date fields are read-only text, and the description is read-only with "Update the remote Orca server to edit descriptions." plus **Copy** and **Open in Dart**. The fields unlock once the host is updated; nothing else changes.
 
 ## Link a task to a workspace
 
