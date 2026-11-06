@@ -1465,6 +1465,9 @@
               }
             }
           }
+        },
+        "dart": {
+          "requestFailed": "Dart request failed"
         }
       },
       "pluginAutoUpdates": {
@@ -18715,7 +18718,9 @@
               "errorAccountRequired": "A current Dart account is required.",
               "errorCheckingCapabilities": "Checking Dart capabilities.",
               "errorReviewPrevious": "Review the possible previous creation first.",
-              "errorNeedsCheckedList": "Create anyway needs a checked list."
+              "errorNeedsCheckedList": "Create anyway needs a checked list.",
+              "errorAccountChanged": "The Dart account changed. Return to the original account to check again.",
+              "errorDueNeedsWritesV2": "A due date requires Dart writes v2, which is unavailable."
             },
             "TaskDetail": {
               "sheetTitle": "Dart task",
@@ -18748,7 +18753,8 @@
               "searchAssignees": "Search people",
               "searchDartboards": "Search dartboards",
               "size": "Size",
-              "start": "Start"
+              "start": "Start",
+              "noConfig": "Field options are not available from Dart right now, so these fields cannot be edited."
             },
             "TaskList": {
               "linkedWorkspaceCount_one": "{{count}} workspace linked to this task",
@@ -18840,7 +18846,8 @@
             },
             "DartTitleField": {
               "label": "Title",
-              "required": "Title is required"
+              "required": "Title is required",
+              "changedInDart": "The title changed in Dart. Saving replaces it with yours."
             },
             "TaskDetailNotice": {
               "checkAgain": "Check again",
@@ -18881,7 +18888,8 @@
               "viewerUnknown": "Cannot check for duplicate comments without the current Dart user. Retry after reconnecting.",
               "duplicate": "A matching comment is already posted",
               "postAnyway": "Post anyway",
-              "retry": "Retry"
+              "retry": "Retry",
+              "draftsFullCreate": "Orca keeps a bounded number of unsaved Dart drafts, and this text is not saved yet. The oldest (a new task on {{host}}) has to be copied or discarded first."
             }
           },
           "task": {
