@@ -1,4 +1,3 @@
-/* eslint-disable max-lines -- Why: the web ui facade keeps host/local preference merging and per-host API registration together. */
 import { subscribeWebWorkspaceSleep } from './web-workspace-sleep-notices'
 import type { AgentSessionAttachmentClipboardTarget } from '../../../../shared/agent-session/agent-session-attachments'
 import { saveClipboardImageAsWebAgentSessionAttachment } from './web-agent-session-attachment-upload'
@@ -33,6 +32,21 @@ import { callRuntimeResult } from './web-runtime-calls'
 import { requireActiveEnvironmentOrNull } from './web-runtime-session'
 import { UI_STORAGE_KEY, noopUnsubscribe, writeJson } from './web-storage'
 
+function mergeHostResponse(local: ReturnType<typeof readLocalWebUIState>, ui: PairedUiState) {
+  return {
+    ...mergeHostWebUIState(local, ui),
+    osc52ClipboardDefaultOnNoticePending: mergeOsc52ClipboardNoticePending(local, ui),
+    featureInteractions: mergeFeatureInteractionState(
+      local.featureInteractions,
+      ui.featureInteractions
+    ),
+    contextualToursSeenIds: mergeContextualTourSeenIds(
+      local.contextualToursSeenIds,
+      ui.contextualToursSeenIds
+    )
+  }
+}
+
 /** Combines browser-local preferences with host persistence; acknowledged writes remain distinct from best-effort writes. */
 export function createWebUiApi(): NonNullable<Partial<PreloadApi>['ui']> {
   const explorerRoots = createWebExplorerRootSync()
@@ -60,18 +74,7 @@ export function createWebUiApi(): NonNullable<Partial<PreloadApi>['ui']> {
           return readLocalWebUIState()
         }
         const local = readLocalWebUIState()
-        const next = {
-          ...mergeHostWebUIState(local, result.ui),
-          osc52ClipboardDefaultOnNoticePending: mergeOsc52ClipboardNoticePending(local, result.ui),
-          featureInteractions: mergeFeatureInteractionState(
-            local.featureInteractions,
-            result.ui.featureInteractions
-          ),
-          contextualToursSeenIds: mergeContextualTourSeenIds(
-            local.contextualToursSeenIds,
-            result.ui.contextualToursSeenIds
-          )
-        }
+        const next = mergeHostResponse(local, result.ui)
         writeJson(UI_STORAGE_KEY, next)
         zoomLevel = next.uiZoomLevel
         return next
@@ -129,18 +132,7 @@ export function createWebUiApi(): NonNullable<Partial<PreloadApi>['ui']> {
           15_000
         )
         const local = readLocalWebUIState()
-        const next = {
-          ...mergeHostWebUIState(local, result.ui),
-          osc52ClipboardDefaultOnNoticePending: mergeOsc52ClipboardNoticePending(local, result.ui),
-          featureInteractions: mergeFeatureInteractionState(
-            local.featureInteractions,
-            result.ui.featureInteractions
-          ),
-          contextualToursSeenIds: mergeContextualTourSeenIds(
-            local.contextualToursSeenIds,
-            result.ui.contextualToursSeenIds
-          )
-        }
+        const next = mergeHostResponse(local, result.ui)
         writeJson(UI_STORAGE_KEY, next)
         zoomLevel = next.uiZoomLevel
         return next
