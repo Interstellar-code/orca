@@ -4,7 +4,8 @@ import {
   getTaskSourceCacheScope,
   type TaskSourceContext
 } from '../../../../../shared/task-source-context'
-import type { DartConnectionStatus } from '../../../../../shared/dart/dart-types'
+import type { DartConnectionStatus, DartTaskPage } from '../../../../../shared/dart/dart-types'
+import type { DartScopeMeta } from '@/components/task-page/dart/dart-board-contracts'
 import { defaultScopeHost } from '@/lib/default-creation-host'
 import {
   getEnvironmentRuntimeContextKey,
@@ -35,24 +36,58 @@ let dartConnectionGeneration = 0
 export const EMPTY_DART_READ_CACHES = {
   dartTaskCache: {},
   dartListCache: {},
-  dartConfigCache: {}
+  dartConfigCache: {},
+  dartScopeMetaCache: {},
+  dartMountedScopeKey: null
 } satisfies Partial<DartSlice>
 
 export function isFreshDartCacheEntry<T>(entry: CacheEntry<T> | undefined): entry is CacheEntry<T> {
   return entry !== undefined && Date.now() - entry.fetchedAt < CACHE_TTL
 }
 
+/** `keep` holds keys that survive eviction whatever their age, such as a just-patched entry with `fetchedAt: 0`. */
 export function evictStaleDartCacheEntries<T>(
-  cache: Record<string, CacheEntry<T>>
+  cache: Record<string, CacheEntry<T>>,
+  keep?: ReadonlySet<string>
 ): Record<string, CacheEntry<T>> {
   const keys = Object.keys(cache)
   if (keys.length <= MAX_CACHE_ENTRIES) {
     return cache
   }
-  const newest = keys
+  const kept = keys.filter((key) => keep?.has(key))
+  const rest = keys
+    .filter((key) => !keep?.has(key))
     .sort((a, b) => (cache[a]?.fetchedAt ?? 0) - (cache[b]?.fetchedAt ?? 0))
-    .slice(keys.length - MAX_CACHE_ENTRIES)
-  return Object.fromEntries(newest.map((key) => [key, cache[key]]))
+  const newest = rest.slice(rest.length - (MAX_CACHE_ENTRIES - kept.length))
+  return Object.fromEntries([...kept, ...newest].map((key) => [key, cache[key]]))
+}
+
+/** Metadata outlives no list entry, except the mounted key, which can hold a read that published no rows. */
+export function pruneDartScopeMetaCache(
+  metaCache: Record<string, DartScopeMeta>,
+  listCache: Record<string, CacheEntry<DartTaskPage>>,
+  mountedKey: string | null
+): Record<string, DartScopeMeta> {
+  const entries = Object.entries(metaCache)
+  const kept = entries.filter(([key]) => key in listCache || key === mountedKey)
+  return kept.length === entries.length ? metaCache : Object.fromEntries(kept)
+}
+
+/** The mounted scope entry keeps its slot even when a patch marked it stale. */
+export function evictDartListCache(
+  state: Pick<DartSlice, 'dartMountedScopeKey' | 'dartScopeMetaCache'>,
+  listCache: Record<string, CacheEntry<DartTaskPage>>
+): Pick<DartSlice, 'dartListCache' | 'dartScopeMetaCache'> {
+  const keep = new Set(state.dartMountedScopeKey ? [state.dartMountedScopeKey] : [])
+  const dartListCache = evictStaleDartCacheEntries(listCache, keep)
+  return {
+    dartListCache,
+    dartScopeMetaCache: pruneDartScopeMetaCache(
+      state.dartScopeMetaCache,
+      dartListCache,
+      state.dartMountedScopeKey
+    )
+  }
 }
 
 /** Stops older reads from caching; a task write stops only this, never a status check or a connect in progress. */

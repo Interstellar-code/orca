@@ -57,7 +57,7 @@ export type DartScopeReadSlice = {
   ) => Promise<DartClientResult<object>>
 }
 
-export type DartSlice = {
+export type DartSlice = DartScopeReadSlice & {
   dartStatus: DartConnectionStatus
   dartStatusChecked: boolean
   dartStatusContextKey: string | null

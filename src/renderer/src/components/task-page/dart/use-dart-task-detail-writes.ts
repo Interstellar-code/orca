@@ -40,7 +40,7 @@ export function noOpenDartTaskFailure(): DartWriteFailure {
 }
 
 // The queue builds a new state object per call, so one object is cached per change for the external store.
-function useDartTaskWriteState(identity: DartTaskIdentity | null): DartTaskWriteState {
+export function useDartTaskWriteState(identity: DartTaskIdentity | null): DartTaskWriteState {
   const cache = useRef<{ identity: DartTaskIdentity | null; state: DartTaskWriteState }>({
     identity: null,
     state: NO_WRITES

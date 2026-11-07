@@ -16,6 +16,7 @@ import type { DartSlice, DartSliceGet, DartSliceSet } from './dart-slice-contrac
 import {
   canWriteDartReadResult,
   currentDartMutationGeneration,
+  evictDartListCache,
   evictStaleDartCacheEntries,
   getDartReadScope,
   isDartAuthLostFailure,
@@ -35,7 +36,7 @@ type DartReadActions = Pick<
   'fetchDartTask' | 'listDartTasks' | 'listDartComments' | 'fetchDartConfig'
 >
 
-type InflightDartRead<T extends object> = {
+export type InflightDartRead<T extends object> = {
   promise: Promise<DartClientResult<T>>
   mutationGeneration: number
 }
@@ -51,7 +52,7 @@ function failureFromThrown(error: unknown): DartClientFailure {
 }
 
 // Shares one in-flight request per key, caches only through `store`, and flags a lost connection on auth failures.
-function runDartRead<T extends object>(args: {
+export function runDartRead<T extends object>(args: {
   set: DartSliceSet
   get: DartSliceGet
   scope: DartReadScope
@@ -138,15 +139,15 @@ export function createDartReadActions(set: DartSliceSet, get: DartSliceGet): Dar
         force: options?.force,
         read: () => dartListTasksForTarget(scope.target, args),
         store: (result) =>
-          set((state) => ({
-            dartListCache: evictStaleDartCacheEntries({
+          set((state) =>
+            evictDartListCache(state, {
               ...state.dartListCache,
               [cacheKey]: {
                 data: { tasks: result.tasks, totalCount: result.totalCount },
                 fetchedAt: Date.now()
               }
             })
-          }))
+          )
       })
     },
 
