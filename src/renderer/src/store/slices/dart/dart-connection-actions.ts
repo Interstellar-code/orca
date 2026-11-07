@@ -13,6 +13,7 @@ import {
   beginDartConnectionChange,
   currentDartConnectionGeneration,
   dartStatusUpdate,
+  dropDartScopeCachesForHost,
   EMPTY_DART_READ_CACHES,
   getDartReadScope,
   isCurrentDartConnectionChange,
@@ -75,7 +76,12 @@ export function createDartConnectionActions(
               contextKey,
               status,
               state.dartStatus.viewer?.id !== status.viewer?.id
-                ? { dartConfigCache: {} }
+                ? {
+                    dartConfigCache: {},
+                    ...(state.dartStatusContextKey === contextKey
+                      ? dropDartScopeCachesForHost(state, contextKey)
+                      : undefined)
+                  }
                 : undefined
             )
           )

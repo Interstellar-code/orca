@@ -76,6 +76,7 @@ export async function readDartScopePages(
   let openTotal = 0
   let pagesRead = 0
   let cutByPageCap = false
+  let countMoved = false
   const fail = (failure: DartClientFailure): DartScopeReadResult => ({
     tasks,
     openTotal,
@@ -105,6 +106,7 @@ export async function readDartScopePages(
       return fail(missingRowCountsFailure())
     }
     absorb(page)
+    countMoved ||= pagesRead > 0 && page.raw.totalCount !== openTotal
     pagesRead += 1
     offset += page.raw.rowCount
     openTotal = page.raw.totalCount
@@ -116,8 +118,8 @@ export async function readDartScopePages(
       break
     }
   }
-  // A short page before the total, or a total that moved during the read, means rows shifted between pages.
-  const incomplete = repeated || (!cutByPageCap && offset !== openTotal)
+  // A short page before the total, or a count that moved during the read, means rows shifted between pages.
+  const openIncomplete = countMoved || (!cutByPageCap && offset !== openTotal)
 
   const done = await readPage({
     ...baseArgs,
@@ -133,12 +135,14 @@ export async function readDartScopePages(
     return fail(missingRowCountsFailure())
   }
   absorb(done)
+  const doneShort =
+    done.raw.rowCount < DART_DONE_PAGE_SIZE && done.raw.rowCount < done.raw.totalCount
   return {
     tasks,
     openTotal,
     doneTotal: done.raw.totalCount,
     doneOffset: done.raw.rowCount,
-    incomplete: incomplete || repeated,
+    incomplete: openIncomplete || doneShort || repeated,
     failure: null
   }
 }

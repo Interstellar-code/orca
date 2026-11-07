@@ -113,6 +113,8 @@ export class FakeDartHost {
   unmappableIds = new Set<string>()
   /** Also drops the last N rows of every page as unmappable. */
   unmappablePerPage = 0
+  /** Caps every page below the requested limit, as a host that sends short pages does. */
+  maxRowsPerPage: number | null = null
   /** Replies to list requests the way a host without the `raw` counts does. */
   omitRaw = false
   /** Answers the Nth `dart.listTasks` request (1-based, over the host's life) with a failure. */
@@ -247,7 +249,11 @@ export class FakeDartHost {
       params.order
     )
     const offset = params.offset ?? 0
-    const limit = Math.min(params.limit ?? DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE)
+    const limit = Math.min(
+      params.limit ?? DEFAULT_PAGE_SIZE,
+      MAX_PAGE_SIZE,
+      this.maxRowsPerPage ?? MAX_PAGE_SIZE
+    )
     const rows = filtered.slice(offset, offset + limit)
     const keptRows = rows.slice(0, rows.length - Math.min(this.unmappablePerPage, rows.length))
     const tasks = keptRows

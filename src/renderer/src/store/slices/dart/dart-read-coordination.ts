@@ -225,3 +225,20 @@ export function dartStatusUpdate(
 export function isDartAuthLostFailure(errorCode: string | undefined): boolean {
   return errorCode === 'dart.unauthorized' || errorCode === 'dart.notConnected'
 }
+
+/** A new account on the same host must not see or patch the previous account's scope entries. */
+export function dropDartScopeCachesForHost(
+  state: Pick<DartSlice, 'dartListCache' | 'dartScopeMetaCache' | 'dartMountedScopeKey'>,
+  contextKey: string
+): Pick<DartSlice, 'dartListCache' | 'dartScopeMetaCache' | 'dartMountedScopeKey'> {
+  const prefix = `${contextKey}::list::scope::`
+  const keep = <T>(cache: Record<string, T>): Record<string, T> =>
+    Object.fromEntries(Object.entries(cache).filter(([key]) => !key.startsWith(prefix)))
+  return {
+    dartListCache: keep(state.dartListCache),
+    dartScopeMetaCache: keep(state.dartScopeMetaCache),
+    dartMountedScopeKey: state.dartMountedScopeKey?.startsWith(prefix)
+      ? null
+      : state.dartMountedScopeKey
+  }
+}

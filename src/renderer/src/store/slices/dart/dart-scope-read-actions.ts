@@ -39,6 +39,8 @@ type DartScopeReadActions = Pick<DartSlice, 'readDartScope' | 'publishDartScope'
 
 const inflightScopeReads = new Map<string, InflightDartRead<DartTaskPage>>()
 let scopeReadSequence = 0
+// Bumped when a read set starts, so a "Show 50 more" reply from before it is dropped.
+let scopeReadSetToken = 0
 
 // Fixed key order, so a full filter object and its three server fields name the same entry.
 function dartScopeCacheKey(scope: DartReadScope, filters: DartServerFilters): string {
@@ -83,6 +85,7 @@ export function createDartScopeReadActions(
 ): DartScopeReadActions {
   return {
     readDartScope: async (serverFilters, { features }) => {
+      scopeReadSetToken += 1
       const scope = getDartReadScope(get().settings)
       registerDartCacheAlias(scope, dartScopeViewerId(get(), scope))
       const base = buildDartListArgs(
@@ -166,6 +169,7 @@ export function createDartScopeReadActions(
       if (!features.board) {
         return boardUpdateRequiredFailure()
       }
+      const startToken = scopeReadSetToken
       const page = await readScopePage(set, get, scope, {
         ...base,
         isCompleted: true,
@@ -189,6 +193,7 @@ export function createDartScopeReadActions(
         const entry = state.dartListCache[key]
         const meta = state.dartScopeMetaCache[key]
         if (
+          startToken !== scopeReadSetToken ||
           !entry?.data ||
           !meta ||
           state.dartMountedScopeKey !== key ||

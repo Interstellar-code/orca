@@ -184,6 +184,43 @@ describe('readDartScope paging', () => {
   })
 })
 
+describe('readDartScope incompleteness', () => {
+  it('marks the read set incomplete when the finished page is short before its total', async () => {
+    const host = runtime.host(null)
+    seed(host, 3, 120)
+    host.maxRowsPerPage = 20
+
+    const result = await store.getState().readDartScope(FILTERS, { features: FEATURES })
+
+    expect(result).toMatchObject({ doneTotal: 120, doneOffset: 20, incomplete: true })
+  })
+
+  it('marks the read set incomplete when Dart count moves between open pages', async () => {
+    const host = runtime.host(null)
+    seed(host, 600)
+    const release = host.hold('dart.listTasks')
+
+    const pending = store.getState().readDartScope(FILTERS, { features: FEATURES })
+    await vi.waitFor(() => expect(listRequests(host)).toHaveLength(1))
+    for (let i = 0; i < 10; i += 1) {
+      host.tasks.delete(openTask(i).id)
+    }
+    release()
+    const result = await pending
+
+    expect(result.openTotal).toBe(590)
+    expect(result.incomplete).toBe(true)
+  })
+
+  it('stays complete when every page matches the count', async () => {
+    seed(runtime.host(null), 600, 120)
+
+    const result = await store.getState().readDartScope(FILTERS, { features: FEATURES })
+
+    expect(result.incomplete).toBe(false)
+  })
+})
+
 describe('readDartScope dedupe', () => {
   it('keeps the newer row at the first position when a task finishes between the open and finished reads', async () => {
     const host = runtime.host(null)
@@ -505,6 +542,25 @@ describe('readMoreDone', () => {
     expect(mountedEntry().meta).toMatchObject({ doneOffset: 50, generation: 2 })
   })
 
+  it('drops a reply that lands after a refresh has started, before it publishes', async () => {
+    const host = runtime.host(null)
+    await loaded(3, 120)
+    const releaseMore = host.hold('dart.listTasks')
+
+    const more = store.getState().readMoreDone(FILTERS, { features: FEATURES })
+    await vi.waitFor(() => expect(listRequests(host)).toHaveLength(3))
+    const releaseRefresh = host.hold('dart.listTasks')
+    const refresh = store.getState().readDartScope(FILTERS, { features: FEATURES })
+    await vi.waitFor(() => expect(listRequests(host)).toHaveLength(4))
+    releaseMore()
+    await more
+
+    expect(doneIds()).toHaveLength(50)
+    expect(mountedEntry().meta).toMatchObject({ doneOffset: 50, generation: 1 })
+    releaseRefresh()
+    await refresh
+  })
+
   it('drops a reply that lands after a server-filter change', async () => {
     const host = runtime.host(null)
     await loaded(3, 120)
@@ -704,6 +760,48 @@ describe('connection changes', () => {
     await store.getState().disconnectDart()
     expect(store.getState().dartScopeMetaCache).toEqual({})
     expect(store.getState().dartMountedScopeKey).toBeNull()
+  })
+
+  it('drops the host scope entries when the viewer changes on the same host', async () => {
+    const host = runtime.host(null)
+    seed(host, 3)
+    seed(runtime.host(REMOTE), 2)
+    connectViewer()
+    await readAndPublish()
+    store.setState({
+      settings: { ...store.getState().settings!, activeRuntimeEnvironmentId: REMOTE },
+      dartStatusContextKey: getDartReadScope({ activeRuntimeEnvironmentId: REMOTE }).contextKey
+    })
+    await readAndPublish()
+    const remoteKey = mountedEntry().key
+    store.setState({
+      settings: { ...store.getState().settings!, activeRuntimeEnvironmentId: null }
+    })
+    connectViewer()
+    host.connection = { connected: true, viewer: { id: 'user-b', name: 'Blair Example' } }
+
+    await store.getState().checkDartConnection()
+
+    const state = store.getState()
+    expect(state.dartStatus.viewer?.id).toBe('user-b')
+    expect(state.dartMountedScopeKey).toBe(remoteKey)
+    expect(Object.keys(state.dartListCache)).toEqual([remoteKey])
+    expect(Object.keys(state.dartScopeMetaCache)).toEqual([remoteKey])
+  })
+
+  it('clears the mounted key and metadata when the only host changes viewer', async () => {
+    const host = runtime.host(null)
+    seed(host, 3)
+    connectViewer()
+    await readAndPublish()
+    host.connection = { connected: true, viewer: { id: 'user-b', name: 'Blair Example' } }
+
+    await store.getState().checkDartConnection()
+
+    const state = store.getState()
+    expect(state.dartMountedScopeKey).toBeNull()
+    expect(state.dartScopeMetaCache).toEqual({})
+    expect(state.dartListCache).toEqual({})
   })
 
   it('keeps both hosts entries and metadata across a host switch', async () => {
