@@ -80,6 +80,20 @@ describe('web dart supportedDartFeatures', () => {
   })
 })
 
+describe('web dart listTasks reply', () => {
+  it('returns the host reply with raw unchanged', async () => {
+    const reply = { ok: true, tasks: [], totalCount: 39, raw: { rowCount: 4, totalCount: 40 } }
+    mocks.getRemoteRuntimeStatus.mockResolvedValue({ capabilities: ['dart.provider.v1'] })
+    mocks.callRuntimeEnvelope.mockResolvedValue({ ok: true, result: reply })
+    await expect(createWebDartApi().listTasks({ order: 'order' })).resolves.toEqual(reply)
+    expect(mocks.callRuntimeEnvelope).toHaveBeenCalledWith(
+      'dart.listTasks',
+      { order: 'order' },
+      expect.any(Number)
+    )
+  })
+})
+
 describe('web dart status capability gate', () => {
   it('throws update-required and sends no Dart request to a host without dart.provider.v1', async () => {
     mocks.getRemoteRuntimeStatus.mockResolvedValue({ capabilities: [] })
