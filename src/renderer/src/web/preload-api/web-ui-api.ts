@@ -1,9 +1,11 @@
+/* eslint-disable max-lines -- Why: the web ui facade keeps host/local preference merging and per-host API registration together. */
 import { subscribeWebWorkspaceSleep } from './web-workspace-sleep-notices'
 import type { AgentSessionAttachmentClipboardTarget } from '../../../../shared/agent-session/agent-session-attachments'
 import { saveClipboardImageAsWebAgentSessionAttachment } from './web-agent-session-attachment-upload'
 import { savePastedTextAsWebAgentSessionAttachment } from './web-pasted-text-upload'
 import { createWebExplorerRootSync } from './web-explorer-root-sync'
 import { createWebJiraFilterStateApi } from './web-jira-filter-state-api'
+import { createWebDartSavedViewApi } from './web-dart-saved-view-api'
 import type { PreloadApi } from '../../../../preload/api-types'
 import { assertClipboardTextWithinLimitWithYield } from '../../../../shared/clipboard-text'
 import type { ReadClipboardTextOptions } from '../../../../shared/clipboard-text'
@@ -44,6 +46,7 @@ export function createWebUiApi(): NonNullable<Partial<PreloadApi>['ui']> {
   let zoomLevel = readLocalWebUIState().uiZoomLevel
   return {
     ...createWebJiraFilterStateApi(),
+    ...createWebDartSavedViewApi(),
     /** Hydrates from the active host after replaying pending roots, falling back to local state on failure or host changes. */
     get: async () => {
       try {

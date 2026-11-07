@@ -67,6 +67,10 @@ export const UI_STATE_DISPOSITIONS = {
     item: 38,
     note: 'Single-select: a filter on this desktop widens to All hosts once, if the move carried automations.'
   },
+  dartSavedViewState: notApplicableDisposition(
+    38,
+    'Views belong to the Dart host, not a moved workspace.'
+  ),
   jiraQuickFilterState: notApplicableDisposition(38, 'Filters belong to the Jira host.'),
   jiraSavedFilterState: notApplicableDisposition(
     38,
