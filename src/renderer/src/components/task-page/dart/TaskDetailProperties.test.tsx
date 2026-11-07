@@ -400,6 +400,39 @@ describe('detail editor states', () => {
     expect(rows.map((row) => row.children.length)).toEqual(children)
   })
 
+  it('says why every picker is off when Dart returns no field options', async () => {
+    openDetail({ config: null })
+
+    expect(
+      await screen.findByText(/Field options are not available from Dart right now/)
+    ).toBeTruthy()
+    for (const name of ['Status', 'Priority', 'Assignee', 'Dartboard']) {
+      const control = await screen.findByRole('combobox', { name })
+      expect(control.hasAttribute('disabled')).toBe(true)
+    }
+  })
+
+  it('gives a blocked field its hint as text a screen reader can reach', async () => {
+    const user = userEvent.setup()
+    const { host } = openDetail()
+    host.lostReplies.push({
+      ok: false,
+      error: 'Failed to update Dart task.',
+      errorCode: 'dart.updateFailed',
+      outcome: 'unknown'
+    })
+
+    await chooseOption(user, 'Status', 'Done')
+
+    const status = await screen.findByRole('combobox', { name: 'Status' })
+    await waitFor(() => expect(status.getAttribute('aria-describedby')).not.toBeNull())
+    const hint = document.getElementById(status.getAttribute('aria-describedby')!)
+    expect(hint?.textContent).toContain('Check the notice above first')
+    expect(
+      screen.getByRole('combobox', { name: 'Priority' }).getAttribute('aria-describedby')
+    ).toBeNull()
+  })
+
   it('disables a field after an unknown outcome and points at the notice', async () => {
     const user = userEvent.setup()
     const { host } = openDetail()

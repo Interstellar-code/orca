@@ -250,12 +250,12 @@ describe('useDartTaskDetailData', () => {
     expect(hook.result.current.notice).toBeNull()
   })
 
-  it('rolls a refused write back with a notice and does not retry a rate limit', async () => {
+  it('rolls a refused write back with a notice and does not retry it', async () => {
     const { hook, host } = await openReady()
     host.refusals.push({
       ok: false,
-      error: 'Slow down',
-      errorCode: 'dart.rateLimited',
+      error: 'Bad value',
+      errorCode: 'dart.badRequest',
       outcome: 'notApplied'
     })
 
@@ -264,7 +264,7 @@ describe('useDartTaskDetailData', () => {
       result = await hook.result.current.onUpdate({ status: 'Done' }, { status: 'Done' })
     })
 
-    expect(result).toMatchObject({ ok: false, errorCode: 'dart.rateLimited' })
+    expect(result).toMatchObject({ ok: false, errorCode: 'dart.badRequest' })
     expect(hook.result.current.task?.status).toBe('To-do')
     expect(hook.result.current.notice?.kind).toBe('refused')
     expect(host.count('dart.updateTask')).toBe(1)

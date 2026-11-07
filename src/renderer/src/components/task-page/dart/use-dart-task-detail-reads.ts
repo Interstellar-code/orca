@@ -77,6 +77,7 @@ export function useDartDetailMetadata(
 ) {
   const fetchDartConfig = useAppStore((s) => s.fetchDartConfig)
   const [config, setConfig] = useState<DartWorkspaceConfig | null>(null)
+  const [configFailed, setConfigFailed] = useState(false)
   const [supportsWritesV2, setSupportsWritesV2] = useState(false)
   const [detailViewer, setDetailViewer] = useState<{
     scope: string
@@ -88,6 +89,7 @@ export function useDartDetailMetadata(
     }
     let cancelled = false
     setConfig(null)
+    setConfigFailed(false)
     setSupportsWritesV2(false)
     setDetailViewer(null)
     void dartStatusForTarget(scope.target)
@@ -99,11 +101,14 @@ export function useDartDetailMetadata(
       .catch(() => {})
     void fetchDartConfig({ sourceContext })
       .then((result) => {
-        if (!cancelled && result.ok) {
-          setConfig(result.config)
+        if (!cancelled) {
+          setConfigFailed(!result.ok)
+          if (result.ok) {
+            setConfig(result.config)
+          }
         }
       })
-      .catch(() => {})
+      .catch(() => !cancelled && setConfigFailed(true))
     void dartSupportsWritesV2ForTarget(scope.target).then((supported) => {
       if (!cancelled) {
         setSupportsWritesV2(supported)
@@ -113,7 +118,7 @@ export function useDartDetailMetadata(
       cancelled = true
     }
   }, [identity, scope, sourceContext, fetchDartConfig, viewerScope, reloadNonce])
-  return { config, supportsWritesV2, detailViewer }
+  return { config, configFailed, supportsWritesV2, detailViewer }
 }
 
 type Options = {

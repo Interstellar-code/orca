@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Check, ChevronDown, LoaderCircle } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
@@ -39,6 +39,22 @@ export function blockedFieldHint(): string {
     'auto.components.task.page.dart.DartPropertyChips.blockedHint',
     'Dart may have applied a change to this field. Check the notice above first.'
   )
+}
+
+/** The hint is real text, not just a tooltip, so a screen reader hears why a blocked control is inert. */
+export function useDartBlockedHint(blocked: boolean): {
+  describedBy: string | undefined
+  hint: React.JSX.Element | null
+} {
+  const id = useId()
+  return {
+    describedBy: blocked ? id : undefined,
+    hint: blocked ? (
+      <span id={id} className="sr-only">
+        {blockedFieldHint()}
+      </span>
+    ) : null
+  }
 }
 
 /** The slot is always laid out, so a pending save never shifts the row. */
@@ -99,8 +115,10 @@ export function DartSelectChip({
   // An applied value missing from the config stays selectable.
   const choices = selected && !options.includes(selected) ? [selected, ...options] : options
   const [open, setOpen] = useState(false)
+  const { describedBy, hint } = useDartBlockedHint(state.blocked)
   return (
     <DartChipRow state={state}>
+      {hint}
       <Select
         value={selected ?? NONE_VALUE}
         // Typeahead on the closed trigger reaches here without opening, so the guard lives on the value path.
@@ -114,6 +132,7 @@ export function DartSelectChip({
           size="sm"
           density="compact"
           aria-label={label}
+          aria-describedby={describedBy}
           aria-disabled={state.disabled || undefined}
         >
           <SelectValue>
@@ -162,6 +181,7 @@ export function DartSearchChip({
   onPick: (value: string | null) => void
 }): React.JSX.Element {
   const [open, setOpen] = useState(false)
+  const { describedBy, hint } = useDartBlockedHint(state.blocked)
   const choices = selected && !options.includes(selected) ? [selected, ...options] : options
   const pick = (value: string | null): void => {
     setOpen(false)
@@ -171,6 +191,7 @@ export function DartSearchChip({
   }
   return (
     <DartChipRow state={state}>
+      {hint}
       <Popover open={open} onOpenChange={(next) => setOpen(next && !state.disabled)}>
         <PopoverTrigger asChild>
           <button
@@ -178,6 +199,7 @@ export function DartSearchChip({
             role="combobox"
             aria-label={label}
             aria-expanded={open}
+            aria-describedby={describedBy}
             aria-disabled={state.disabled || undefined}
             disabled={disabled}
             className={LINEAR_EDIT_CHIP_CLASS}

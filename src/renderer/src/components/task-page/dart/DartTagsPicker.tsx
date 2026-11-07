@@ -10,7 +10,7 @@ import {
   CommandList
 } from '@/components/ui/command'
 import { translate } from '@/i18n/i18n'
-import { DartChipRow, type DartFieldState } from './DartPropertyChips'
+import { DartChipRow, useDartBlockedHint, type DartFieldState } from './DartPropertyChips'
 
 /** Only tags the workspace already has can be chosen: an unknown name would create a tag in Dart. */
 export function DartTagsPicker({
@@ -27,6 +27,7 @@ export function DartTagsPicker({
   onChange: (tags: string[]) => void
 }): React.JSX.Element {
   const [open, setOpen] = useState(false)
+  const { describedBy, hint } = useDartBlockedHint(state.blocked)
   // A tag on the task that the config no longer lists stays visible and removable.
   const choices = [...tags.filter((tag) => !options.includes(tag)), ...options]
   const toggle = (tag: string): void => {
@@ -46,12 +47,14 @@ export function DartTagsPicker({
         </span>
       ))}
       <DartChipRow state={state}>
+        {hint}
         <Popover open={open} onOpenChange={(next) => setOpen(next && !state.disabled)}>
           <PopoverTrigger asChild>
             <button
               type="button"
               aria-label={translate('auto.components.task.page.dart.DartTagsPicker.label', 'Tags')}
               aria-expanded={open}
+              aria-describedby={describedBy}
               aria-disabled={state.disabled || undefined}
               disabled={disabled}
               className={LINEAR_EDIT_CHIP_CLASS}

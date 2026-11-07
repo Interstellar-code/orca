@@ -24,6 +24,7 @@ import { dartCreateArgs } from './dart-create-request'
 import type { DartCreateTaskModel } from './dart-detail-contracts'
 import { DartCreateFields } from './TaskCreateDialogFields'
 import { TaskCreateDialogRecovery } from './TaskCreateDialogRecovery'
+import { DartCommentDraftWarning } from './DartCommentDraftWarning'
 import { DartDiscardDraftDialog } from './DartDiscardDraftDialog'
 
 export type DartCreateDialogModel = DartCreateTaskModel & {
@@ -36,6 +37,8 @@ export type DartCreateDialogModel = DartCreateTaskModel & {
   createFieldsLocked?: boolean
   accountChecking?: boolean
   createTokenRejected?: boolean
+  createDraftUnsaved?: boolean
+  retryCreateDraftSave?: () => void
   retryAccountCheck?: () => Promise<void>
   createWritesV2Pending?: boolean
   claimCreateMatch?: (task: DartTask) => void
@@ -257,6 +260,12 @@ export function TaskPageDartCreateDialog({
             createSupportsWritesV2={createSupportsWritesV2}
             blocked={blocked}
           />
+          {model.createDraftUnsaved ? (
+            <DartCommentDraftWarning
+              saved={false}
+              onDiscard={() => model.retryCreateDraftSave?.()}
+            />
+          ) : null}
           <TaskCreateDialogRecovery
             createNotice={createNotice}
             createUnresolved={model.createUnresolved}

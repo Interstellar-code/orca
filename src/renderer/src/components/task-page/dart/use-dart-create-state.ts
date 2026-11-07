@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Dispatch, RefObject, SetStateAction } from 'react'
 import type { DartTask } from '../../../../../shared/dart/dart-types'
 import { translate } from '@/i18n/i18n'
@@ -6,6 +6,7 @@ import { dartSupportsWritesV2ForTarget } from '@/runtime/runtime-dart-write-clie
 import { getDartReadScope, type DartReadScope } from '@/store/slices/dart/dart-read-coordination'
 import { dartScopeViewerId } from '@/store/slices/dart/dart-task-identity'
 import { useAppStore } from '@/store'
+import { watchDartCreateDraftAccounting } from './dart-create-draft-accounting'
 import type { DartCreateDraft } from './dart-detail-contracts'
 
 export function clearDartCreateHostRejection(
@@ -216,5 +217,30 @@ export function useDartCreateAccountCheck(): {
         'Checking your Dart account.'
       )
     }
+  }
+}
+
+/** Dismissals and the retry that re-offers a text the bounded draft store refused (D13). */
+export function useDartCreateSessionActions(
+  key: string,
+  hasCurrentViewer: () => boolean
+): {
+  dismissCreateNotice(): void
+  dismissMatches(): void
+  retryCreateDraftSave(): void
+} {
+  const patchSession = useAppStore((state) => state.patchDartCreateSession)
+  useLayoutEffect(watchDartCreateDraftAccounting, [])
+  return {
+    dismissCreateNotice: useCallback(
+      (): void => patchSession(key, { notice: null }),
+      [key, patchSession]
+    ),
+    dismissMatches: useCallback((): void => {
+      if (hasCurrentViewer()) {
+        patchSession(key, { matchesDismissed: true })
+      }
+    }, [hasCurrentViewer, key, patchSession]),
+    retryCreateDraftSave: useCallback((): void => patchSession(key, {}), [key, patchSession])
   }
 }

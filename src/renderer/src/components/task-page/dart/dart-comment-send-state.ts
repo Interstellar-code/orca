@@ -10,12 +10,7 @@ import { selectExecutionHostDisplayLabel } from '@/lib/execution-host-display-la
 import { taskProviderErrorMessage } from '@/lib/task-provider-error-copy'
 import { dartTextTooLargeMessage } from '@/runtime/runtime-dart-write-client'
 import type { AppState } from '@/store/types'
-import {
-  dartDraftKeyParts,
-  dirtyDraftTexts,
-  getDraft,
-  type DartDraftValue
-} from './dart-draft-store'
+import { dartDraftKeyParts, getDraft, type DartDraftValue } from './dart-draft-store'
 import { hasMatchingDartComment } from './dart-comment-duplicate'
 import type { DartWriteNotice } from './dart-detail-contracts'
 
@@ -264,7 +259,7 @@ export function dartCommentRefusedNotice(failure: {
 /** Name the drafts-full warning in words, keeping an id only where nothing is known. */
 export function dartDraftsFullWarning(
   state: AppState,
-  oldest: { key: string; value: DartDraftValue }
+  oldest: { key: string; value: DartDraftValue; discardable?: boolean }
 ): string {
   const { kind, hostKey, taskId } = dartDraftKeyParts(oldest.key)
   const host = normalizeExecutionHostId(hostKey)
@@ -274,6 +269,20 @@ export function dartDraftsFullWarning(
     !selectedLabel || (parsedHost?.kind === 'runtime' && selectedLabel === parsedHost.environmentId)
       ? translate('auto.components.task.page.dart.DartCommentComposer.unknownHost', 'unknown host')
       : selectedLabel
+  if (kind === 'create' && oldest.discardable === false) {
+    return translate(
+      'auto.components.task.page.dart.DartCommentComposer.draftsFullCreateKept',
+      'Orca keeps a bounded number of unsaved Dart drafts, and this text is not saved yet. The oldest (a new task on {{host}}) is waiting for a Dart check, so copy it and finish it in the New task dialog first.',
+      { host: hostLabel }
+    )
+  }
+  if (kind === 'create') {
+    return translate(
+      'auto.components.task.page.dart.DartCommentComposer.draftsFullCreate',
+      'Orca keeps a bounded number of unsaved Dart drafts, and this text is not saved yet. The oldest (a new task on {{host}}) has to be copied or discarded first.',
+      { host: hostLabel }
+    )
+  }
   return translate(
     'auto.components.task.page.dart.DartCommentComposer.draftsFull',
     'Orca keeps a bounded number of unsaved Dart drafts, and this text is not saved yet. The oldest ({{kind}} on {{host}}, task {{task}}) has to be copied or discarded first.',
@@ -302,14 +311,4 @@ function cachedDartTaskTitle(state: AppState, taskId: string): string | null {
     }
   }
   return null
-}
-
-/** Copying the oldest draft copies the whole lineage, unresolved description hunks included. */
-export function dartFullDraftCopyText(oldest: { key: string; value: DartDraftValue }): string {
-  // The oldest dirty draft overall is its host's first entry, so `dirtyDraftTexts` starts with it.
-  const [oldestText] = dirtyDraftTexts(dartDraftKeyParts(oldest.key).hostKey)
-  if (oldestText !== undefined) {
-    return oldestText
-  }
-  return typeof oldest.value === 'string' ? oldest.value : oldest.value.draft
 }

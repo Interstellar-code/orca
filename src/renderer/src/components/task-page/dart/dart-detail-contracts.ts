@@ -36,6 +36,8 @@ export type DartDetailEditApi = {
   /** Unreconciled unknown writes: no write is sent to these until the user dismisses the notice. */
   blockedFields: ReadonlySet<string>
   config: DartWorkspaceConfig | null
+  /** The config read finished without a config; false while it is still loading. */
+  configFailed?: boolean
   supportsWritesV2: boolean
   viewerName: string | null
 }

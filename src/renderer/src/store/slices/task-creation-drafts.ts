@@ -25,6 +25,8 @@ export type DartCreateSession = {
   lookingUp: boolean
   lookupSequence: number
   editable: boolean
+  /** The bounded draft store refused this text (D13 `full`); only the session holds it. */
+  draftUnsaved?: boolean
 }
 
 export const EMPTY_DART_CREATE_SESSION: DartCreateSession = {

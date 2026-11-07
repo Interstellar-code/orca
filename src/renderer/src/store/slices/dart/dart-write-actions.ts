@@ -5,6 +5,7 @@ import {
   dartUpdateTaskForTarget,
   type DartWriteResult
 } from '@/runtime/runtime-dart-write-client'
+import { translate } from '@/i18n/i18n'
 import type { DartSlice, DartSliceGet, DartSliceSet } from './dart-slice-contract'
 import type { TaskSourceContext } from '../../../../../shared/task-source-context'
 import {
@@ -48,7 +49,10 @@ async function runDartWrite<T extends object>(args: {
     result = {
       ok: false,
       outcome: 'unknown',
-      error: error instanceof Error ? error.message : 'Dart request failed'
+      error:
+        error instanceof Error
+          ? error.message
+          : translate('auto.store.slices.dart.requestFailed', 'Dart request failed')
     }
   }
   if (

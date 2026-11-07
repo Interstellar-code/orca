@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { ImeInput } from '@/lib/ime-text-field'
 import { getIntlLocale, translate } from '@/i18n/i18n'
 import { dartCalendarDate, formatDartDate, isFinishedDateInput } from './dart-date-format'
-import { DartChipRow, type DartFieldState } from './DartPropertyChips'
+import { DartChipRow, useDartBlockedHint, type DartFieldState } from './DartPropertyChips'
 
 /** Read-only text when the host cannot take date-only values (`editable` false). */
 export function DartDateField({
@@ -24,6 +24,7 @@ export function DartDateField({
   const [draft, setDraft] = useState<string | null>(null)
   const reverting = useRef(false)
   const input = useRef<HTMLInputElement>(null)
+  const { describedBy, hint } = useDartBlockedHint(state.blocked)
   if (!editable) {
     return <span>{formatDartDate(value, getIntlLocale()) ?? '—'}</span>
   }
@@ -45,10 +46,12 @@ export function DartDateField({
   }
   return (
     <DartChipRow state={state}>
+      {hint}
       <ImeInput
         ref={input}
         type="date"
         aria-label={label}
+        aria-describedby={describedBy}
         value={draft ?? date ?? ''}
         readOnly={state.disabled}
         aria-disabled={state.disabled || undefined}

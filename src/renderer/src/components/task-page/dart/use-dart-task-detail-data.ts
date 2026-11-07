@@ -74,7 +74,7 @@ export function useDartTaskDetailData(
   const onPageEnvironment =
     runtimeTargetEnvironmentId(scope.target) === runtimeTargetEnvironmentId(pageScope.target)
   const viewerScope = JSON.stringify([hostKey, accountKey])
-  const { config, supportsWritesV2, detailViewer } = useDartDetailMetadata(
+  const { config, configFailed, supportsWritesV2, detailViewer } = useDartDetailMetadata(
     identity,
     scope,
     sourceContext,
@@ -280,6 +280,7 @@ export function useDartTaskDetailData(
     task: displayed,
     openUrl: displayed ? getDartTaskOpenUrl(displayed) : null,
     config,
+    configFailed,
     supportsWritesV2,
     viewerName,
     viewerEmail,

@@ -128,7 +128,10 @@ export async function checkDartCreateSession(key: string, scope: DartReadScope):
         (args) => {
           if (!ownsDartCreateSession(key, scope)) {
             throw new Error(
-              'The Dart account changed. Return to the original account to check again.'
+              translate(
+                'auto.components.task.page.dart.TaskCreateDialog.errorAccountChanged',
+                'The Dart account changed. Return to the original account to check again.'
+              )
             )
           }
           return dartListTasksForTarget(scope.target, args)

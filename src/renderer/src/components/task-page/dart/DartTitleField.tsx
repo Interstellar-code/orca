@@ -5,7 +5,12 @@ import { cn } from '@/lib/utils'
 import { ImeTextarea } from '@/lib/ime-text-field'
 import { dartTextTooLargeMessage } from '@/runtime/runtime-dart-write-client'
 import { checkDartRequestText } from '../../../../../shared/dart/dart-text-limits'
-import { blockedFieldHint, DartPendingSlot, type DartFieldState } from './DartPropertyChips'
+import {
+  blockedFieldHint,
+  DartPendingSlot,
+  useDartBlockedHint,
+  type DartFieldState
+} from './DartPropertyChips'
 
 /** Blur or Enter saves (Enter keeps focus), Escape puts the saved title back. */
 export function DartTitleField({
@@ -17,7 +22,14 @@ export function DartTitleField({
   state: DartFieldState
   onSave: (title: string) => void
 }): React.JSX.Element {
-  const [draft, setDraft] = useState<string | null>(null)
+  const [typed, setTyped] = useState<{ text: string; source: string } | null>(null)
+  const [focused, setFocused] = useState(false)
+  // An untouched draft follows Dart's title unless the user is in the field; an edited one is kept, and the user is told Dart moved on.
+  const untouched =
+    !focused && typed !== null && typed.source !== title && typed.text === typed.source
+  const draft = untouched ? null : typed
+  const serverChanged = draft !== null && draft.source !== title && draft.text !== title
+  const { describedBy, hint } = useDartBlockedHint(state.blocked)
   const reverting = useRef(false)
   const commit = (): void => {
     if (reverting.current) {
@@ -27,13 +39,13 @@ export function DartTitleField({
     if (draft === null || state.disabled) {
       return
     }
-    const next = draft.replace(/\s*[\r\n]+\s*/g, ' ').trim()
-    if (next === title) {
-      setDraft(null)
+    const next = draft.text.replace(/\s*[\r\n]+\s*/g, ' ').trim()
+    if (next === title || next === draft.source) {
+      setTyped(null)
       return
     }
     if (!next) {
-      setDraft(null)
+      setTyped(null)
       toast.error(
         translate('auto.components.task.page.dart.DartTitleField.required', 'Title is required')
       )
@@ -47,26 +59,34 @@ export function DartTitleField({
       )
       return
     }
-    setDraft(null)
+    setTyped(null)
     onSave(next)
   }
   return (
     <div
       className={cn(
-        'flex items-start gap-1.5',
+        'flex flex-wrap items-start gap-1.5',
         state.disabled && 'cursor-not-allowed opacity-60 [&_textarea]:pointer-events-none'
       )}
       title={state.blocked ? blockedFieldHint() : undefined}
     >
+      {hint}
       <ImeTextarea
         rows={1}
-        value={draft ?? title}
+        value={draft?.text ?? title}
         readOnly={state.disabled}
         aria-disabled={state.disabled || undefined}
+        aria-describedby={describedBy}
         data-dart-escape-local
         aria-label={translate('auto.components.task.page.dart.DartTitleField.label', 'Title')}
-        onChange={(event) => !state.disabled && setDraft(event.target.value)}
-        onBlur={commit}
+        onChange={(event) =>
+          !state.disabled && setTyped({ text: event.target.value, source: draft?.source ?? title })
+        }
+        onFocus={() => setFocused(true)}
+        onBlur={() => {
+          setFocused(false)
+          commit()
+        }}
         onKeyDown={(event) => {
           if (event.key === 'Enter') {
             event.preventDefault()
@@ -74,12 +94,20 @@ export function DartTitleField({
           } else if (event.key === 'Escape') {
             event.preventDefault()
             reverting.current = true
-            setDraft(null)
+            setTyped(null)
             event.currentTarget.blur()
           }
         }}
         className="block min-w-0 flex-1 resize-none overflow-hidden rounded-md border border-transparent bg-transparent px-0 py-0 text-xl font-semibold leading-tight text-foreground outline-none transition [field-sizing:content] hover:border-border/50 hover:bg-accent/40 focus-visible:border-border focus-visible:bg-background focus-visible:ring-1 focus-visible:ring-ring read-only:opacity-80"
       />
+      {serverChanged ? (
+        <p role="status" className="order-last w-full text-2xs text-muted-foreground">
+          {translate(
+            'auto.components.task.page.dart.DartTitleField.changedInDart',
+            'The title changed in Dart. Saving replaces it with yours.'
+          )}
+        </p>
+      ) : null}
       <span className="mt-1.5">
         <DartPendingSlot pending={state.pending} />
       </span>

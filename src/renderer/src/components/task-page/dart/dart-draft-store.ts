@@ -2,7 +2,7 @@ import type { DartAccountIdentity } from '@/store/slices/dart/dart-task-identity
 
 const MAX_DART_DRAFTS = 20
 
-export type DartDraftKind = 'comment' | 'description'
+export type DartDraftKind = 'comment' | 'description' | 'create'
 
 /** One unresolved description hunk (T6 step 4): never applied automatically. */
 export type DartDescriptionDraftHunk = {
@@ -92,6 +92,20 @@ export function oldestDirtyDraft(): { key: string; value: DartDraftValue } | nul
   return oldest ? { key: oldest[0], value: oldest[1].value } : null
 }
 
+/** Dirty drafts, oldest first. */
+export function dirtyDraftEntries(): { key: string; value: DartDraftValue }[] {
+  return dirtyEntries().map(([key, { value }]) => ({ key, value }))
+}
+
+/** What a user would paste back: the typed text, plus the unresolved hunks of a description. */
+export function draftValueText(value: DartDraftValue): string {
+  return typeof value === 'string'
+    ? value
+    : [value.draft, ...value.unresolved.map((hunk) => hunk.userText)]
+        .filter((text) => text !== '')
+        .join('\n\n')
+}
+
 export function dirtyDraftCount(hostKey: string): number {
   return dirtyEntries().filter(([, entry]) => entry.hostKey === hostKey).length
 }
@@ -100,13 +114,7 @@ export function dirtyDraftCount(hostKey: string): number {
 export function dirtyDraftTexts(hostKey: string): string[] {
   return dirtyEntries()
     .filter(([, entry]) => entry.hostKey === hostKey)
-    .map(([, { value }]) =>
-      typeof value === 'string'
-        ? value
-        : [value.draft, ...value.unresolved.map((hunk) => hunk.userText)]
-            .filter((text) => text !== '')
-            .join('\n\n')
-    )
+    .map(([, { value }]) => draftValueText(value))
 }
 
 export function discardDirtyDrafts(hostKey: string): void {
