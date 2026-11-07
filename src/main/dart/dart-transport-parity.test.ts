@@ -40,6 +40,7 @@ async function transports() {
     dartStatus: () => dart.dartStatus(),
     dartConnect: (args: { apiToken: string }) => dart.dartConnect(args),
     dartDisconnect: () => dart.dartDisconnect(),
+    dartListTasks: (args: Parameters<typeof dart.dartListTasks>[0]) => dart.dartListTasks(args),
     dartCreateTask: (args: Parameters<typeof dart.dartCreateTask>[0]) => dart.dartCreateTask(args),
     dartUpdateTask: (args: Parameters<typeof dart.dartUpdateTask>[0]) => dart.dartUpdateTask(args),
     dartUpdateTaskDescription: (args: Parameters<typeof dart.dartUpdateTaskDescription>[0]) =>
@@ -462,5 +463,31 @@ describe('dart comment replies over both transports', () => {
     expect(overIpc).toMatchObject({ errorCode: 'dart.rateLimited', outcome: 'notApplied' })
     expect(overRpc).toEqual(overIpc)
     expect(host.fetch.mock.calls.length - callsBefore).toBe(2)
+  })
+})
+
+describe('dart list replies over both transports', () => {
+  it('carries the same raw counts and order key, with one unmappable row dropped', async () => {
+    const { host, ipc, rpc } = await transports()
+    routeSignedIn(host, CONFIG)
+    await ipc('dart:connect', { apiToken: FIXTURE_TOKEN })
+    const rows = Array.from({ length: 3 }, (_, i) => ({
+      id: `abcDEF12345${i}`,
+      htmlUrl: `https://app.dartai.com/t/abcDEF12345${i}-t`,
+      title: `Task ${i}`,
+      status: 'Doing'
+    }))
+    host.route('GET', '/tasks/list', () =>
+      jsonResponse(200, { count: 40, results: [...rows, { title: 'no id' }] })
+    )
+    const params = { order: 'order', offset: 20 } as const
+
+    const overIpc = await ipc('dart:listTasks', params)
+    const overRpc = await rpc('dart.listTasks', params)
+
+    expect(overIpc).toMatchObject({ ok: true, raw: { rowCount: 4, totalCount: 40 } })
+    expect(overRpc).toEqual(overIpc)
+    const last = host.fetch.mock.calls.at(-1)?.[0]
+    expect(String(last)).toContain('o=order')
   })
 })

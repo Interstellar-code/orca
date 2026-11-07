@@ -5,9 +5,11 @@ import {
   type DartMethodName
 } from '../../../../shared/rpc-contract/dart-params'
 import {
+  DART_BOARD_RUNTIME_CAPABILITY,
   DART_PROVIDER_RUNTIME_CAPABILITY,
   DART_WRITES_V2_RUNTIME_CAPABILITY
 } from '../../../../shared/dart/dart-capabilities'
+import type { DartHostFeatures } from '../../../../shared/dart/dart-types'
 import { taskProviderFailure } from '../../../../shared/task-provider-failure'
 import {
   DartUpdateRequiredError,
@@ -39,6 +41,10 @@ async function hostAdvertises(
 
 const supportsWritesV2 = (): Promise<boolean> =>
   hostAdvertises(DART_WRITES_V2_RUNTIME_CAPABILITY, 'false')
+
+const supportedDartFeatures = async (): Promise<DartHostFeatures> => ({
+  board: await hostAdvertises(DART_BOARD_RUNTIME_CAPABILITY, 'false')
+})
 
 const PROVIDER_VERDICT_TTL_MS = 60_000
 const providerVerdictExpiry = new Map<string, number>()
@@ -131,6 +137,7 @@ export function createWebDartApi(): PreloadApi['dart'] {
     updateTaskDescription: (args) =>
       dartCall('dart.updateTaskDescription', args, DART_WRITE_TIMEOUT_MS),
     supportsWritesV2,
+    supportedDartFeatures,
     addComment: (args) => dartCall('dart.addComment', args, DART_WRITE_TIMEOUT_MS)
   }
 }
