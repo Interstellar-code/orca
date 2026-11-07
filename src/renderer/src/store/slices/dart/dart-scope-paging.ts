@@ -118,8 +118,9 @@ export async function readDartScopePages(
       break
     }
   }
-  // A short page before the total, or a count that moved during the read, means rows shifted between pages.
-  const openIncomplete = countMoved || (!cutByPageCap && offset !== openTotal)
+  const openMapped = tasks.length
+  // An uncut read must map exactly Dart's count; a moved count or a missing or unmappable row breaks that.
+  const openIncomplete = countMoved || (!cutByPageCap && openMapped !== openTotal)
 
   const done = await readPage({
     ...baseArgs,

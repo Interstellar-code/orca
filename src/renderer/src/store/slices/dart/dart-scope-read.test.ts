@@ -137,7 +137,7 @@ describe('readDartScope paging', () => {
 
     expect(openOffsets(host)).toEqual([0, 250])
     expect(result.tasks).toHaveLength(250)
-    expect(result).toMatchObject({ openTotal: 251, incomplete: false })
+    expect(result).toMatchObject({ openTotal: 251, incomplete: true })
   })
 
   it('fails the read set when a reply carries no raw counts', async () => {
@@ -218,6 +218,24 @@ describe('readDartScope incompleteness', () => {
     const result = await store.getState().readDartScope(FILTERS, { features: FEATURES })
 
     expect(result.incomplete).toBe(false)
+  })
+
+  it('marks an uncut open read incomplete when an unmappable row leaves fewer tasks than the count', async () => {
+    const host = runtime.host(null)
+    seed(host, 10)
+    host.unmappableIds.add(openTask(2).id)
+
+    const uncut = await store.getState().readDartScope(FILTERS, { features: FEATURES })
+
+    expect(uncut).toMatchObject({ openTotal: 10, incomplete: true })
+    expect(uncut.tasks).toHaveLength(9)
+
+    for (let i = 10; i < 1300; i += 1) {
+      host.addTask(openTask(i))
+    }
+    const cut = await store.getState().readDartScope(FILTERS, { features: FEATURES })
+
+    expect(cut).toMatchObject({ openTotal: 1300, incomplete: false })
   })
 })
 
