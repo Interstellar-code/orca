@@ -1,9 +1,13 @@
-import { DART_PROVIDER_RUNTIME_CAPABILITY } from '../../../shared/dart/dart-capabilities'
+import {
+  DART_BOARD_RUNTIME_CAPABILITY,
+  DART_PROVIDER_RUNTIME_CAPABILITY
+} from '../../../shared/dart/dart-capabilities'
 import { isTrustedDartHtmlUrl } from '../../../shared/dart/dart-issue-url'
 import type {
   DartComment,
   DartCommentPage,
   DartConnectionStatus,
+  DartHostFeatures,
   DartTask,
   DartTaskPage,
   DartUser,
@@ -216,4 +220,24 @@ export async function dartListCommentsForTarget(
     window.api.dart.listComments(args)
   )
   return result.ok ? { ...result, comments: result.comments.map(sanitizeDartComment) } : result
+}
+
+// Never cached: a host can upgrade or switch between calls, and any failure just hides board features.
+export async function dartBoardFeaturesForTarget(
+  target: RuntimeClientTarget
+): Promise<DartHostFeatures> {
+  try {
+    if (target.kind === 'environment') {
+      return {
+        board: await runtimeEnvironmentSupportsCapability(
+          target.environmentId,
+          DART_BOARD_RUNTIME_CAPABILITY,
+          CAPABILITY_PROBE_TIMEOUT_MS
+        )
+      }
+    }
+    return await window.api.dart.supportedDartFeatures()
+  } catch {
+    return { board: false }
+  }
 }

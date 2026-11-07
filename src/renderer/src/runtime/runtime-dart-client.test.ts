@@ -1,9 +1,13 @@
 // @vitest-environment happy-dom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { DART_PROVIDER_RUNTIME_CAPABILITY } from '../../../shared/dart/dart-capabilities'
+import {
+  DART_BOARD_RUNTIME_CAPABILITY,
+  DART_PROVIDER_RUNTIME_CAPABILITY
+} from '../../../shared/dart/dart-capabilities'
 import type { DartTask } from '../../../shared/dart/dart-types'
 import {
+  dartBoardFeaturesForTarget,
   dartConnectForTarget,
   dartListTasksForTarget,
   dartStatusForTarget,
@@ -15,6 +19,7 @@ import { clearRuntimeCompatibilityCacheForTests } from './runtime-rpc-client'
 const dartStatusLocal = vi.fn()
 const dartConnectLocal = vi.fn()
 const dartListTasksLocal = vi.fn()
+const supportedDartFeaturesLocal = vi.fn()
 const runtimeCall = vi.fn()
 
 const remote = { kind: 'environment', environmentId: 'remote-dart' } as const
@@ -51,6 +56,17 @@ function mockRemote(options: { withDartCapability: boolean; reply?: unknown }): 
   })
 }
 
+function mockRemoteBoardCapability(advertised: boolean): void {
+  runtimeCall.mockImplementation(async () => {
+    const status = createCompatibleRuntimeStatusResponse('remote-dart')
+    const others = (status.result.capabilities ?? []).filter(
+      (capability) => capability !== DART_BOARD_RUNTIME_CAPABILITY
+    )
+    status.result.capabilities = advertised ? [...others, DART_BOARD_RUNTIME_CAPABILITY] : others
+    return status
+  })
+}
+
 beforeEach(() => {
   clearRuntimeCompatibilityCacheForTests()
   vi.stubGlobal('window', {
@@ -58,7 +74,8 @@ beforeEach(() => {
       dart: {
         status: dartStatusLocal,
         connect: dartConnectLocal,
-        listTasks: dartListTasksLocal
+        listTasks: dartListTasksLocal,
+        supportedDartFeatures: supportedDartFeaturesLocal
       },
       runtimeEnvironments: { call: runtimeCall, subscribe: vi.fn() }
     }
@@ -70,6 +87,7 @@ afterEach(() => {
   dartStatusLocal.mockReset()
   dartConnectLocal.mockReset()
   dartListTasksLocal.mockReset()
+  supportedDartFeaturesLocal.mockReset()
   runtimeCall.mockReset()
 })
 
@@ -152,5 +170,79 @@ describe('runtime Dart client', () => {
       connected: false,
       viewer: null
     })
+  })
+
+  it('sends order and offset to the local bridge and returns raw counts intact', async () => {
+    const raw = { rowCount: 3, totalCount: 9 }
+    dartListTasksLocal.mockResolvedValue({
+      ok: true,
+      totalCount: 9,
+      tasks: [task({}), task({ id: 'zY8xW6vU4tS2' })],
+      raw
+    })
+
+    const result = await dartListTasksForTarget(
+      { kind: 'local' },
+      { order: '-updated_at', offset: 20 }
+    )
+
+    expect(dartListTasksLocal).toHaveBeenCalledWith({ order: '-updated_at', offset: 20 })
+    expect(result).toMatchObject({ ok: true, raw })
+  })
+
+  it('sends order and offset to the remote RPC and returns raw counts intact', async () => {
+    const raw = { rowCount: 2, totalCount: 5 }
+    mockRemote({
+      withDartCapability: true,
+      reply: { ok: true, tasks: [task({})], totalCount: 5, raw }
+    })
+
+    const result = await dartListTasksForTarget(remote, { order: 'title', offset: 10 })
+
+    expect(runtimeCall).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        method: 'dart.listTasks',
+        params: { order: 'title', offset: 10 }
+      })
+    )
+    expect(result).toMatchObject({ ok: true, raw })
+  })
+})
+
+describe('dartBoardFeaturesForTarget', () => {
+  it('reports board support from the remote host capability', async () => {
+    mockRemoteBoardCapability(true)
+    await expect(dartBoardFeaturesForTarget(remote)).resolves.toEqual({ board: true })
+
+    clearRuntimeCompatibilityCacheForTests()
+    mockRemoteBoardCapability(false)
+    await expect(dartBoardFeaturesForTarget(remote)).resolves.toEqual({ board: false })
+    expect(supportedDartFeaturesLocal).not.toHaveBeenCalled()
+  })
+
+  it('asks the local bridge for a local target', async () => {
+    supportedDartFeaturesLocal.mockResolvedValue({ board: true })
+
+    await expect(dartBoardFeaturesForTarget({ kind: 'local' })).resolves.toEqual({ board: true })
+    expect(runtimeCall).not.toHaveBeenCalled()
+  })
+
+  it('does not cache a result: a later upgrade is seen', async () => {
+    supportedDartFeaturesLocal.mockResolvedValueOnce({ board: false })
+    supportedDartFeaturesLocal.mockResolvedValueOnce({ board: true })
+
+    await expect(dartBoardFeaturesForTarget({ kind: 'local' })).resolves.toEqual({ board: false })
+    await expect(dartBoardFeaturesForTarget({ kind: 'local' })).resolves.toEqual({ board: true })
+  })
+
+  it('treats a rejecting probe, a failing remote probe and an old preload as no board', async () => {
+    supportedDartFeaturesLocal.mockRejectedValue(new Error('environment changed'))
+    await expect(dartBoardFeaturesForTarget({ kind: 'local' })).resolves.toEqual({ board: false })
+
+    runtimeCall.mockRejectedValue(new Error('offline'))
+    await expect(dartBoardFeaturesForTarget(remote)).resolves.toEqual({ board: false })
+
+    vi.stubGlobal('window', { api: { dart: {} } })
+    await expect(dartBoardFeaturesForTarget({ kind: 'local' })).resolves.toEqual({ board: false })
   })
 })

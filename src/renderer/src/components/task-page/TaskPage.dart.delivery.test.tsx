@@ -4,26 +4,25 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { getDefaultSettings } from '../../../../shared/constants'
-import {
-  DART_PROVIDER_RUNTIME_CAPABILITY,
-  DART_WRITES_V2_RUNTIME_CAPABILITY
-} from '../../../../shared/dart/dart-capabilities'
-import type { DartComment, DartTask, DartWorkspaceConfig } from '../../../../shared/dart/dart-types'
+import type { DartComment } from '../../../../shared/dart/dart-types'
 import type { Worktree } from '../../../../shared/worktree/types'
 import type { TaskSourceContext } from '../../../../shared/task-source-context'
 import { installAppKeyboardRouter } from '@/lib/app-keyboard-router'
 import { createCompatibleRuntimeStatusResponse } from '@/runtime/runtime-compatibility-test-fixture'
 import { useAppStore } from '@/store'
+import type { FakeDartHost } from '@/store/slices/dart/dart-fake-runtime.test-support'
+import { clearDartProviderVerdictCacheForTests } from '@/web/preload-api/web-dart-api'
 import {
-  dartTaskFixture,
-  FakeDartHost,
-  installFakeDartRuntime
-} from '@/store/slices/dart/dart-fake-runtime.test-support'
-import {
-  clearDartProviderVerdictCacheForTests,
-  createWebDartApi
-} from '@/web/preload-api/web-dart-api'
+  addRemote,
+  NETWORK_TRANSPORTS,
+  installDeliveryRuntime,
+  probedSelectors,
+  remoteCapabilities,
+  SOURCE,
+  TRANSPORTS,
+  VIEWER,
+  web
+} from './dart-delivery-transports.test-support'
 import TaskPage from './TaskPage'
 
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
@@ -33,14 +32,6 @@ vi.mock('./github/List', () => ({ TaskPageGitHubList: () => null }))
 vi.mock('./jira/Content', () => ({ TaskPageJiraContent: () => null }))
 vi.mock('./linear/Content', () => ({ TaskPageLinearContent: () => null }))
 
-// The web client's only outbound seam: it reaches the paired host through these two modules.
-const web: { host: FakeDartHost | null; capabilities: string[]; methodNotFound: boolean } =
-  vi.hoisted(() => ({
-    host: null,
-    capabilities: [],
-    /** An older server has no `dart.*` methods at all. */
-    methodNotFound: false
-  }))
 vi.mock('@/web/preload-api/web-runtime-calls', () => ({
   getRemoteRuntimeStatus: async () => ({ capabilities: web.capabilities }),
   callRuntimeEnvelope: async (method: string, params: Parameters<FakeDartHost['handle']>[1]) =>
@@ -54,25 +45,6 @@ vi.mock('@/web/preload-api/web-runtime-session', () => ({
 }))
 
 const realWindow = window
-const VIEWER = { id: 'user-a', name: 'Alex Example' }
-const CONFIG: DartWorkspaceConfig = {
-  dartboards: ['Board A', 'Board B'],
-  statuses: ['To-do', 'Doing', 'Done'],
-  types: [],
-  tags: ['search', 'backend'],
-  priorities: ['High', 'Medium', 'Low'],
-  sizes: ['1', '3', '5'],
-  assignees: [VIEWER.name, 'Sam Example']
-}
-function sourceTask(id: string): DartTask {
-  return dartTaskFixture(id, {
-    title: 'Delivery task',
-    status: 'To-do',
-    priority: 'Medium',
-    dartboard: 'Board A',
-    description: 'Original description'
-  })
-}
 const UNKNOWN = {
   ok: false,
   error: 'Failed to update Dart task.',
@@ -80,120 +52,14 @@ const UNKNOWN = {
   outcome: 'unknown'
 } as const
 
-// Write blocks and notices outlive a host switch by design, so every test gets its own task id.
-let SOURCE = sourceTask('delivTask000')
-let nextEnv = 0
-let runtime: ReturnType<typeof installFakeDartRuntime>
-
-/** The shared fake answers neither config nor comments. */
-function serveConfigAndComments(host: FakeDartHost): void {
-  const handle = host.handle.bind(host)
-  host.handle = async (method, params) => {
-    if (method === 'dart.config' || method === 'dart.listComments') {
-      host.requests.push({ method, params })
-      return method === 'dart.config'
-        ? { ok: true, config: CONFIG }
-        : { ok: true, comments: [], totalCount: 0 }
-    }
-    return handle(method, params)
-  }
-}
-
 function fieldWrites(host: FakeDartHost): Record<string, unknown>[] {
   return host.requests
     .filter(({ method }) => method === 'dart.updateTask')
     .map(({ params }) => params.updates ?? {})
 }
 
-type Transport = {
-  name: string
-  /** Seeds the page on a host that advertises exactly `capabilities`. */
-  open(options?: { writesV2?: boolean; providerV1?: boolean }): FakeDartHost
-}
-
-function freshSource(): void {
-  nextEnv += 1
-  SOURCE = sourceTask(`delivTask${String(nextEnv).padStart(3, '0')}`)
-}
-
-function seedPage(environmentId: string | null): void {
-  // The web client always reads as scope `local`, so a cache from an earlier test would answer for this host.
-  useAppStore.setState({ dartTaskCache: {}, dartListCache: {}, dartConfigCache: {} })
-  const settings = {
-    ...getDefaultSettings('/home/alex'),
-    visibleTaskProviders: ['github' as const, 'dart' as const],
-    defaultTaskSource: 'dart' as const,
-    activeRuntimeEnvironmentId: environmentId
-  }
-  useAppStore.setState({
-    settings,
-    persistedUIReady: true,
-    activeView: 'tasks',
-    taskPageData: {},
-    worktreeNavHistory: [],
-    worktreeNavHistoryIndex: -1,
-    dartStatus: { connected: false, viewer: null },
-    dartStatusChecked: false,
-    dartUpdateRequired: false,
-    checkLinearConnection: vi.fn(() => Promise.resolve()),
-    checkJiraConnection: vi.fn(() => Promise.resolve()),
-    refreshPreflightStatus: vi.fn(() => Promise.resolve())
-  })
-}
-
-function capabilitiesOf(options: { writesV2?: boolean; providerV1?: boolean }): string[] {
-  return [
-    ...(options.providerV1 === false ? [] : [DART_PROVIDER_RUNTIME_CAPABILITY]),
-    ...(options.writesV2 === false ? [] : [DART_WRITES_V2_RUNTIME_CAPABILITY])
-  ]
-}
-
-const remoteCapabilities = new Map<string, string[]>()
-const probedSelectors: string[] = []
-
-/** Another paired server with its own Dart workspace; `task` is the same id on every server. */
-function addRemote(options: { writesV2?: boolean; providerV1?: boolean } = {}): {
-  environmentId: string
-  host: FakeDartHost
-} {
-  nextEnv += 1
-  const environmentId = `remote-env-${nextEnv}`
-  remoteCapabilities.set(environmentId, capabilitiesOf(options))
-  const host = runtime.host(environmentId)
-  serveConfigAndComments(host)
-  host.addTask(SOURCE)
-  return { environmentId, host }
-}
-
-const TRANSPORTS: Transport[] = [
-  {
-    name: 'remote RPC',
-    open: (options = {}) => {
-      freshSource()
-      const { environmentId, host } = addRemote(options)
-      seedPage(environmentId)
-      return host
-    }
-  },
-  {
-    name: 'web-paired host',
-    open: (options = {}) => {
-      freshSource()
-      const host = new FakeDartHost()
-      serveConfigAndComments(host)
-      host.addTask(SOURCE)
-      web.host = host
-      web.capabilities = capabilitiesOf(options)
-      web.methodNotFound = options.providerV1 === false
-      Object.assign(window.api, { dart: createWebDartApi() })
-      seedPage(null)
-      return host
-    }
-  }
-]
-
 beforeEach(() => {
-  runtime = installFakeDartRuntime()
+  installDeliveryRuntime()
   // The web client caches a positive provider verdict per host id, and every test shares one.
   clearDartProviderVerdictCacheForTests()
   remoteCapabilities.clear()
@@ -305,7 +171,7 @@ describe.each(TRANSPORTS)('field edits over the $name', (transport) => {
   })
 })
 
-describe.each(TRANSPORTS)('a host without dart.writes.v2 over the $name', (transport) => {
+describe.each(NETWORK_TRANSPORTS)('a host without dart.writes.v2 over the $name', (transport) => {
   it('edits the supported fields and sends no size, date or description patch', async () => {
     const host = transport.open({ writesV2: false })
     host.tasks.set(SOURCE.id, { ...SOURCE, size: '3', dueAt: '2026-11-20T00:00:00.000Z' })

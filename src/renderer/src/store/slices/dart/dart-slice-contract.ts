@@ -57,10 +57,12 @@ export type DartScopeReadSlice = {
   ) => Promise<DartClientResult<object>>
 }
 
-export type DartSlice = {
+export type DartSlice = DartScopeReadSlice & {
   dartStatus: DartConnectionStatus
   dartStatusChecked: boolean
   dartStatusContextKey: string | null
+  /** Last viewer id each host's status showed (null: none), so a changed account is seen even while another host is shown. */
+  dartLastSeenViewers: Record<string, string | null>
   /** True when the selected remote host lacks `dart.provider.v1`; never falls back to local. */
   dartUpdateRequired: boolean
   dartTaskCache: Record<string, CacheEntry<DartTask>>
