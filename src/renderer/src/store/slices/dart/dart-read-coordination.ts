@@ -207,17 +207,34 @@ export function isDartScopeOnPageHost(
   return getRuntimeTargetHostId(scope.target) === getRuntimeTargetHostId(defaultScopeHost(settings))
 }
 
+/** The one place a viewer is installed: a viewer that differs from the host's last seen one drops its scope entries, whichever host is shown. */
 export function dartStatusUpdate(
-  _state: AppState,
+  state: Pick<
+    AppState,
+    | 'dartStatus'
+    | 'dartStatusContextKey'
+    | 'dartLastSeenViewers'
+    | 'dartListCache'
+    | 'dartScopeMetaCache'
+    | 'dartMountedScopeKey'
+  >,
   contextKey: string,
   status: DartConnectionStatus,
   extra?: Partial<DartSlice>
 ): Partial<DartSlice> {
+  const nextViewer = status.viewer?.id ?? null
+  const lastSeen =
+    state.dartLastSeenViewers[contextKey] ??
+    (state.dartStatusContextKey === contextKey ? (state.dartStatus.viewer?.id ?? null) : undefined)
   return {
     dartStatus: status,
     dartStatusChecked: true,
     dartStatusContextKey: contextKey,
     dartUpdateRequired: false,
+    dartLastSeenViewers: { ...state.dartLastSeenViewers, [contextKey]: nextViewer },
+    ...(lastSeen !== undefined && lastSeen !== nextViewer
+      ? dropDartScopeCachesForHost(state, contextKey)
+      : undefined),
     ...extra
   }
 }

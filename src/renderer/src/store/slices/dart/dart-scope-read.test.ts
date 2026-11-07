@@ -850,6 +850,47 @@ describe('connection changes', () => {
     expect(state.dartListCache).toEqual({})
   })
 
+  it('drops a host scope entries when its account changed while another host was shown', async () => {
+    const host = runtime.host(null)
+    seed(host, 3)
+    seed(runtime.host(REMOTE), 2)
+    await store.getState().checkDartConnection()
+    await readAndPublish()
+    store.setState({
+      settings: { ...store.getState().settings!, activeRuntimeEnvironmentId: REMOTE }
+    })
+    await store.getState().checkDartConnection()
+    await readAndPublish()
+    const remoteKey = mountedEntry().key
+    host.connection = { connected: true, viewer: { id: 'user-b', name: 'Blair Example' } }
+    store.setState({
+      settings: { ...store.getState().settings!, activeRuntimeEnvironmentId: null }
+    })
+
+    await store.getState().checkDartConnection()
+
+    const state = store.getState()
+    expect(state.dartStatus.viewer?.id).toBe('user-b')
+    expect(Object.keys(state.dartListCache)).toEqual([remoteKey])
+    expect(Object.keys(state.dartScopeMetaCache)).toEqual([remoteKey])
+  })
+
+  it('applies the same account check to a connection test', async () => {
+    const host = runtime.host(null)
+    seed(host, 3)
+    await store.getState().checkDartConnection()
+    await readAndPublish()
+    host.connection = { connected: true, viewer: { id: 'user-b', name: 'Blair Example' } }
+
+    await store.getState().testDartConnection()
+
+    const state = store.getState()
+    expect(state.dartStatus.viewer?.id).toBe('user-b')
+    expect(state.dartListCache).toEqual({})
+    expect(state.dartScopeMetaCache).toEqual({})
+    expect(state.dartMountedScopeKey).toBeNull()
+  })
+
   it('keeps both hosts entries and metadata across a host switch', async () => {
     seed(runtime.host(null), 3)
     seed(runtime.host(REMOTE), 2)

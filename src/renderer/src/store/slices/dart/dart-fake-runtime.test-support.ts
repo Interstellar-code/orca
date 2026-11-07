@@ -206,6 +206,9 @@ export class FakeDartHost {
     if (method === 'dart.disconnect') {
       return { ok: true }
     }
+    if (method === 'dart.testConnection') {
+      return { ok: true, viewer: this.connection.viewer }
+    }
     if (method === 'dart.getTask') {
       const task = this.tasks.get(params.taskId ?? '')
       return this.failReads || !task ? failure : { ok: true, task }
@@ -343,6 +346,7 @@ export function installFakeDartRuntime(): { host: (environmentId: string | null)
         status: local('dart.status'),
         connect: local('dart.connect'),
         disconnect: local('dart.disconnect'),
+        testConnection: local('dart.testConnection'),
         getTask: local('dart.getTask'),
         listTasks: local('dart.listTasks'),
         updateTask: local('dart.updateTask'),
