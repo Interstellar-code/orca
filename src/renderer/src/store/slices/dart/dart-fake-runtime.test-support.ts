@@ -3,7 +3,7 @@ import { vi } from 'vitest'
 import { DART_BOARD_RUNTIME_CAPABILITY } from '../../../../../shared/dart/dart-capabilities'
 import {
   DART_SAVED_VIEWS_RUNTIME_CAPABILITY,
-  MAX_DART_SAVED_VIEWS,
+  mutateDartSavedViewState,
   type DartSavedView,
   type DartSavedViewMutation,
   type DartSavedViewState
@@ -91,53 +91,6 @@ function toSavedViewMutation(params: RpcParams): DartSavedViewMutation {
     return { kind: 'select', id: params.id ?? null }
   }
   throw new Error(`fake Dart host cannot read saved view mutation ${params.kind}`)
-}
-
-function mutatedSavedViews(
-  state: DartSavedViewState,
-  mutation: DartSavedViewMutation
-): DartSavedViewState {
-  if (mutation.kind === 'select') {
-    if (mutation.id !== null && !state.views.some((view) => view.id === mutation.id)) {
-      throw new Error('Saved Dart view no longer exists.')
-    }
-    return { ...state, activeViewId: mutation.id }
-  }
-  if (mutation.kind === 'delete') {
-    return {
-      views: state.views.filter((view) => view.id !== mutation.id),
-      activeViewId: state.activeViewId === mutation.id ? null : state.activeViewId
-    }
-  }
-  const saved: DartSavedView =
-    mutation.kind === 'save'
-      ? { ...mutation.view, name: mutation.view.name.trim() }
-      : { ...findView(state, mutation.id), name: mutation.name.trim() }
-  const exists = state.views.some((view) => view.id === saved.id)
-  if (mutation.kind === 'save' && !exists && state.views.length >= MAX_DART_SAVED_VIEWS) {
-    throw new Error('Saved Dart view limit reached.')
-  }
-  if (
-    state.views.some(
-      (view) => view.id !== saved.id && view.name.toLowerCase() === saved.name.toLowerCase()
-    )
-  ) {
-    throw new Error('A saved view with this name already exists.')
-  }
-  return {
-    ...state,
-    views: exists
-      ? state.views.map((view) => (view.id === saved.id ? saved : view))
-      : [...state.views, saved]
-  }
-}
-
-function findView(state: DartSavedViewState, id: string): DartSavedView {
-  const view = state.views.find((item) => item.id === id)
-  if (!view) {
-    throw new Error('Saved Dart view no longer exists.')
-  }
-  return view
 }
 
 /** One Dart workspace behind one host: writes change `tasks`, so reads show what the host really holds. */
@@ -262,7 +215,10 @@ export class FakeDartHost {
       return this.savedViewState
     }
     if (this.savedViews && method === 'ui.mutateDartSavedViews') {
-      this.savedViewState = mutatedSavedViews(this.savedViewState, toSavedViewMutation(params))
+      this.savedViewState = mutateDartSavedViewState(
+        this.savedViewState,
+        toSavedViewMutation(params)
+      )
       return this.savedViewState
     }
     return null

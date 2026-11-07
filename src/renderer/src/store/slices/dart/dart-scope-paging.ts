@@ -11,9 +11,7 @@ export const DART_OPEN_PAGE_SIZE = DART_LIST_PAGE_MAX
 export const DART_OPEN_PAGE_COUNT = 4
 export const DART_DONE_PAGE_SIZE = 50
 
-export type DartScopePageArgs = NonNullable<DartListTasksArgs> & {
-  order?: 'order' | '-completed_at'
-}
+export type DartScopePageArgs = NonNullable<DartListTasksArgs>
 
 export type DartScopePageReader = (
   args: DartScopePageArgs
