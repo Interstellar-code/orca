@@ -1,6 +1,7 @@
 import type { JiraQuickFilterState } from './jira/jira-quick-filters'
 import type { BrowserDevToolsDockLayout } from './browser-devtools-dock'
 import type { JiraSavedFilterState } from './jira/jira-saved-filters'
+import type { DartSavedViewState } from './dart/dart-saved-views'
 import type { ReleaseChannel } from './release-channel'
 import type { WorkspaceCleanupUIState } from './workspace-cleanup'
 import type { FeatureTipId } from './feature-tips'
@@ -34,6 +35,7 @@ export type PersistedUIState = {
   /** Paired-server project removals still owed to their server; optional so older builds ignore it. */
   pendingRuntimeRepoRemovals?: PendingRuntimeRepoRemoval[]
   jiraSavedFilterState?: JiraSavedFilterState
+  dartSavedViewState?: DartSavedViewState
   jiraQuickFilterState?: JiraQuickFilterState
   lastActiveRepoId: string | null
   lastActiveWorktreeId: string | null

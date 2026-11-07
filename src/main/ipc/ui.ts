@@ -5,6 +5,11 @@ import {
   mutateJiraSavedFilterState
 } from '../../shared/jira/jira-saved-filters'
 import { JiraSavedFilterMutationParam } from '../../shared/rpc-contract/jira-saved-filter-params'
+import {
+  normalizeDartSavedViewState,
+  mutateDartSavedViewState
+} from '../../shared/dart/dart-saved-views'
+import { DartSavedViewMutationParam } from '../../shared/rpc-contract/dart-saved-view-params'
 import { BrowserWindow, ipcMain, webContents, type WebContents } from 'electron'
 import type { Store } from '../persistence/loading-store/store'
 import type { PersistedUIState } from '../../shared/persisted-ui-state-types'
@@ -74,6 +79,15 @@ export function registerUIHandlers(
     const mutation = JiraSavedFilterMutationParam.parse(input)
     const state = mutateJiraSavedFilterState(store.getUI().jiraSavedFilterState, mutation)
     store.updateUI({ jiraSavedFilterState: state })
+    return state
+  })
+  ipcMain.handle('ui:getDartSavedViews', () =>
+    normalizeDartSavedViewState(store.getUI().dartSavedViewState)
+  )
+  ipcMain.handle('ui:mutateDartSavedViews', (_event, input: unknown) => {
+    const mutation = DartSavedViewMutationParam.parse(input)
+    const state = mutateDartSavedViewState(store.getUI().dartSavedViewState, mutation)
+    store.updateUI({ dartSavedViewState: state })
     return state
   })
   ipcMain.handle('ui:get', () => {
