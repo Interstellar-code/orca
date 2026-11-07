@@ -247,6 +247,18 @@ config/fork/rebuild-and-install.sh --mode server
 Server mode never pushes: it builds what the Mac already pushed. Pass `--push` only if you
 really mean to push from the server.
 
+To build and install the fork's `main` exactly as pushed, with no upstream merge, and to
+choose the restart time yourself:
+
+```sh
+config/fork/rebuild-and-install.sh --mode server --no-upstream --dry-run   # build only
+config/fork/rebuild-and-install.sh --mode server --install-only            # swap and restart now
+```
+
+`--no-upstream` skips the upstream fetch and merge (any mode). `--install-only` skips the
+sync, gates and build, and installs `dist/linux*-unpacked` only if its stamp names the
+current `HEAD`. It restarts even with clients connected, because you ran it on purpose.
+
 What it does: fast-forward from `origin/main`, merge `upstream/main`, `pnpm install
 --frozen-lockfile`, `pnpm tc`, the Dart tests, the desktop build, and electron-builder
 `--linux dir --<host arch>`. Only the unpacked tree is built (`dist/linux-unpacked` on x64,

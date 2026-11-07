@@ -8,6 +8,8 @@ DRY_RUN=0
 # Server mode only installs what was already pushed, so it never pushes by default.
 PUSH=1
 PUSH_SET=0
+NO_UPSTREAM=0
+INSTALL_ONLY=0
 
 FORK_REMOTE_URL_MATCH='github.com[:/]Interstellar-code/orca'
 UPSTREAM_REMOTE_URL_MATCH='github.com[:/]stablyai/orca'
@@ -59,6 +61,9 @@ Usage: config/fork/rebuild-and-install.sh [options]
   --dry-run           Do everything except push and install; prefix notifications.
   --no-push           Skip pushing the merged main to the fork.
   --push              Push even in server mode (default: server never pushes).
+  --no-upstream       Build the fork's main as pushed: no upstream fetch or merge.
+  --install-only      Server mode: install the tree an earlier run built for this HEAD,
+                      without rebuilding. Restarts even with clients connected.
 
 Server mode needs passwordless sudo for the /opt/Orca swap and the unit restart; it
 runs sudo -n, so a nightly run fails loudly instead of waiting for a password.
@@ -259,6 +264,7 @@ install_server_build() {
 # Each builder leaves the version string in built_version.
 
 built_version=''
+SERVER_BUILD_STAMP=dist/fork-server-build
 
 build_mac() {
   mac_output
@@ -290,18 +296,37 @@ console.log(createLocalBuildVersion(pkg.version, Date.now(), process.env.ORCA_BU
   pnpm exec electron-builder --config config/electron-builder.config.cjs --linux dir "--$LINUX_ARCH" ||
     fail 'electron-builder --linux dir failed'
   [[ -d "dist/$LINUX_DIR" ]] || fail "build produced no dist/$LINUX_DIR"
+  printf '%s %s\n' "$built_version" "$commit" >"$SERVER_BUILD_STAMP"
 }
 
-# Takes the pushed fork main, then upstream's. Both halves must succeed: the server
+# --install-only installs only a tree whose stamp names the current HEAD.
+install_built_server_tree() {
+  linux_output
+  [[ -d "dist/$LINUX_DIR" && -r $SERVER_BUILD_STAMP ]] ||
+    fail "no finished server build in dist/; run without --install-only first"
+  local version commit head
+  read -r version commit <"$SERVER_BUILD_STAMP" || fail "unreadable build stamp $SERVER_BUILD_STAMP"
+  head=$(git rev-parse --short=12 HEAD)
+  [[ $commit == "$head" ]] || fail "dist/ was built from $commit, but HEAD is $head; rebuild first"
+  swap_server_install "dist/$LINUX_DIR" "$version" "$commit" "$(serve_port)"
+}
+
+# Takes the pushed fork main, then upstream's (unless --no-upstream). Both halves must succeed: the server
 # installs what the Mac pushed, and a divergent local main is a human problem.
 sync_main() {
-  log 'fetching origin and upstream'
+  log 'fetching origin'
   git fetch --prune origin || fail 'git fetch origin failed'
-  git fetch --prune upstream || fail 'git fetch upstream failed'
 
   log "fast-forwarding $FORK_BRANCH from origin/$FORK_BRANCH"
   git merge --ff-only "origin/$FORK_BRANCH" ||
     fail "local $FORK_BRANCH and origin/$FORK_BRANCH diverged; reconcile them by hand"
+
+  if [[ $NO_UPSTREAM == 1 ]]; then
+    log "--no-upstream: building $FORK_BRANCH as pushed ($(git rev-parse --short=12 HEAD))"
+    return 0
+  fi
+  log 'fetching upstream'
+  git fetch --prune upstream || fail 'git fetch upstream failed'
 
   local before after
   before=$(git rev-parse HEAD)
@@ -328,6 +353,8 @@ main() {
       --dry-run) DRY_RUN=1; PUSH=0; shift ;;
       --no-push) PUSH=0; shift ;;
       --push) PUSH=1; PUSH_SET=1; shift ;;
+      --no-upstream) NO_UPSTREAM=1; shift ;;
+      --install-only) INSTALL_ONLY=1; shift ;;
       -h | --help) usage; return 0 ;;
       *) fail "unknown argument: $1" ;;
     esac
@@ -345,7 +372,7 @@ main() {
   mkdir -p "$(dirname "$LOG_FILE")"
   exec > >(tee -a "$LOG_FILE") 2>&1
 
-  log "orca fork rebuild: mode=$MODE dry_run=$DRY_RUN push=$PUSH clone=$clone log=$LOG_FILE"
+  log "orca fork rebuild: mode=$MODE dry_run=$DRY_RUN push=$PUSH no_upstream=$NO_UPSTREAM install_only=$INSTALL_ONLY clone=$clone log=$LOG_FILE"
 
   # electron-builder treats CI as publish-on-build and demands every slice boot here; this job is a local build.
   unset CI GITHUB_ACTIONS GITHUB_SHA
@@ -360,15 +387,25 @@ main() {
   [[ -z "$(git status --porcelain --untracked-files=no)" ]] ||
     fail 'clone has uncommitted changes; commit or discard them first'
 
+  if [[ $INSTALL_ONLY == 1 ]]; then
+    [[ $MODE == server ]] || fail '--install-only works in --mode server only'
+    [[ $DRY_RUN == 0 ]] || fail '--install-only cannot be combined with --dry-run'
+    install_built_server_tree
+    log 'done'
+    return 0
+  fi
+
   # A push must only ever reach the fork. Without one, remotes are read-only, so drills may use local repos.
   if [[ $PUSH == 1 ]]; then
     local origin_url upstream_url
     origin_url=$(git remote get-url origin 2>/dev/null || true)
     [[ $origin_url =~ $FORK_REMOTE_URL_MATCH ]] ||
       fail "origin is '$origin_url', not the Interstellar-code/orca fork"
-    upstream_url=$(git remote get-url upstream 2>/dev/null || true)
-    [[ $upstream_url =~ $UPSTREAM_REMOTE_URL_MATCH ]] ||
-      fail "upstream is '$upstream_url', not stablyai/orca"
+    if [[ $NO_UPSTREAM == 0 ]]; then
+      upstream_url=$(git remote get-url upstream 2>/dev/null || true)
+      [[ $upstream_url =~ $UPSTREAM_REMOTE_URL_MATCH ]] ||
+        fail "upstream is '$upstream_url', not stablyai/orca"
+    fi
   else
     log 'push disabled: origin/upstream URL check skipped (nothing can be pushed)'
   fi
