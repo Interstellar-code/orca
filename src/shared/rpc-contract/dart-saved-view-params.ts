@@ -5,8 +5,8 @@ import {
 } from '../dart/dart-saved-views'
 import { DART_TITLE_MAX_LENGTH } from '../dart/dart-text-limits'
 
-const ViewId = z.string().trim().min(1).max(MAX_DART_SAVED_VIEW_ID_LENGTH)
-const ViewName = z.string().trim().min(1).max(MAX_DART_SAVED_VIEW_NAME_LENGTH)
+const ViewId = z.string().max(MAX_DART_SAVED_VIEW_ID_LENGTH).trim().min(1)
+const ViewName = z.string().max(MAX_DART_SAVED_VIEW_NAME_LENGTH).trim().min(1)
 const FilterText = z.string().max(DART_TITLE_MAX_LENGTH).nullable()
 
 export const DartBoardFiltersParam = z.object({

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  MAX_DART_SAVED_VIEW_ID_LENGTH,
+  MAX_DART_SAVED_VIEW_NAME_LENGTH,
   MAX_DART_SAVED_VIEWS,
   mutateDartSavedViewState,
   normalizeDartSavedViewState,
@@ -85,6 +87,19 @@ describe('normalizeDartSavedViewState', () => {
         expect(normalizeDartSavedViewState({ views: [view], activeViewId: null }).views).toEqual([])
       }
     }
+  })
+
+  it('refuses an id or name over its limit on the raw value, even when padding is the excess', () => {
+    const paddedId = ` ${'i'.repeat(MAX_DART_SAVED_VIEW_ID_LENGTH)} `
+    const paddedName = ` ${'n'.repeat(MAX_DART_SAVED_VIEW_NAME_LENGTH)} `
+    expect(normalizeDartSavedViewState({ views: [makeView(paddedId)] }).views).toEqual([])
+    expect(normalizeDartSavedViewState({ views: [makeView('a', paddedName)] }).views).toEqual([])
+    for (const view of [makeView(paddedId), makeView('a', paddedName)]) {
+      expect(DartSavedViewMutationParam.safeParse({ kind: 'save', view }).success).toBe(false)
+    }
+    expect(
+      DartSavedViewMutationParam.safeParse({ kind: 'rename', id: 'a', name: paddedName }).success
+    ).toBe(false)
   })
 
   it('refuses a padded over-cap filter value in the mutation params', () => {

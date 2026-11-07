@@ -43,8 +43,11 @@ function normalizeBoundedName(value: unknown, maxLength: number): string | null 
   if (typeof value !== 'string') {
     return null
   }
+  if (value.length > maxLength) {
+    return null
+  }
   const normalized = value.trim()
-  return normalized.length === 0 || normalized.length > maxLength ? null : normalized
+  return normalized.length === 0 ? null : normalized
 }
 
 type NullableFilterResult = { ok: true; value: string | null } | { ok: false }
