@@ -181,6 +181,47 @@ describe('dart task reads', () => {
     expect(defaults).toEqual({ limit: '100', offset: '0' })
   })
 
+  it.each([
+    ['order', 'order'],
+    ['-completed_at', '-completed_at']
+  ] as const)('sends order %s as o', async (order, expected) => {
+    const { host, tasks } = await connected()
+    host.route('GET', '/tasks/list', () => jsonResponse(200, { count: 0, results: [] }))
+
+    await tasks.listTasks({ order, offset: 500 })
+    await tasks.listTasks({})
+
+    const [ordered, unordered] = requestsTo(host, '/tasks/list').map(({ url }) => url.searchParams)
+    expect(ordered.getAll('o')).toEqual([expected])
+    expect(ordered.get('offset')).toBe('500')
+    expect(unordered.has('o')).toBe(false)
+  })
+
+  it('refuses an unknown order value', () => {
+    expect(ListTasks.safeParse({ order: 'priority' }).success).toBe(false)
+    expect(ListTasks.safeParse({ order: '-title' }).success).toBe(true)
+  })
+
+  it('reports Dart raw row and total counts apart from the adjusted total', async () => {
+    const { host, tasks } = await connected()
+    const results = Array.from({ length: 249 }, (_, i) => ({
+      ...RAW_TASK,
+      id: `id${String(i).padStart(10, '0')}`
+    }))
+    host.route('GET', '/tasks/list', () =>
+      jsonResponse(200, { count: 600, results: [...results, { title: 'no id' }] })
+    )
+
+    const result = await tasks.listTasks(undefined)
+
+    expect(result).toMatchObject({
+      ok: true,
+      totalCount: 599,
+      raw: { rowCount: 250, totalCount: 600 }
+    })
+    expect(result.ok ? result.tasks : []).toHaveLength(249)
+  })
+
   it('keeps a task with an untrusted htmlUrl as an empty link and drops an unmappable one from the total', async () => {
     const { host, tasks } = await connected()
     host.route('GET', '/tasks/list', () =>

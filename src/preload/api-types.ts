@@ -36,6 +36,7 @@ import type { GithubWorkItemApi } from './api/github-work-item-api'
 import type { GitLabApi } from './api/gitlab-api'
 import type { BitbucketApi, HostedReviewApi } from './api/hosted-review-api'
 import type { JiraApi } from './api/jira-api'
+import type { DartHostFeatures } from '../shared/dart/dart-types'
 import type { DartMethodContract } from '../shared/rpc-contract/dart-params'
 import type { LinearApi } from './api/linear-api'
 import type { MobileApi } from './api/mobile-api'
@@ -101,6 +102,8 @@ export type DartApi = {
   ) => DartReply<'dart.updateTaskDescription'>
   /** Client-side capability query (`dart.writes.v2`), not an RPC. */
   supportsWritesV2: () => Promise<boolean>
+  /** Client-side capability query (`dart.board.v1`), not an RPC. */
+  supportedDartFeatures: () => Promise<DartHostFeatures>
   addComment: (
     args: DartMethodContract['dart.addComment']['params']
   ) => DartReply<'dart.addComment'>

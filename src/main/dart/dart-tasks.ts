@@ -91,7 +91,12 @@ export function listTasks(args: z.output<typeof ListTasks>): Promise<Reply<'dart
       await dartRequest<unknown>(token, '/tasks/list', { query: buildTaskListQuery(args) })
     )
     const tasks = page.results.flatMap((raw) => mapDartTask(raw) ?? [])
-    return { ok: true, tasks, totalCount: countAfterDrops(page, tasks.length) }
+    return {
+      ok: true,
+      tasks,
+      totalCount: countAfterDrops(page, tasks.length),
+      raw: { rowCount: page.results.length, totalCount: page.count }
+    }
   })
 }
 
