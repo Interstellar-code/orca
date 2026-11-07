@@ -237,6 +237,7 @@ export class FakeDartHost {
     if (this.failReads) {
       return failure
     }
+    // A fixture with no assignee or dartboard matches any filter on them, as phase 2's fake did.
     const assignee = params.assigneeId ? this.assigneeName(params.assigneeId) : null
     const filtered = sortedBy(
       [...this.tasks.values()].filter(
@@ -244,9 +245,11 @@ export class FakeDartHost {
           (!params.status || task.status === params.status) &&
           (!params.tag || task.tags.includes(params.tag)) &&
           (!params.priority || task.priority === params.priority) &&
-          (!params.dartboard || task.dartboard?.toLowerCase() === params.dartboard.toLowerCase()) &&
+          (!params.dartboard ||
+            !task.dartboard ||
+            task.dartboard.toLowerCase() === params.dartboard.toLowerCase()) &&
           (!params.title || task.title.toLowerCase().includes(params.title.toLowerCase())) &&
-          (assignee === null || task.assignee === assignee) &&
+          (assignee === null || !task.assignee || task.assignee === assignee) &&
           (params.isCompleted === undefined || Boolean(task.completedAt) === params.isCompleted)
       ),
       params.order
