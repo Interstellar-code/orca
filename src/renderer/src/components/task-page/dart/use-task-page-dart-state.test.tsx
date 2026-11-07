@@ -217,11 +217,13 @@ describe('useTaskPageDartState with the write queue', () => {
   })
 
   /** The normal pair on one fresh host: a default-scope list and an explicit-scope detail of its first row. */
-  function openPage(detailEnv?: string) {
+  function openPage(detailEnv?: string, board = false) {
     nextHost += 1
     const env = `list-host-${nextHost}`
     const taskId = `taskListed${String(nextHost).padStart(3, '0')}`
     const host = runtime.host(env)
+    // These cases pin phase 2's list-only reads; the board path has its own describe.
+    host.board = board
     host.addTask(dartTaskFixture(taskId, { description: 'Only the detail shows this' }))
     const settings = { ...useAppStore.getState().settings!, activeRuntimeEnvironmentId: env }
     useAppStore.setState({
@@ -265,8 +267,8 @@ describe('useTaskPageDartState with the write queue', () => {
     return { host, taskId, hook, edit, shownRow, refresh }
   }
 
-  async function openListedPage(detailEnv?: string) {
-    const page = openPage(detailEnv)
+  async function openListedPage(detailEnv?: string, board = false) {
+    const page = openPage(detailEnv, board)
     await waitFor(() => expect(page.shownRow()).toBeTruthy())
     await waitFor(() => expect(page.hook.result.current.detail.full.status).toBe('ready'))
     return page
@@ -386,6 +388,7 @@ describe('useTaskPageDartState with the write queue', () => {
   function switchToNewHost(taskId: string) {
     const env = `list-next-host-${nextHost}`
     const host = runtime.host(env)
+    host.board = false
     host.addTask(dartTaskFixture(taskId))
     const settings = { ...useAppStore.getState().settings!, activeRuntimeEnvironmentId: env }
     return {
@@ -457,5 +460,375 @@ describe('useTaskPageDartState with the write queue', () => {
     act(refresh)
     await waitFor(() => expect(ids()).not.toContain(created.id))
     expect(hook.result.current.list.dartTotalCount).toBe(1)
+  })
+})
+
+describe('useTaskPageDartState on a board host', () => {
+  let runtime: ReturnType<typeof installFakeDartRuntime>
+  let nextEnv = 0
+  const realWindow = window
+  const boardViewer = { id: 'user-a', name: 'Alex Example' }
+
+  beforeEach(() => {
+    localStorage.clear()
+    runtime = installFakeDartRuntime()
+    const api = window.api
+    vi.stubGlobal('window', realWindow)
+    Object.assign(realWindow, { api })
+  })
+
+  afterEach(() => {
+    cleanup()
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  function finishedTask(index: number): DartTask {
+    return dartTaskFixture(`finished${String(index).padStart(4, '0')}`, {
+      title: `Finished ${index}`,
+      status: 'Done',
+      completedAt: new Date(Date.UTC(2026, 0, 1) + index * 60_000).toISOString()
+    })
+  }
+
+  function openBoardPage(args: { finished?: number; board?: boolean; viewer?: boolean } = {}) {
+    nextEnv += 1
+    const env = `board-host-${nextEnv}`
+    const host = runtime.host(env)
+    host.board = args.board !== false
+    host.addTask(dartTaskFixture(`open${nextEnv}aaaaaaa`, { title: 'Open one', status: 'To-do' }))
+    host.addTask(
+      dartTaskFixture(`open${nextEnv}bbbbbbb`, {
+        title: 'Open two',
+        status: 'Doing',
+        tags: ['backend'],
+        priority: 'High'
+      })
+    )
+    for (let index = 0; index < (args.finished ?? 0); index += 1) {
+      host.addTask(finishedTask(index))
+    }
+    const settings = { ...useAppStore.getState().settings!, activeRuntimeEnvironmentId: env }
+    const viewerValue = args.viewer === false ? null : boardViewer
+    useAppStore.setState({
+      settings,
+      dartStatus: { connected: true, viewer: viewerValue },
+      dartStatusChecked: true,
+      dartStatusContextKey: getDartReadScope(settings).contextKey,
+      dartListCache: {},
+      dartScopeMetaCache: {}
+    })
+    const state = useAppStore.getState()
+    const input: PageInput = {
+      taskSource: 'dart',
+      dartConnected: true,
+      dartStatus: { connected: true, viewer: viewerValue },
+      dartTaskSourceContext: null,
+      linearAttachmentWorkspaces: [],
+      listDartTasks: state.listDartTasks,
+      fetchDartTask: state.fetchDartTask,
+      fetchDartConfig: state.fetchDartConfig
+    }
+    const hook = renderHook(() =>
+      useTaskPageDartState({
+        ...input,
+        providerRuntimeContextKey: useAppStore((s) => getProviderRuntimeContextKey(s.settings))
+      })
+    )
+    const listRequests = () => host.requests.filter(({ method }) => method === 'dart.listTasks')
+    const meta = () => hook.result.current.dartScopeMeta
+    return { env, host, hook, listRequests, meta }
+  }
+
+  it('reads open and finished pages through the scope reads and lists them together', async () => {
+    const { hook, listRequests, meta } = openBoardPage({ finished: 3 })
+
+    await waitFor(() => expect(hook.result.current.dartTasks).toHaveLength(5))
+
+    expect(hook.result.current.dartBoardPath).toBe(true)
+    expect(listRequests().map(({ params }) => params.isCompleted)).toEqual([false, true])
+    expect(meta()).toMatchObject({ openTotal: 2, doneTotal: 3, incomplete: false })
+  })
+
+  it('keeps filters across a layout switch and remembers the layout through a remount', async () => {
+    const first = openBoardPage()
+    await waitFor(() => expect(first.hook.result.current.dartBoardPath).toBe(true))
+    act(() => first.hook.result.current.setDartFilter('tag', 'backend'))
+
+    act(() => first.hook.result.current.setDartLayout('board'))
+
+    expect(first.hook.result.current.dartFilters.tag).toBe('backend')
+    expect(first.hook.result.current.dartLayout).toBe('board')
+    expect(JSON.parse(localStorage.getItem('orca.dart.view-mode.v1') ?? 'null')).toEqual({
+      layout: 'board'
+    })
+    first.hook.unmount()
+    const second = openBoardPage()
+    await waitFor(() => expect(second.hook.result.current.dartLayout).toBe('board'))
+
+    act(() => second.hook.result.current.setDartLayout('list'))
+
+    expect(localStorage.getItem('orca.dart.view-mode.v1')).toBeNull()
+  })
+
+  it('applies status, tag, priority and on-hold client filters with no request', async () => {
+    const { hook, listRequests, meta } = openBoardPage({ finished: 2 })
+    await waitFor(() => expect(hook.result.current.dartTasks).toHaveLength(4))
+    const requests = listRequests().length
+    const before = meta()
+
+    act(() => hook.result.current.setDartFilter('status', 'Doing'))
+    expect(hook.result.current.dartTasks.map((task) => task.title)).toEqual(['Open two'])
+    act(() => hook.result.current.setDartFilter('status', null))
+    act(() => hook.result.current.setDartFilter('tag', 'backend'))
+    expect(hook.result.current.dartTasks).toHaveLength(1)
+    act(() => hook.result.current.setDartFilter('tag', null))
+    act(() => hook.result.current.setDartFilter('priority', 'high'))
+    expect(hook.result.current.dartTasks).toHaveLength(1)
+    act(() => hook.result.current.setDartFilter('priority', null))
+    act(() => hook.result.current.setDartFilter('onHold', true))
+    expect(hook.result.current.dartTasks).toHaveLength(0)
+
+    await act(async () => {})
+    expect(listRequests()).toHaveLength(requests)
+    expect(meta()).toEqual(before)
+  })
+
+  it('continues "Show 50 more" by raw offset after a client filter change, with no duplicates', async () => {
+    const { hook, listRequests, meta } = openBoardPage({ finished: 160 })
+    await waitFor(() => expect(meta()?.doneTotal).toBe(160))
+    for (const expectedOffset of [50, 100]) {
+      await act(async () => hook.result.current.dartBoardModel.showMoreDone())
+      await waitFor(() => expect(meta()?.doneOffset).toBe(expectedOffset + 50))
+    }
+    const generation = meta()?.generation
+    const requests = listRequests().length
+
+    act(() => hook.result.current.setDartFilter('status', 'Done'))
+    act(() => hook.result.current.setDartFilter('tag', 'backend'))
+    act(() => hook.result.current.setDartFilter('tag', null))
+    act(() => hook.result.current.setDartFilter('status', null))
+
+    expect(listRequests()).toHaveLength(requests)
+    expect(meta()).toMatchObject({ doneOffset: 150, generation })
+    await act(async () => hook.result.current.dartBoardModel.showMoreDone())
+    await waitFor(() => expect(meta()?.doneOffset).toBe(160))
+    expect(listRequests().at(-1)?.params).toMatchObject({ isCompleted: true, offset: 150 })
+    const ids = hook.result.current.dartTasks.map((task) => task.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(ids).toHaveLength(162)
+  })
+
+  it('refreshes quietly: rows stay on screen while the read runs', async () => {
+    const { host, hook } = openBoardPage()
+    await waitFor(() => expect(hook.result.current.dartTasks).toHaveLength(2))
+    const release = host.hold('dart.listTasks')
+
+    act(() => hook.result.current.setDartRefreshNonce((n) => n + 1))
+
+    await waitFor(() => expect(hook.result.current.dartLoading).toBe(true))
+    expect(hook.result.current.dartTasks).toHaveLength(2)
+    await act(async () => release())
+    await waitFor(() => expect(hook.result.current.dartLoading).toBe(false))
+  })
+
+  it('refreshes once when the window turns visible after 2 minutes, never before', async () => {
+    const { hook, listRequests, meta } = openBoardPage()
+    await waitFor(() => expect(meta()?.fetchedAt).toBeGreaterThan(0))
+    const start = Date.now()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(start + 60_000)
+    const reads = listRequests().length
+
+    act(() => void document.dispatchEvent(new Event('visibilitychange')))
+    await act(async () => {})
+    expect(listRequests()).toHaveLength(reads)
+
+    vi.setSystemTime(start + 3 * 60_000)
+    act(() => void document.dispatchEvent(new Event('visibilitychange')))
+    await waitFor(() => expect(listRequests().length).toBeGreaterThan(reads))
+    await waitFor(() => expect(hook.result.current.dartLoading).toBe(false))
+    const afterRefresh = listRequests().length
+    act(() => void document.dispatchEvent(new Event('visibilitychange')))
+    await act(async () => {})
+
+    expect(listRequests()).toHaveLength(afterRefresh)
+  })
+
+  it('shows "changed" and keeps the rows when every re-read is overtaken', async () => {
+    const { env, host, hook, meta } = openBoardPage()
+    await waitFor(() => expect(hook.result.current.dartTasks).toHaveLength(2))
+    const fetchedAt = meta()?.fetchedAt
+    const handle = host.handle.bind(host)
+    host.handle = (method, params) => {
+      if (method === 'dart.listTasks') {
+        bumpDartEpochs({ hostKey: `runtime:${env}`, accountKey: boardViewer.id })
+      }
+      return handle(method, params)
+    }
+
+    act(() => hook.result.current.setDartRefreshNonce((n) => n + 1))
+
+    await waitFor(() => expect(meta()?.partialReason).toBe('changed'))
+    expect(meta()?.fetchedAt).toBe(fetchedAt)
+    expect(hook.result.current.dartTasks).toHaveLength(2)
+  })
+
+  it('reads again after a write overtakes a refresh and publishes the settled rows', async () => {
+    const { host, hook, edit, shownRow, refresh } = await openOnBoardHost()
+    const release = host.hold('dart.listTasks')
+    act(refresh)
+    await waitFor(() => expect(host.count('dart.listTasks')).toBe(3))
+
+    await act(async () => {
+      await edit('Done')
+    })
+    await act(async () => release())
+
+    await waitFor(() => expect(hook.result.current.list.dartScopeMeta?.partialReason).toBeNull())
+    await waitFor(() => expect(shownRow()?.status).toBe('Done'))
+    expect(host.count('dart.listTasks')).toBeGreaterThan(4)
+  })
+
+  async function openOnBoardHost() {
+    nextEnv += 1
+    const env = `board-write-host-${nextEnv}`
+    const taskId = `taskBoard${String(nextEnv).padStart(4, '0')}`
+    const host = runtime.host(env)
+    host.board = true
+    host.addTask(dartTaskFixture(taskId, { description: 'Only the detail shows this' }))
+    const settings = { ...useAppStore.getState().settings!, activeRuntimeEnvironmentId: env }
+    useAppStore.setState({
+      settings,
+      dartStatus: { connected: true, viewer: boardViewer },
+      dartStatusChecked: true,
+      dartStatusContextKey: getDartReadScope(settings).contextKey,
+      dartListCache: {},
+      dartScopeMetaCache: {}
+    })
+    const context: TaskSourceContext = {
+      kind: 'task-source',
+      provider: 'dart',
+      projectId: 'project-1',
+      hostId: `runtime:${env}`,
+      providerIdentity: { provider: 'dart', userId: boardViewer.id }
+    }
+    const state = useAppStore.getState()
+    const input: PageInput = {
+      taskSource: 'dart',
+      dartConnected: true,
+      dartStatus: { connected: true, viewer: boardViewer },
+      dartTaskSourceContext: context,
+      linearAttachmentWorkspaces: [],
+      listDartTasks: state.listDartTasks,
+      fetchDartTask: state.fetchDartTask,
+      fetchDartConfig: state.fetchDartConfig
+    }
+    const row = dartTaskFixture(taskId)
+    const hook = renderHook(() => {
+      const pageKey = useAppStore((s) => getProviderRuntimeContextKey(s.settings))
+      return {
+        list: useTaskPageDartState({ ...input, providerRuntimeContextKey: pageKey }),
+        detail: useDartTaskDetailData(row, context, pageKey)
+      }
+    })
+    const edit = (status: string) => hook.result.current.detail.onUpdate({ status }, { status })
+    const shownRow = () => hook.result.current.list.dartTasks.find((task) => task.id === taskId)
+    const refresh = () => hook.result.current.list.setDartRefreshNonce((nonce) => nonce + 1)
+    await waitFor(() => expect(shownRow()).toBeTruthy())
+    await waitFor(() => expect(hook.result.current.detail.full.status).toBe('ready'))
+    return { host, hook, edit, shownRow, refresh }
+  }
+
+  it('shows an edited row from the store with no read and a created row on top without storing it', async () => {
+    const { host, hook, edit, shownRow, refresh } = await openOnBoardHost()
+    const reads = host.count('dart.listTasks')
+
+    await act(async () => {
+      await edit('Doing')
+    })
+    expect(shownRow()?.status).toBe('Doing')
+    expect(host.count('dart.listTasks')).toBe(reads)
+
+    const created = dartTaskFixture('cReAtEd12345', { status: 'Elsewhere' })
+    act(() => hook.result.current.list.noteDartTaskCreated(created))
+    const ids = () => hook.result.current.list.dartTasks.map((task) => task.id)
+    expect(ids()[0]).toBe(created.id)
+    const stored = () =>
+      Object.values(useAppStore.getState().dartListCache).flatMap(
+        (entry) => entry.data?.tasks.map((task) => task.id) ?? []
+      )
+    expect(stored()).not.toContain(created.id)
+
+    act(refresh)
+    await waitFor(() => expect(hook.result.current.list.dartLoading).toBe(false))
+    expect(ids()).toContain(created.id)
+    act(refresh)
+    await waitFor(() => expect(ids()).not.toContain(created.id))
+  })
+
+  it('lists nothing and sends no request for "mine" without a viewer id', async () => {
+    const { hook, listRequests } = openBoardPage({ viewer: false })
+    await waitFor(() => expect(hook.result.current.dartBoardPath).toBe(true))
+    await waitFor(() => expect(hook.result.current.dartLoading).toBe(false))
+
+    expect(listRequests()).toHaveLength(0)
+    expect(hook.result.current.dartTasks).toEqual([])
+    expect(hook.result.current.dartScopeMeta?.openTotal).toBe(0)
+  })
+
+  it('keeps phase 2 reads and disables the switch on a host without the board', async () => {
+    const { hook, listRequests } = openBoardPage({ board: false })
+
+    await waitFor(() => expect(hook.result.current.dartTasks).toHaveLength(2))
+
+    expect(hook.result.current.dartBoardPath).toBe(false)
+    expect(hook.result.current.dartLayoutSwitchDisabledReason).toBe('oldHost')
+    expect(hook.result.current.dartLayout).toBe('list')
+    expect(listRequests().map(({ params }) => params)).toEqual([
+      expect.objectContaining({ limit: 100 })
+    ])
+    expect(listRequests()[0]?.params).not.toHaveProperty('order')
+  })
+
+  it('turns linked mode off when a saved view is applied', async () => {
+    const { host, hook } = openBoardPage()
+    host.savedViewState = {
+      views: [
+        {
+          id: 'view-one',
+          name: 'Everything',
+          filters: {
+            mine: false,
+            status: null,
+            dartboard: null,
+            search: '',
+            tag: 'backend',
+            priority: null,
+            onHold: false
+          },
+          layout: 'board',
+          showEmptyColumns: true
+        }
+      ],
+      activeViewId: null
+    }
+    await waitFor(() => expect(hook.result.current.dartBoardPath).toBe(true))
+    await waitFor(() => expect(hook.result.current.dartSavedViews.views).toHaveLength(1))
+    act(() => hook.result.current.setDartHasWorkspace(true))
+    expect(hook.result.current.dartLayoutSwitchDisabledReason).toBe('linked')
+    expect(hook.result.current.dartLayout).toBe('list')
+
+    await act(async () => {
+      await hook.result.current.dartSavedViews.apply('view-one')
+    })
+
+    expect(hook.result.current.dartHasWorkspace).toBe(false)
+    expect(hook.result.current.dartFilters).toMatchObject({ mine: false, tag: 'backend' })
+    expect(hook.result.current.dartLayout).toBe('board')
+    expect(hook.result.current.dartShowEmptyColumns).toBe(true)
+    expect(hook.result.current.dartSavedViews.modified).toBe(false)
+    act(() => hook.result.current.setDartFilter('tag', null))
+    expect(hook.result.current.dartSavedViews.modified).toBe(true)
   })
 })
