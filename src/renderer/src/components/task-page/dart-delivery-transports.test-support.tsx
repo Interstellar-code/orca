@@ -149,6 +149,8 @@ export function addRemote(options: OpenOptions = {}): {
   return { environmentId, host }
 }
 
+const DESKTOP_IPC = 'desktop IPC'
+
 export const TRANSPORTS: Transport[] = [
   {
     name: 'remote RPC',
@@ -174,5 +176,33 @@ export const TRANSPORTS: Transport[] = [
       seedPage(null)
       return host
     }
+  },
+  {
+    name: DESKTOP_IPC,
+    open: (options = {}) => {
+      if (!runtime) {
+        throw new Error('installDeliveryRuntime() must run before open()')
+      }
+      freshSource()
+      const host = runtime.host(null)
+      applyFlags(host, options)
+      serveConfigAndComments(host)
+      host.addTask(SOURCE)
+      const bridge = window.api.dart
+      // The shared fake's local bridge has no config or comments methods; route them to the same host.
+      Object.assign(window.api, {
+        dart: {
+          ...bridge,
+          config: () => host.handle('dart.config', {}),
+          listComments: (params: Parameters<FakeDartHost['handle']>[1]) =>
+            host.handle('dart.listComments', params)
+        }
+      })
+      seedPage(null)
+      return host
+    }
   }
 ]
+
+/** The desktop bridge always supports writes v2 and a Dart provider, so those degraded hosts exist only over RPC and web. */
+export const NETWORK_TRANSPORTS = TRANSPORTS.filter((transport) => transport.name !== DESKTOP_IPC)

@@ -14,6 +14,7 @@ import type { FakeDartHost } from '@/store/slices/dart/dart-fake-runtime.test-su
 import { clearDartProviderVerdictCacheForTests } from '@/web/preload-api/web-dart-api'
 import {
   addRemote,
+  NETWORK_TRANSPORTS,
   installDeliveryRuntime,
   probedSelectors,
   remoteCapabilities,
@@ -170,7 +171,7 @@ describe.each(TRANSPORTS)('field edits over the $name', (transport) => {
   })
 })
 
-describe.each(TRANSPORTS)('a host without dart.writes.v2 over the $name', (transport) => {
+describe.each(NETWORK_TRANSPORTS)('a host without dart.writes.v2 over the $name', (transport) => {
   it('edits the supported fields and sends no size, date or description patch', async () => {
     const host = transport.open({ writesV2: false })
     host.tasks.set(SOURCE.id, { ...SOURCE, size: '3', dueAt: '2026-11-20T00:00:00.000Z' })

@@ -515,6 +515,34 @@ describe('readMoreDone', () => {
     expect(mountedEntry().meta?.generation).toBe(1)
   })
 
+  it('keeps the cursor and sends nothing while a client filter changes, then reads the next raw offset', async () => {
+    const host = runtime.host(null)
+    await loaded(3, 400)
+    await store.getState().readMoreDone(FILTERS, { features: FEATURES })
+    await store.getState().readMoreDone(FILTERS, { features: FEATURES })
+    const before = mountedEntry()
+    const requestsBefore = listRequests(host).length
+    const idsBefore = doneIds()
+
+    // The client filter is page state: it narrows what is shown and never reaches the store or the host.
+    const shown = (before.entry?.data?.tasks ?? []).filter((task) => task.status === 'Done')
+
+    expect(shown.length).toBeGreaterThan(0)
+    expect(listRequests(host)).toHaveLength(requestsBefore)
+    expect(mountedEntry().meta).toMatchObject({ doneOffset: 150, generation: 1 })
+    expect(mountedEntry().meta).toBe(before.meta)
+    expect(doneIds()).toEqual(idsBefore)
+
+    await store.getState().readMoreDone(FILTERS, { features: FEATURES })
+
+    expect(listRequests(host)).toHaveLength(requestsBefore + 1)
+    expect(listRequests(host).at(-1)?.params.offset).toBe(150)
+    expect(mountedEntry().meta).toMatchObject({ doneOffset: 200, generation: 1 })
+    const ids = doneIds()
+    expect(ids).toHaveLength(200)
+    expect(new Set(ids).size).toBe(200)
+  })
+
   it('advances the cursor by raw rows when some are unmappable', async () => {
     const host = runtime.host(null)
     await loaded(3, 120)
