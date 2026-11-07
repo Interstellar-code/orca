@@ -1,5 +1,6 @@
 import {
   DART_SAVED_VIEWS_RUNTIME_CAPABILITY,
+  DART_SAVED_VIEWS_UPDATE_REQUIRED,
   normalizeDartSavedViewState,
   type DartSavedViewMutation,
   type DartSavedViewState
@@ -23,6 +24,18 @@ async function remoteSupportsSavedViews(environmentId: string): Promise<boolean>
   )
 }
 
+// Why: the web bridge refuses with this message when the paired host lacks the capability.
+async function callLocalBridge(call: () => Promise<unknown>): Promise<DartSavedViewStateResult> {
+  try {
+    return { supported: true, state: normalizeDartSavedViewState(await call()) }
+  } catch (error) {
+    if (error instanceof Error && error.message === DART_SAVED_VIEWS_UPDATE_REQUIRED) {
+      return UNSUPPORTED
+    }
+    throw error
+  }
+}
+
 export async function readDartSavedViewState(
   target: RuntimeClientTarget
 ): Promise<DartSavedViewStateResult> {
@@ -35,13 +48,11 @@ export async function readDartSavedViewState(
     })
     return { supported: true, state: normalizeDartSavedViewState(reply) }
   }
-  if (!window.api.ui.getDartSavedViews) {
+  const read = window.api.ui.getDartSavedViews
+  if (!read) {
     return UNSUPPORTED
   }
-  return {
-    supported: true,
-    state: normalizeDartSavedViewState(await window.api.ui.getDartSavedViews())
-  }
+  return callLocalBridge(() => read())
 }
 
 export async function mutateDartSavedViews(
@@ -57,11 +68,9 @@ export async function mutateDartSavedViews(
     })
     return { supported: true, state: normalizeDartSavedViewState(reply) }
   }
-  if (!window.api.ui.mutateDartSavedViews) {
+  const mutate = window.api.ui.mutateDartSavedViews
+  if (!mutate) {
     return UNSUPPORTED
   }
-  return {
-    supported: true,
-    state: normalizeDartSavedViewState(await window.api.ui.mutateDartSavedViews(mutation))
-  }
+  return callLocalBridge(() => mutate(mutation))
 }

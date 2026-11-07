@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   DART_SAVED_VIEWS_RUNTIME_CAPABILITY,
+  DART_SAVED_VIEWS_UPDATE_REQUIRED,
   type DartSavedView,
   type DartSavedViewMutation
 } from '../../../shared/dart/dart-saved-views'
@@ -142,6 +143,26 @@ describe('Dart saved view state client', () => {
     await expect(mutateDartSavedViews({ kind: 'local' }, saveMutation)).resolves.toEqual({
       supported: false
     })
+  })
+
+  it('reports unsupported when the web bridge refuses with the update-required message', async () => {
+    getLocal.mockRejectedValue(new Error(DART_SAVED_VIEWS_UPDATE_REQUIRED))
+    mutateLocal.mockRejectedValue(new Error(DART_SAVED_VIEWS_UPDATE_REQUIRED))
+
+    await expect(readDartSavedViewState({ kind: 'local' })).resolves.toEqual({ supported: false })
+    await expect(mutateDartSavedViews({ kind: 'local' }, saveMutation)).resolves.toEqual({
+      supported: false
+    })
+  })
+
+  it('still throws other local bridge errors from read and mutate', async () => {
+    getLocal.mockRejectedValue(new Error('boom'))
+    mutateLocal.mockRejectedValue(new Error('A view with that name already exists.'))
+
+    await expect(readDartSavedViewState({ kind: 'local' })).rejects.toThrow('boom')
+    await expect(mutateDartSavedViews({ kind: 'local' }, saveMutation)).rejects.toThrow(
+      'already exists'
+    )
   })
 
   it('propagates a host refusal from a local or remote mutate', async () => {
