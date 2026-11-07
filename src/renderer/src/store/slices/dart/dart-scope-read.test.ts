@@ -317,6 +317,9 @@ describe('publishDartScope', () => {
     expect(entry?.data?.tasks).toHaveLength(500)
     expect(meta).toMatchObject({ incomplete: true, partialReason: 'rateLimited', openTotal: 600 })
     expect(entry?.data?.totalCount).toBe(600)
+    // Only a complete read set counts as fresh: no age label, and a re-mount reads again.
+    expect(meta?.fetchedAt).toBe(0)
+    expect(entry?.fetchedAt).toBe(0)
   })
 
   it('keeps the entry and sets only the reason for a read set a write overtook', async () => {
@@ -342,6 +345,34 @@ describe('publishDartScope', () => {
     expect(entry).toBeUndefined()
     expect(store.getState().dartListCache[key]).toBeUndefined()
     expect(meta).toMatchObject({ partialReason: 'changed', openTotal: 0 })
+  })
+
+  it('lets an overtaken read win over its failure and keeps the entry', async () => {
+    const host = runtime.host(null)
+    seed(host, 600)
+    connectViewer()
+    await readAndPublish()
+    const first = mountedEntry()
+    host.failListRequest(7)
+
+    await readAndPublish(FILTERS, false)
+
+    const { entry, meta } = mountedEntry()
+    expect(entry).toBe(first.entry)
+    expect(meta).toEqual({ ...first.meta, partialReason: 'changed' })
+  })
+
+  it('publishes no rows for a failed first read that a write overtook', async () => {
+    const host = runtime.host(null)
+    seed(host, 600)
+    connectViewer()
+    host.failListRequest(3)
+
+    await readAndPublish(FILTERS, false)
+
+    const { entry, meta } = mountedEntry()
+    expect(entry).toBeUndefined()
+    expect(meta).toMatchObject({ partialReason: 'changed', fetchedAt: 0 })
   })
 
   it('counts a replaced complete read as a new generation', async () => {

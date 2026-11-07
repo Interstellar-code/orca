@@ -113,23 +113,25 @@ export function createDartScopeReadActions(
         const entry = state.dartListCache[key]
         const previous = state.dartScopeMetaCache[key] ?? metaForEntry(entry)
         const failure = result.failure
-        const partialReason = failure?.reason ?? (current ? null : 'changed')
-        const publishRows = !entry && (failure !== null || current)
-        const replaces = failure === null && current
+        // A read set a write overtook never publishes rows, failed or not.
+        const partialReason = current ? (failure?.reason ?? null) : 'changed'
+        const completeRead = current && failure === null
+        const partialFirstRead = current && failure !== null && !entry
         let listCache = state.dartListCache
         let meta: DartScopeMeta
-        if (replaces || publishRows) {
-          const tasks = current ? withPendingDartPatches(result.tasks, account) : [...result.tasks]
+        if (completeRead || partialFirstRead) {
+          const tasks = withPendingDartPatches(result.tasks, account)
+          const fetchedAt = completeRead ? now : 0
           listCache = {
             ...listCache,
-            [key]: { data: { tasks, totalCount: result.openTotal }, fetchedAt: now }
+            [key]: { data: { tasks, totalCount: result.openTotal }, fetchedAt }
           }
           meta = {
             openTotal: result.openTotal,
             doneTotal: result.doneTotal,
             doneOffset: result.doneOffset,
             generation: previous.generation + 1,
-            fetchedAt: now,
+            fetchedAt,
             incomplete: result.incomplete,
             partialReason
           }
