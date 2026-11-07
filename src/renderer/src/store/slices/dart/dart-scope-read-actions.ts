@@ -43,7 +43,7 @@ let scopeReadSequence = 0
 let scopeReadSetToken = 0
 
 // Fixed key order, so a full filter object and its three server fields name the same entry.
-function dartScopeCacheKey(scope: DartReadScope, filters: DartServerFilters): string {
+export function dartScopeCacheKey(scope: DartReadScope, filters: DartServerFilters): string {
   const { mine, dartboard, search } = filters
   return scopedDartCacheKey(scope, `list::scope::${JSON.stringify({ mine, dartboard, search })}`)
 }

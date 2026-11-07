@@ -1,66 +1,56 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type {
-  DartConnectionStatus,
-  DartTask,
-  DartTaskPage,
-  DartWorkspaceConfig
-} from '../../../../../shared/dart/dart-types'
-import type { DartListTasksArgs } from '../../../../../shared/rpc-contract/dart-params'
+import type { DartLayout } from '../../../../../shared/dart/dart-saved-views'
+import type { DartConnectionStatus, DartTask } from '../../../../../shared/dart/dart-types'
 import type { TaskProvider } from '../../../../../shared/task-providers'
 import type { TaskSourceContext } from '../../../../../shared/task-source-context'
 import type { Worktree } from '../../../../../shared/worktree/types'
-import { translate } from '@/i18n/i18n'
 import {
   buildDartTaskWorkspaceAttachmentIndex,
   collectLinkedDartTaskRefs,
   findDartTaskWorkspaceAttachmentsInIndex
 } from '@/lib/dart-issue-workspace-attachment'
-import { taskProviderErrorMessage } from '@/lib/task-provider-error-copy'
-import type { DartClientResult } from '@/runtime/runtime-dart-client'
 import { useAppStore } from '@/store'
-import { dartPageScopeFromContextKey } from '@/store/slices/dart/dart-read-coordination'
 import {
-  captureDartEpoch,
-  dartAccountIdentity,
-  dartScopeViewerId
-} from '@/store/slices/dart/dart-task-identity'
-import { readPastDartWrites } from './dart-stale-read'
-import {
-  buildDartListArgs,
-  sortDartTasksByRecency,
-  type DartListFilters
-} from './task-page-dart-list-model'
-import { filterLinkedDartTasks, readLinkedDartTasks } from './task-page-dart-linked-issues'
+  dartPageScopeFromContextKey,
+  getDartReadScope
+} from '@/store/slices/dart/dart-read-coordination'
+import { dartScopeCacheKey } from '@/store/slices/dart/dart-scope-read-actions'
+import { dartAccountIdentity, dartScopeViewerId } from '@/store/slices/dart/dart-task-identity'
+import type { DartBoardFeatures, DartScopeMeta } from './dart-board-contracts'
+import { splitDartBoardFilters } from './task-page-dart-list-model'
 import { useDartAccountFilters } from './use-dart-account-filters'
+import { useDartBoardModel } from './use-dart-board-model'
+import { useDartHostFeatures } from './use-dart-host-features'
+import { useDartFilterActions } from './use-dart-filter-actions'
+import { useDartDisplayedTasks } from './use-dart-displayed-tasks'
 import { useDartListPinnedRows } from './use-dart-list-pinned-rows'
+import {
+  useDartListRead,
+  type DartListReadActions,
+  type TaskPageDartError
+} from './use-dart-list-read'
+import { useDartViewMode } from './use-dart-view-mode'
+import { useDartVisibilityRefresh } from './use-dart-visibility-refresh'
+import { useDartWorkspaceConfig } from './use-dart-workspace-config'
+import { useDartSavedViewState } from './use-dart-saved-view-state'
 
-export type TaskPageDartError = { message: string; code?: string }
+export type { TaskPageDartError }
 
-type DartListOutcome = {
-  tasks: DartTask[]
-  totalCount: number
-  error: TaskPageDartError | null
-}
-
-export type TaskPageDartStateInput = {
+export type TaskPageDartStateInput = Pick<
+  DartListReadActions,
+  'listDartTasks' | 'fetchDartTask' | 'fetchDartConfig' | 'openDartDetailPage'
+> & {
   providerRuntimeContextKey: string
   taskSource: TaskProvider
   dartConnected: boolean
   dartStatus: DartConnectionStatus
   dartTaskSourceContext: TaskSourceContext | null
   linearAttachmentWorkspaces: readonly Worktree[]
-  listDartTasks: (
-    args?: DartListTasksArgs,
-    options?: { force?: boolean }
-  ) => Promise<DartClientResult<DartTaskPage>>
-  fetchDartTask: (
-    taskId: string,
-    options?: { sourceContext?: TaskSourceContext | null; force?: boolean }
-  ) => Promise<DartClientResult<{ task: DartTask }>>
-  fetchDartConfig: (options?: {
-    force?: boolean
-  }) => Promise<DartClientResult<{ config: DartWorkspaceConfig }>>
 }
+
+export type DartLayoutSwitchDisabledReason = 'linked' | 'oldHost'
+
+const EMPTY_TASKS: readonly DartTask[] = []
 
 export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(model: TModel) {
   const {
@@ -74,15 +64,13 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
     fetchDartTask,
     fetchDartConfig
   } = model
-  const [dartSearchInput, setDartSearchInput] = useState('')
+  const readDartScope = useAppStore((s) => s.readDartScope)
+  const publishDartScope = useAppStore((s) => s.publishDartScope)
   const [dartHasWorkspace, setDartHasWorkspace] = useState(false)
   const [dartRefreshNonce, setDartRefreshNonce] = useState(0)
   const [dartTasks, setDartTasks] = useState<DartTask[]>([])
   const [dartTotalCount, setDartTotalCount] = useState(0)
-  const [dartLoading, setDartLoading] = useState(false)
-  const [dartError, setDartError] = useState<TaskPageDartError | null>(null)
-  const [dartConfig, setDartConfig] = useState<DartWorkspaceConfig | null>(null)
-  const [dartConfigError, setDartConfigError] = useState<string | null>(null)
+  const { viewMode, setViewMode, setDartLayout, setDartShowEmptyColumns } = useDartViewMode()
   const active = taskSource === 'dart' && dartConnected
   const viewerId = dartStatus.viewer?.id ?? null
   const pageScope = useMemo(
@@ -92,24 +80,76 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
   const accountViewerId = useAppStore((s) => dartScopeViewerId(s, pageScope))
   const { hostKey, accountKey } = dartAccountIdentity(pageScope, accountViewerId)
   const [dartFilters, setDartFilters] = useDartAccountFilters(hostKey, accountKey)
-  const configOwnerKey = JSON.stringify([hostKey, accountViewerId])
-  const configOwnerRef = useRef(configOwnerKey)
-  const configIsCurrent = configOwnerRef.current === configOwnerKey
-  const shownRowsKeyRef = useRef<string | null>(null)
-  const { clearPinsOnNewList, mergeListRead, noteDartTaskCreated } = useDartListPinnedRows({
+  const { dartSearchInput, setDartSearchInput, setDartFilter, applyDartSearch } =
+    useDartFilterActions(setDartFilters)
+  // Latest callbacks stay out of effect deps so identity churn never refetches.
+  const actions: DartListReadActions = {
+    listDartTasks,
+    fetchDartTask,
+    fetchDartConfig,
+    readDartScope,
+    publishDartScope,
+    openDartDetailPage: model.openDartDetailPage
+  }
+  const actionsRef = useRef(actions)
+  useEffect(() => {
+    actionsRef.current = actions
+  })
+  const { dartConfig, dartConfigError } = useDartWorkspaceConfig({
+    active,
+    refreshNonce: dartRefreshNonce,
+    hostKey,
+    accountViewerId,
+    fetchDartConfig
+  })
+  const { featuresReady, hostFeatures } = useDartHostFeatures({
+    active,
+    hostKey,
+    target: pageScope.target
+  })
+  const hostSupportsBoard = hostFeatures?.board === true
+  const boardPath = hostSupportsBoard && !dartHasWorkspace
+  const layout: DartLayout = boardPath ? viewMode.layout : 'list'
+  const layoutSwitchDisabledReason: DartLayoutSwitchDisabledReason | null = dartHasWorkspace
+    ? 'linked'
+    : featuresReady && !hostSupportsBoard
+      ? 'oldHost'
+      : null
+  const { server, client } = splitDartBoardFilters(dartFilters)
+  const serverFiltersKey = JSON.stringify(server)
+  // oxlint-disable-next-line react-hooks/exhaustive-deps -- Why: serverFiltersKey fingerprints the three server filters.
+  const serverFilters = useMemo(() => server, [serverFiltersKey])
+  const { status, tag, priority, onHold } = client
+  // oxlint-disable-next-line react-hooks/exhaustive-deps -- Why: the four client filters are listed individually.
+  const clientFilters = useMemo(() => client, [status, tag, priority, onHold])
+  const scopeKey = useMemo(
+    () =>
+      boardPath
+        ? dartScopeCacheKey(getDartReadScope(useAppStore.getState().settings), serverFilters)
+        : null,
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- Why: the page context key names the host the default scope resolves to.
+    [boardPath, serverFilters, providerRuntimeContextKey]
+  )
+  const scopeEntry = useAppStore((s) => (scopeKey ? s.dartListCache[scopeKey] : undefined))
+  const scopeMeta: DartScopeMeta | null = useAppStore((s) =>
+    scopeKey ? (s.dartScopeMetaCache[scopeKey] ?? null) : null
+  )
+  const baseTasks: readonly DartTask[] = boardPath
+    ? (scopeEntry?.data?.tasks ?? EMPTY_TASKS)
+    : dartTasks
+
+  const patchLocalRow = useCallback((taskId: string, fields: Partial<DartTask>) => {
+    setDartTasks((rows) =>
+      rows.map((candidate) => (candidate.id === taskId ? { ...candidate, ...fields } : candidate))
+    )
+  }, [])
+  const { pinnedRows, clearPinsOnNewList, noteDartTaskCreated } = useDartListPinnedRows({
     active,
     hostKey,
     accountKey,
-    dartTasks,
-    setDartTasks,
-    setDartTotalCount
+    tasks: baseTasks,
+    onRowPatch: boardPath ? undefined : patchLocalRow
   })
-  // Latest callbacks stay out of effect deps so identity churn never refetches.
-  const actionsRef = useRef({ listDartTasks, fetchDartTask, fetchDartConfig })
-  useEffect(() => {
-    actionsRef.current = { listDartTasks, fetchDartTask, fetchDartConfig }
-  })
-
   const attachmentIndex = useMemo(
     () => buildDartTaskWorkspaceAttachmentIndex(linearAttachmentWorkspaces),
     [linearAttachmentWorkspaces]
@@ -125,150 +165,85 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
   )
   const linkedRefsSignature = JSON.stringify(linkedRefs)
 
-  useEffect(() => {
-    if (!active) {
-      return
-    }
-    let cancelled = false
-    configOwnerRef.current = configOwnerKey
-    setDartConfigError(null)
-    setDartConfig(null)
-    void actionsRef.current
-      .fetchDartConfig({ force: dartRefreshNonce > 0 })
-      .then((result) => {
-        if (cancelled) {
-          return
-        }
-        if (result.ok) {
-          setDartConfig(result.config)
-        } else {
-          setDartConfigError(taskProviderErrorMessage(result))
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setDartConfigError(
-            translate(
-              'auto.components.task.page.dart.TaskCreateDialog.configFailed',
-              'Could not load Dart configuration.'
-            )
-          )
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [active, dartRefreshNonce, accountViewerId, configOwnerKey])
-
   const searchKey = dartFilters.search
-  const listKey = JSON.stringify([
-    dartFilters.mine,
-    dartFilters.status,
-    dartFilters.dartboard,
-    searchKey,
-    viewerId
-  ])
-  useEffect(() => {
-    if (!active) {
-      return
-    }
-    let cancelled = false
-    clearPinsOnNewList(JSON.stringify([hostKey, listKey, dartHasWorkspace, dartRefreshNonce]))
-    const rowsKey = JSON.stringify([hostKey, listKey, dartHasWorkspace, linkedRefsSignature])
-    setDartLoading(true)
-    setDartError(null)
-    const listArgs = dartHasWorkspace ? null : buildDartListArgs(dartFilters, viewerId)
-    const readList = (force: boolean): Promise<DartListOutcome> => {
-      const request: Promise<DartListOutcome> = dartHasWorkspace
-        ? readLinkedDartTasks(
-            linkedRefs,
-            (taskId, options) => actionsRef.current.fetchDartTask(taskId, options),
-            dartTaskSourceContext,
-            force
-          ).then((linked) => ({
-            tasks: linked.tasks,
-            totalCount: linked.tasks.length,
-            error: linked.error
-          }))
-        : listArgs === null
-          ? Promise.resolve({ tasks: [], totalCount: 0, error: null })
-          : actionsRef.current.listDartTasks(listArgs, { force }).then((result) =>
-              result.ok
-                ? {
-                    tasks: result.tasks,
-                    totalCount: result.totalCount,
-                    error: null
-                  }
-                : {
-                    tasks: [],
-                    totalCount: 0,
-                    error: {
-                      message: taskProviderErrorMessage(result),
-                      code: result.errorCode
-                    }
-                  }
-            )
-      return request.catch((): DartListOutcome => ({
-        tasks: [],
-        totalCount: 0,
-        error: { message: '' }
-      }))
-    }
-    void readPastDartWrites({
-      captureEpoch: () => captureDartEpoch({ hostKey }),
-      cancelled: () => cancelled,
-      force: dartRefreshNonce > 0,
-      read: readList
-    }).then(({ result, current }) => {
-      if (cancelled) {
-        return
-      }
-      setDartLoading(false)
-      // Past the re-read limit the rows on screen stay, unless they answer another filter.
-      if (!current && shownRowsKeyRef.current === rowsKey) {
-        return
-      }
-      shownRowsKeyRef.current = rowsKey
-      const outcome = mergeListRead(result)
-      setDartTasks(outcome.tasks)
-      setDartTotalCount(outcome.totalCount)
-      setDartError(outcome.error)
-    })
-    return () => {
-      cancelled = true
-    }
-    // oxlint-disable-next-line react-hooks/exhaustive-deps -- Why: listKey/linkedRefsSignature fingerprint the filters and refs read here.
-  }, [
+  // Status is a server filter only on the list-only read path (D2.7, D11).
+  const listKey = JSON.stringify(
+    boardPath
+      ? [serverFiltersKey, viewerId]
+      : [dartFilters.mine, dartFilters.status, dartFilters.dartboard, searchKey, viewerId]
+  )
+  const { dartLoading, dartError } = useDartListRead({
     active,
+    featuresReady,
+    boardPath,
+    hostFeatures,
     listKey,
-    dartHasWorkspace,
+    filters: dartFilters,
+    serverFilters,
+    hasWorkspace: dartHasWorkspace,
+    linkedRefs,
     linkedRefsSignature,
-    dartRefreshNonce,
+    sourceContext: dartTaskSourceContext,
+    refreshNonce: dartRefreshNonce,
     hostKey,
-    accountKey
-  ])
+    accountKey,
+    viewerId,
+    actionsRef,
+    clearPinsOnNewList,
+    setDartTasks,
+    setDartTotalCount
+  })
+  useDartVisibilityRefresh({
+    enabled: active && boardPath,
+    fetchedAt: scopeMeta?.fetchedAt ?? 0,
+    loading: dartLoading,
+    onStale: () => setDartRefreshNonce((n) => n + 1)
+  })
 
-  const displayedDartTasks = useMemo(
-    () =>
-      sortDartTasksByRecency(
-        dartHasWorkspace ? filterLinkedDartTasks(dartTasks, searchKey) : dartTasks
-      ),
-    [dartTasks, dartHasWorkspace, searchKey]
-  )
+  const { tasks: displayedDartTasks, totalCount: displayedTotalCount } = useDartDisplayedTasks({
+    boardPath,
+    hasWorkspace: dartHasWorkspace,
+    layout,
+    baseTasks,
+    localTotal: dartTotalCount,
+    scopeMeta,
+    pinnedRows,
+    hostKey,
+    accountKey,
+    search: searchKey,
+    clientFilters
+  })
 
-  const setDartFilter = useCallback(
-    <K extends keyof DartListFilters>(key: K, value: DartListFilters[K]) =>
-      setDartFilters((current) => ({ ...current, [key]: value })),
-    [setDartFilters]
+  const dartSavedViews = useDartSavedViewState({
+    active,
+    target: pageScope.target,
+    filters: dartFilters,
+    viewMode,
+    setViewMode,
+    setFilters: setDartFilters,
+    setSearchInput: setDartSearchInput,
+    setHasWorkspace: setDartHasWorkspace
+  })
+  const boardFeatures: DartBoardFeatures = useMemo(
+    () => ({ board: hostSupportsBoard, savedViews: dartSavedViews.supported }),
+    [hostSupportsBoard, dartSavedViews.supported]
   )
-  const applyDartSearch = useCallback(
-    (value: string) => {
-      const trimmed = value.trim()
-      setDartSearchInput(trimmed)
-      setDartFilter('search', trimmed)
-    },
-    [setDartFilter]
-  )
+  const openDartTask = useCallback((task: DartTask) => {
+    actionsRef.current.openDartDetailPage?.(task)
+  }, [])
+  const dartBoardModel = useDartBoardModel({
+    scopeKey,
+    layout,
+    serverFilters,
+    clientFilters,
+    showEmptyColumns: viewMode.showEmptyColumns,
+    config: dartConfig,
+    features: boardFeatures,
+    hostKey,
+    accountKey,
+    pinnedRows,
+    onOpenTask: openDartTask
+  })
 
   // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the fields added below are assigned right after this cast, before the model is returned.
   const nextModel = model as TModel & {
@@ -288,6 +263,15 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
     dartConfigError?: typeof dartConfigError
     getDartTaskWorkspaces: typeof getDartTaskWorkspaces
     noteDartTaskCreated: typeof noteDartTaskCreated
+    dartLayout: DartLayout
+    setDartLayout: typeof setDartLayout
+    dartShowEmptyColumns: boolean
+    setDartShowEmptyColumns: typeof setDartShowEmptyColumns
+    dartLayoutSwitchDisabledReason: DartLayoutSwitchDisabledReason | null
+    dartBoardPath: boolean
+    dartScopeMeta: DartScopeMeta | null
+    dartBoardModel: typeof dartBoardModel
+    dartSavedViews: typeof dartSavedViews
   }
   nextModel.dartFilters = dartFilters
   nextModel.setDartFilter = setDartFilter
@@ -298,13 +282,22 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
   nextModel.setDartHasWorkspace = setDartHasWorkspace
   nextModel.setDartRefreshNonce = setDartRefreshNonce
   nextModel.dartTasks = displayedDartTasks
-  nextModel.dartTotalCount = dartTotalCount
-  nextModel.dartLoading = dartLoading
+  nextModel.dartTotalCount = displayedTotalCount
+  nextModel.dartLoading = dartLoading || (active && !featuresReady)
   nextModel.dartError = dartError
-  nextModel.dartConfig = configIsCurrent && accountViewerId ? dartConfig : null
-  nextModel.dartConfigError = configIsCurrent && accountViewerId ? dartConfigError : null
+  nextModel.dartConfig = dartConfig
+  nextModel.dartConfigError = dartConfigError
   nextModel.getDartTaskWorkspaces = getDartTaskWorkspaces
   nextModel.noteDartTaskCreated = noteDartTaskCreated
+  nextModel.dartLayout = layout
+  nextModel.setDartLayout = setDartLayout
+  nextModel.dartShowEmptyColumns = viewMode.showEmptyColumns
+  nextModel.setDartShowEmptyColumns = setDartShowEmptyColumns
+  nextModel.dartLayoutSwitchDisabledReason = layoutSwitchDisabledReason
+  nextModel.dartBoardPath = boardPath
+  nextModel.dartScopeMeta = scopeMeta
+  nextModel.dartBoardModel = dartBoardModel
+  nextModel.dartSavedViews = dartSavedViews
   return nextModel
 }
 export type TaskPageDartStateFields = Omit<

@@ -10,10 +10,18 @@ import { taskProviderErrorText } from '@/lib/task-provider-error-copy'
 import { activateAndRevealWorktree } from '@/lib/worktree-activation'
 import { dartUpdateRequiredMessage } from '@/runtime/runtime-dart-client'
 import type { TaskPageComposerActionsModel } from '../use-task-page-composer-actions'
+import { isDartTaskFinished } from './dart-board-columns'
+import { DartBoard } from './DartBoard'
 import { TaskPageDartTaskList } from './TaskList'
 import { TaskPageDartTaskDetail } from './TaskDetail'
 import { TaskPageDartCreateDialog } from './TaskCreateDialog'
-import { isDartAuthFailureCode, isDartListTruncated } from './task-page-dart-list-model'
+import {
+  buildDartCountLine,
+  isDartAuthFailureCode,
+  isDartListTruncated,
+  splitDartBoardFilters,
+  hasDartClientFilter
+} from './task-page-dart-list-model'
 
 function CenteredState({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
@@ -41,6 +49,12 @@ export function TaskPageDartContent({
     dartLoading,
     dartError,
     dartHasWorkspace,
+    dartBoardPath,
+    dartLayout,
+    dartScopeMeta,
+    dartBoardModel,
+    dartFilters,
+    setDartRefreshNonce,
     getDartTaskWorkspaces,
     selectedDartTask,
     dartDetailSourceContext,
@@ -133,7 +147,20 @@ export function TaskPageDartContent({
     )
   }
 
-  const truncated = !dartHasWorkspace && isDartListTruncated(dartTasks.length, dartTotalCount)
+  const truncated =
+    !dartBoardPath && !dartHasWorkspace && isDartListTruncated(dartTasks.length, dartTotalCount)
+  const countLine =
+    dartBoardPath && dartScopeMeta
+      ? buildDartCountLine({
+          meta: dartScopeMeta,
+          loadedOpen: dartTasks.filter((task) => !isDartTaskFinished(task)).length,
+          loadedDone: dartTasks.filter(isDartTaskFinished).length,
+          clientFilterActive: hasDartClientFilter(splitDartBoardFilters(dartFilters).client)
+        })
+      : null
+  const refresh = (): void => setDartRefreshNonce((n) => n + 1)
+  const readChanged = dartBoardPath && dartScopeMeta?.partialReason === 'changed'
+  const { doneMore, hasMoreDone, showMoreDone } = dartBoardModel
   const authFailed = isDartAuthFailureCode(dartError?.code)
   const showEmpty = !dartLoading && dartTasks.length === 0 && !dartError
 
@@ -143,10 +170,24 @@ export function TaskPageDartContent({
         <div className="min-w-0 text-2xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
           {translate('auto.components.task.page.dart.Content.listTitle', 'Dart tasks')}
         </div>
-        <div className="shrink-0 text-2xs text-muted-foreground">
-          {translate('auto.components.task.page.dart.Content.shownCount', '{{count}} shown', {
-            count: dartTasks.length
-          })}
+        <div role="status" className="shrink-0 text-2xs text-muted-foreground">
+          {countLine ? (
+            <>
+              {countLine.text}
+              {countLine.offersRefresh ? (
+                <>
+                  {' '}
+                  <button type="button" className="underline" onClick={refresh}>
+                    {translate('auto.components.task.page.dart.Content.countRefresh', 'Refresh')}
+                  </button>
+                </>
+              ) : null}
+            </>
+          ) : (
+            translate('auto.components.task.page.dart.Content.shownCount', '{{count}} shown', {
+              count: dartTasks.length
+            })
+          )}
         </div>
       </div>
       <div
@@ -166,6 +207,26 @@ export function TaskPageDartContent({
                 { count: dartTasks.length, total: dartTotalCount }
               )}
             </span>
+          </div>
+        ) : null}
+
+        {readChanged ? (
+          <div
+            role="status"
+            className="flex items-center gap-2 border-b border-border/50 bg-muted/35 px-4 py-2 text-xs text-muted-foreground"
+          >
+            <Info className="size-3.5 flex-none" />
+            <span>
+              {translate(
+                'auto.components.task.page.dart.Content.readChanged',
+                'Tasks changed while loading. Refresh to try again.'
+              )}
+            </span>
+            {dartTasks.length === 0 ? (
+              <Button type="button" variant="outline" size="xs" onClick={refresh}>
+                {translate('auto.components.task.page.dart.Content.readRetry', 'Retry')}
+              </Button>
+            ) : null}
           </div>
         ) : null}
 
@@ -231,7 +292,11 @@ export function TaskPageDartContent({
           </div>
         ) : null}
 
-        {dartTasks.length > 0 ? (
+        {dartTasks.length > 0 && dartBoardPath && dartLayout === 'board' ? (
+          <DartBoard model={dartBoardModel} selectedTaskId={selectedDartTask?.id ?? null} />
+        ) : null}
+
+        {dartTasks.length > 0 && dartLayout === 'list' ? (
           <TaskPageDartTaskList
             tasks={dartTasks}
             selectedTaskId={selectedDartTask?.id ?? null}
@@ -240,6 +305,28 @@ export function TaskPageDartContent({
             onStartWorkspace={handleUseDartItem}
             onOpenWorkspace={openWorkspace}
           />
+        ) : null}
+
+        {dartBoardPath && dartLayout === 'list' && hasMoreDone ? (
+          <div className="flex flex-col items-center gap-2 border-t border-border/50 px-4 py-3">
+            {doneMore.error ? (
+              <p role="alert" className="text-xs text-destructive">
+                {doneMore.error}
+              </p>
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={doneMore.state === 'loading'}
+              onClick={showMoreDone}
+            >
+              {translate(
+                'auto.components.task.page.dart.Content.showMoreDone',
+                'Show 50 more finished'
+              )}
+            </Button>
+          </div>
         ) : null}
       </div>
 

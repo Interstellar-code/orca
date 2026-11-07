@@ -1,8 +1,10 @@
 import { LoaderCircle, RefreshCw, X } from 'lucide-react'
+import type { DartBoardFilters, DartLayout } from '../../../../../shared/dart/dart-saved-views'
 import type { DartWorkspaceConfig } from '../../../../../shared/dart/dart-types'
 import { Button } from '@/components/ui/button'
 import { ButtonGroup } from '@/components/ui/button-group'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -10,28 +12,47 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { translate } from '@/i18n/i18n'
 import { shouldSuppressEnterSubmit } from '@/lib/new-workspace-enter-guard'
 import type { TaskPageComposerActionsModel } from '../use-task-page-composer-actions'
+import { hasDartOnHoldOption } from './dart-board-columns'
+import type { DartSavedViewsModel } from './dart-board-contracts'
 import type { DartListFilters } from './task-page-dart-list-model'
+import { TaskPageDartSavedViews } from './TaskPageDartSavedViews'
+import { DartLayoutSwitch, DartUpdatedAgo } from './DartLayoutSwitch'
+import type { DartLayoutSwitchDisabledReason } from './use-task-page-dart-state'
 
 const ALL_VALUE = '__all__'
 
+export type DartFiltersBoardControls = {
+  layout: DartLayout
+  onLayoutChange: (layout: DartLayout) => void
+  /** Phase 2's list and reads: phase 3's selects and chips are hidden (D11). */
+  listOnly: boolean
+  switchDisabledReason: DartLayoutSwitchDisabledReason | null
+  showEmptyColumns: boolean
+  onShowEmptyColumnsChange: (enabled: boolean) => void
+  fetchedAt: number | null
+  savedViews: DartSavedViewsModel
+}
+
 export type TaskPageDartFiltersProps = {
-  filters: DartListFilters
+  filters: DartListFilters & Partial<Pick<DartBoardFilters, 'tag' | 'priority' | 'onHold'>>
   config: DartWorkspaceConfig | null
   viewerAvailable: boolean
   hasWorkspace: boolean
   loading: boolean
   searchInput: string
-  onFilterChange: <K extends keyof DartListFilters>(key: K, value: DartListFilters[K]) => void
+  onFilterChange: <K extends keyof DartBoardFilters>(key: K, value: DartBoardFilters[K]) => void
   onHasWorkspaceChange: (enabled: boolean) => void
   onSearchInputChange: (value: string) => void
   onSearchApply: (value: string) => void
   onRefresh: () => void
   onNewTask: () => void
   newTaskDisabled: boolean
+  board?: DartFiltersBoardControls
 }
 
 function FilterSelect({
@@ -85,8 +106,11 @@ export function TaskPageDartFiltersView({
   onSearchApply,
   onRefresh,
   onNewTask,
-  newTaskDisabled
+  newTaskDisabled,
+  board
 }: TaskPageDartFiltersProps): React.JSX.Element {
+  const phase3Controls = board !== undefined && !board.listOnly
+  const onHoldOffered = phase3Controls && config ? hasDartOnHoldOption(config) : false
   const mineActive = filters.mine && viewerAvailable && !hasWorkspace
   const allActive = (!filters.mine || !viewerAvailable) && !hasWorkspace
   const serverFiltersDisabled = hasWorkspace
@@ -94,6 +118,17 @@ export function TaskPageDartFiltersView({
     <div className="rounded-md rounded-b-none border border-border/50 bg-muted/50 px-3 py-2 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
+          {board ? (
+            <>
+              <DartLayoutSwitch
+                layout={board.layout}
+                disabledReason={board.switchDisabledReason}
+                disabled={board.switchDisabledReason !== null || board.listOnly}
+                onChange={board.onLayoutChange}
+              />
+              <TaskPageDartSavedViews model={board.savedViews} />
+            </>
+          ) : null}
           <ButtonGroup>
             <Button
               type="button"
@@ -138,21 +173,76 @@ export function TaskPageDartFiltersView({
             disabled={serverFiltersDisabled}
             onChange={(value) => onFilterChange('dartboard', value)}
           />
-          <Button
-            type="button"
-            size="sm"
-            variant={hasWorkspace ? 'secondary' : 'ghost'}
-            aria-pressed={hasWorkspace}
-            onClick={() => {
-              onSearchInputChange('')
-              onSearchApply('')
-              onHasWorkspaceChange(!hasWorkspace)
-            }}
-          >
-            {translate('auto.components.task.page.dart.Filters.hasWorkspace', 'Has Workspace')}
-          </Button>
+          {phase3Controls ? (
+            <>
+              <FilterSelect
+                label={translate('auto.components.task.page.dart.Filters.tagFilter', 'Tag')}
+                value={filters.tag ?? null}
+                allLabel={translate('auto.components.task.page.dart.Filters.allTags', 'All tags')}
+                options={config?.tags ?? []}
+                disabled={false}
+                onChange={(value) => onFilterChange('tag', value)}
+              />
+              <FilterSelect
+                label={translate(
+                  'auto.components.task.page.dart.Filters.priorityFilter',
+                  'Priority'
+                )}
+                value={filters.priority ?? null}
+                allLabel={translate(
+                  'auto.components.task.page.dart.Filters.allPriorities',
+                  'All priorities'
+                )}
+                options={config?.priorities ?? []}
+                disabled={false}
+                onChange={(value) => onFilterChange('priority', value)}
+              />
+              {onHoldOffered ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={filters.onHold ? 'secondary' : 'outline'}
+                  aria-pressed={Boolean(filters.onHold)}
+                  onClick={() => onFilterChange('onHold', !filters.onHold)}
+                >
+                  {translate('auto.components.task.page.dart.Filters.onHold', 'On hold')}
+                </Button>
+              ) : null}
+              {board.layout === 'board' ? (
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="dart-show-empty-columns"
+                    checked={board.showEmptyColumns}
+                    onCheckedChange={board.onShowEmptyColumnsChange}
+                  />
+                  <Label htmlFor="dart-show-empty-columns">
+                    {translate(
+                      'auto.components.task.page.dart.Filters.showEmptyColumns',
+                      'Show empty columns'
+                    )}
+                  </Label>
+                </div>
+              ) : null}
+            </>
+          ) : null}
+          {board?.layout === 'board' ? null : (
+            <Button
+              type="button"
+              size="sm"
+              variant={hasWorkspace ? 'secondary' : 'ghost'}
+              aria-pressed={hasWorkspace}
+              onClick={() => {
+                onSearchInputChange('')
+                onSearchApply('')
+                onHasWorkspaceChange(!hasWorkspace)
+              }}
+            >
+              {translate('auto.components.task.page.dart.Filters.hasWorkspace', 'Has Workspace')}
+            </Button>
+          )}
         </div>
         <div className="flex items-center gap-2">
+          {board ? <DartUpdatedAgo fetchedAt={board.fetchedAt} /> : null}
           <Button
             type="button"
             data-dart-new-task
@@ -262,6 +352,16 @@ export function TaskPageDartFilters({
       onRefresh={() => model.setDartRefreshNonce((n) => n + 1)}
       onNewTask={model.openCreate}
       newTaskDisabled={!model.dartConnected || model.dartUpdateRequired}
+      board={{
+        layout: model.dartLayout,
+        onLayoutChange: model.setDartLayout,
+        listOnly: !model.dartBoardPath,
+        switchDisabledReason: model.dartLayoutSwitchDisabledReason,
+        showEmptyColumns: model.dartShowEmptyColumns,
+        onShowEmptyColumnsChange: model.setDartShowEmptyColumns,
+        fetchedAt: model.dartScopeMeta?.fetchedAt ?? null,
+        savedViews: model.dartSavedViews
+      }}
     />
   )
 }

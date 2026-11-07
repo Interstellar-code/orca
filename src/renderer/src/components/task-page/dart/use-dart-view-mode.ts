@@ -1,0 +1,25 @@
+import { useCallback, useState } from 'react'
+import type { DartLayout } from '../../../../../shared/dart/dart-saved-views'
+import {
+  loadDartViewMode,
+  saveDartViewMode,
+  type DartViewMode
+} from '@/components/dart-view-mode-storage'
+
+/** D10: the layout and "Show empty columns" live in the tab; the user's own changes are remembered on the device. */
+export function useDartViewMode() {
+  const [viewMode, setViewMode] = useState<DartViewMode>(loadDartViewMode)
+  const remember = useCallback((change: Partial<DartViewMode>) => {
+    setViewMode((current) => {
+      const mode = { ...current, ...change }
+      saveDartViewMode(mode)
+      return mode
+    })
+  }, [])
+  const setDartLayout = useCallback((layout: DartLayout) => remember({ layout }), [remember])
+  const setDartShowEmptyColumns = useCallback(
+    (showEmptyColumns: boolean) => remember({ showEmptyColumns }),
+    [remember]
+  )
+  return { viewMode, setViewMode, setDartLayout, setDartShowEmptyColumns }
+}

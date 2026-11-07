@@ -1,10 +1,7 @@
-/* eslint-disable max-lines -- Why: one hook keeps the owner guard, the load and every mutation together so stale replies are dropped in one place. */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import {
   normalizeDartSavedViewState,
-  type DartBoardFilters,
-  type DartLayout,
   type DartSavedView,
   type DartSavedViewMutation,
   type DartSavedViewState
@@ -17,12 +14,7 @@ import {
   readDartSavedViewState
 } from '@/runtime/runtime-dart-saved-view-state'
 import type { DartSavedViewsModel } from './dart-board-contracts'
-
-type DartViewSnapshotValue = {
-  filters: DartBoardFilters
-  layout: DartLayout
-  showEmptyColumns: boolean
-}
+import { isDartSavedViewModified, type DartViewSnapshotValue } from './dart-saved-view-modified'
 
 type SavedViewsOwner = { targetKey: string; active: boolean }
 type SavedViewsLifetime = {
@@ -39,26 +31,6 @@ type SavedViewsSnapshot = {
 type SendMutation = (mutation: DartSavedViewMutation) => Promise<DartSavedViewState | null>
 
 const EMPTY_STATE: DartSavedViewState = { views: [], activeViewId: null }
-const FILTER_KEYS = [
-  'mine',
-  'status',
-  'dartboard',
-  'search',
-  'tag',
-  'priority',
-  'onHold'
-] as const satisfies readonly (keyof DartBoardFilters)[]
-
-export function isDartSavedViewModified(
-  view: DartSavedView,
-  current: DartViewSnapshotValue
-): boolean {
-  return (
-    view.layout !== current.layout ||
-    view.showEmptyColumns !== current.showEmptyColumns ||
-    FILTER_KEYS.some((key) => view.filters[key] !== current.filters[key])
-  )
-}
 
 function refusalMessage(): string {
   return translate(
