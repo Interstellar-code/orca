@@ -56,11 +56,11 @@ function normalizeNullableFilter(value: unknown): NullableFilterResult {
   if (typeof value !== 'string') {
     return { ok: false }
   }
-  const trimmed = value.trim()
-  if (trimmed.length > DART_TITLE_MAX_LENGTH) {
+  // Raw value is stored so a saved view restores exactly what was saved.
+  if (value.length > DART_TITLE_MAX_LENGTH) {
     return { ok: false }
   }
-  return { ok: true, value: trimmed.length === 0 ? null : trimmed }
+  return { ok: true, value: value.length === 0 ? null : value }
 }
 
 function normalizeBoardFilters(value: unknown): DartBoardFilters | null {

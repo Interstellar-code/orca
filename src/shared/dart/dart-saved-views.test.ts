@@ -5,6 +5,7 @@ import {
   normalizeDartSavedViewState,
   type DartSavedView
 } from './dart-saved-views'
+import { DartSavedViewMutationParam } from '../rpc-contract/dart-saved-view-params'
 import { DART_TITLE_MAX_LENGTH } from './dart-text-limits'
 
 function makeView(id: string, name = `View ${id}`): DartSavedView {
@@ -55,6 +56,46 @@ describe('normalizeDartSavedViewState', () => {
     expect(normalizeDartSavedViewState({ views: [long], activeViewId: 'a' })).toEqual({
       views: [],
       activeViewId: null
+    })
+  })
+
+  it('keeps filter values exactly as saved, including surrounding spaces', () => {
+    const padded = makeView('a')
+    padded.filters = {
+      ...padded.filters,
+      status: ' Doing ',
+      dartboard: '  Board ',
+      tag: ' t ',
+      priority: ' High ',
+      search: '  find me '
+    }
+    expect(normalizeDartSavedViewState({ views: [padded], activeViewId: null }).views).toEqual([
+      padded
+    ])
+    expect(mutateDartSavedViewState(null, { kind: 'save', view: padded }).views).toEqual([padded])
+  })
+
+  it('drops a view whose filter value is over the cap, padded or not', () => {
+    const overCap = 'x'.repeat(DART_TITLE_MAX_LENGTH + 1)
+    const padded = ` ${'x'.repeat(DART_TITLE_MAX_LENGTH)} `
+    for (const value of [overCap, padded]) {
+      for (const key of ['status', 'dartboard', 'tag', 'priority', 'search'] as const) {
+        const view = makeView('a')
+        view.filters[key] = value
+        expect(normalizeDartSavedViewState({ views: [view], activeViewId: null }).views).toEqual([])
+      }
+    }
+  })
+
+  it('refuses a padded over-cap filter value in the mutation params', () => {
+    const view = makeView('a')
+    view.filters.search = ` ${'x'.repeat(DART_TITLE_MAX_LENGTH)} `
+    expect(DartSavedViewMutationParam.safeParse({ kind: 'save', view }).success).toBe(false)
+    view.filters.search = ' ok '
+    view.filters.status = ' ok '
+    expect(DartSavedViewMutationParam.safeParse({ kind: 'save', view })).toMatchObject({
+      success: true,
+      data: { view: { filters: { search: ' ok ', status: ' ok ' } } }
     })
   })
 
