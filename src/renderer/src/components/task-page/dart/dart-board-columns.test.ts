@@ -111,6 +111,39 @@ describe('buildDartBoardColumns', () => {
     expect(new Set(columns.map((c) => c.key)).size).toBe(columns.length)
   })
 
+  it('gives one column when /config repeats a status in a different letter case', () => {
+    const columns = buildDartBoardColumns(
+      [task('a', { status: 'doing' })],
+      config({ statuses: ['Doing', 'DOING'] }),
+      shown
+    )
+    expect(columns.map((c) => c.status)).toEqual(['Doing'])
+    expect(columns[0].tasks.map((t) => t.id)).toEqual(['a'])
+  })
+
+  it('puts tasks without a status in one last column that is not in /config', () => {
+    const columns = buildDartBoardColumns(
+      [
+        task('a', { status: null }),
+        task('b', { status: 'Doing' }),
+        task('c', { status: '' }),
+        task('d', { status: 'Alien' }),
+        task('e')
+      ],
+      config({ statuses: ['Doing'] }),
+      hidden
+    )
+    expect(columns.map((c) => [c.status, c.inConfig])).toEqual([
+      ['Doing', true],
+      ['Alien', false],
+      ['', false]
+    ])
+    const last = columns[2]
+    expect(last.tasks.map((t) => t.id)).toEqual(['a', 'c', 'e'])
+    expect(last.count).toBe(3)
+    expect(new Set(columns.map((c) => c.key)).size).toBe(3)
+  })
+
   it('matches a task status case-insensitively and shows the /config spelling', () => {
     const columns = buildDartBoardColumns(
       [task('a', { status: 'doing' }), task('b', { status: 'DOING' })],
@@ -202,6 +235,7 @@ describe('on hold', () => {
   it('detects the on-hold option from /config statuses or tags, case-insensitively', () => {
     expect(hasDartOnHoldOption(config({ statuses: ['Doing', 'ON HOLD'] }))).toBe(true)
     expect(hasDartOnHoldOption(config({ tags: ['On-Hold'] }))).toBe(true)
+    expect(hasDartOnHoldOption(config({ statuses: ['On hold'], tags: ['on-hold'] }))).toBe(true)
     expect(hasDartOnHoldOption(config({ statuses: ['Doing'], tags: ['bug'] }))).toBe(false)
   })
 

@@ -3,6 +3,7 @@ import type { DartBoardColumn, DartCardInfo, DartClientFilters } from './dart-bo
 
 const ON_HOLD_STATUS = 'on hold'
 const ON_HOLD_TAG = 'on-hold'
+const NO_STATUS_KEY = 'no-status'
 
 function fold(value: string | null | undefined): string {
   return (value ?? '').toLowerCase()
@@ -56,8 +57,10 @@ export function buildDartBoardColumns(
     buckets.set(key, { status, inConfig: true, tasks: [] })
   }
   const extras: string[] = []
+  const noStatus: DartTask[] = []
   for (const task of tasks) {
     if (!task.status) {
+      noStatus.push(task)
       continue
     }
     const key = fold(task.status)
@@ -70,23 +73,33 @@ export function buildDartBoardColumns(
     bucket.tasks.push(task)
   }
 
-  return [...configStatuses.keys(), ...extras]
-    .map((key) => ({ key, bucket: buckets.get(key) }))
-    .flatMap(({ key, bucket }) => {
-      if (!bucket || (bucket.tasks.length === 0 && !opts.showEmptyColumns)) {
-        return []
+  const columns = [...configStatuses.keys(), ...extras].flatMap((key) => {
+    const bucket = buckets.get(key)
+    if (!bucket || (bucket.tasks.length === 0 && !opts.showEmptyColumns)) {
+      return []
+    }
+    const ordered = orderColumnTasks(bucket.tasks)
+    return [
+      {
+        key: `status:${key}`,
+        status: bucket.status,
+        inConfig: bucket.inConfig,
+        tasks: ordered,
+        count: ordered.length
       }
-      const ordered = orderColumnTasks(bucket.tasks)
-      return [
-        {
-          key: `status:${key}`,
-          status: bucket.status,
-          inConfig: bucket.inConfig,
-          tasks: ordered,
-          count: ordered.length
-        }
-      ]
+    ]
+  })
+  if (noStatus.length > 0) {
+    const ordered = orderColumnTasks(noStatus)
+    columns.push({
+      key: NO_STATUS_KEY,
+      status: '',
+      inConfig: false,
+      tasks: ordered,
+      count: ordered.length
     })
+  }
+  return columns
 }
 
 export function buildDartCardInfo(task: DartTask): DartCardInfo {
