@@ -19,7 +19,7 @@ export function useDartDisplayedTasks(args: {
   accountKey: string
   search: string
   clientFilters: DartClientFilters
-}): { tasks: readonly DartTask[]; totalCount: number } {
+}): { tasks: readonly DartTask[]; totalCount: number; loadedCount: number } {
   const { boardPath, hasWorkspace, layout, baseTasks, localTotal, scopeMeta, search } = args
   const { pinnedRows, hostKey, accountKey, clientFilters } = args
   const merged = useMemo(
@@ -34,5 +34,9 @@ export function useDartDisplayedTasks(args: {
     return layout === 'list' ? sortDartTasksByRecency(filtered) : filtered
   }, [boardPath, hasWorkspace, merged, search, layout, clientFilters])
   const openTotal = boardPath ? (scopeMeta?.openTotal ?? 0) : localTotal
-  return { tasks, totalCount: openTotal + (merged.length - baseTasks.length) }
+  return {
+    tasks,
+    totalCount: openTotal + (merged.length - baseTasks.length),
+    loadedCount: merged.length
+  }
 }

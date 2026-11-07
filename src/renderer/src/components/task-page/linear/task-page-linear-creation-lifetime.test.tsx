@@ -182,6 +182,7 @@ it.each([
         dartLayoutSwitchDisabledReason: null,
         dartBoardPath: false,
         dartScopeMeta: null,
+        dartLoadedCount: 0,
         dartBoardModel: {
           columns: [],
           statuses: [],

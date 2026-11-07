@@ -142,6 +142,15 @@ describe('useTaskPageDartState', () => {
     })
   })
 
+  it('keeps the account’s config on screen while a refresh refetches it', async () => {
+    const { hook } = setup()
+    await waitFor(() => expect(hook.result.current.dartConfig).not.toBeNull())
+
+    act(() => hook.result.current.setDartRefreshNonce((nonce) => nonce + 1))
+
+    expect(hook.result.current.dartConfig).not.toBeNull()
+  })
+
   it('reports a failed load with its error code', async () => {
     const { hook } = setup({
       listDartTasks: vi.fn(() =>
@@ -830,5 +839,40 @@ describe('useTaskPageDartState on a board host', () => {
     expect(hook.result.current.dartSavedViews.modified).toBe(false)
     act(() => hook.result.current.setDartFilter('tag', null))
     expect(hook.result.current.dartSavedViews.modified).toBe(true)
+  })
+
+  it('stores only the field the user changed, never an applied view’s layout', async () => {
+    const { host, hook } = openBoardPage()
+    host.savedViewState = {
+      views: [
+        {
+          id: 'view-board',
+          name: 'Board view',
+          filters: {
+            mine: true,
+            status: null,
+            dartboard: null,
+            search: '',
+            tag: null,
+            priority: null,
+            onHold: false
+          },
+          layout: 'board',
+          showEmptyColumns: false
+        }
+      ],
+      activeViewId: null
+    }
+    await waitFor(() => expect(hook.result.current.dartSavedViews.views).toHaveLength(1))
+    await act(async () => {
+      await hook.result.current.dartSavedViews.apply('view-board')
+    })
+    expect(hook.result.current.dartLayout).toBe('board')
+
+    act(() => hook.result.current.setDartShowEmptyColumns(true))
+
+    expect(JSON.parse(localStorage.getItem('orca.dart.view-mode.v1') ?? 'null')).toEqual({
+      showEmptyColumns: true
+    })
   })
 })

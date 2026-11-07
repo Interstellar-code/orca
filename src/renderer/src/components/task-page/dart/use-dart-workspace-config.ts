@@ -17,7 +17,10 @@ export function useDartWorkspaceConfig(args: {
   fetchDartConfig: FetchDartConfig
 }): { dartConfig: DartWorkspaceConfig | null; dartConfigError: string | null } {
   const { active, refreshNonce, hostKey, accountViewerId, fetchDartConfig } = args
-  const [config, setConfig] = useState<DartWorkspaceConfig | null>(null)
+  const [loaded, setLoaded] = useState<{
+    ownerKey: string
+    config: DartWorkspaceConfig
+  } | null>(null)
   const [configError, setConfigError] = useState<string | null>(null)
   const fetchRef = useRef(fetchDartConfig)
   useEffect(() => {
@@ -34,7 +37,6 @@ export function useDartWorkspaceConfig(args: {
     let cancelled = false
     ownerRef.current = ownerKey
     setConfigError(null)
-    setConfig(null)
     void fetchRef
       .current({ force: refreshNonce > 0 })
       .then((result) => {
@@ -42,7 +44,7 @@ export function useDartWorkspaceConfig(args: {
           return
         }
         if (result.ok) {
-          setConfig(result.config)
+          setLoaded({ ownerKey, config: result.config })
         } else {
           setConfigError(taskProviderErrorMessage(result))
         }
@@ -62,6 +64,8 @@ export function useDartWorkspaceConfig(args: {
     }
   }, [active, refreshNonce, accountViewerId, ownerKey])
 
+  // A refresh keeps the last config of the same account on screen while it refetches.
   const shown = isCurrent && accountViewerId
+  const config = loaded?.ownerKey === ownerKey ? loaded.config : null
   return { dartConfig: shown ? config : null, dartConfigError: shown ? configError : null }
 }

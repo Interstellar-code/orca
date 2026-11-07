@@ -52,6 +52,7 @@ export function TaskPageDartContent({
     dartBoardPath,
     dartLayout,
     dartScopeMeta,
+    dartLoadedCount,
     dartBoardModel,
     dartFilters,
     setDartRefreshNonce,
@@ -222,7 +223,7 @@ export function TaskPageDartContent({
                 'Tasks changed while loading. Refresh to try again.'
               )}
             </span>
-            {dartTasks.length === 0 ? (
+            {dartLoadedCount === 0 ? (
               <Button type="button" variant="outline" size="xs" onClick={refresh}>
                 {translate('auto.components.task.page.dart.Content.readRetry', 'Retry')}
               </Button>
@@ -259,7 +260,7 @@ export function TaskPageDartContent({
           </div>
         ) : null}
 
-        {dartLoading && dartTasks.length === 0 ? (
+        {dartLoading && dartLoadedCount === 0 ? (
           <div className="divide-y divide-border/50" aria-hidden>
             {Array.from({ length: 6 }).map((_, index) => (
               <div key={index} className="px-3 py-3">

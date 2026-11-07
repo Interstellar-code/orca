@@ -10,11 +10,9 @@ import {
 export function useDartViewMode() {
   const [viewMode, setViewMode] = useState<DartViewMode>(loadDartViewMode)
   const remember = useCallback((change: Partial<DartViewMode>) => {
-    setViewMode((current) => {
-      const mode = { ...current, ...change }
-      saveDartViewMode(mode)
-      return mode
-    })
+    setViewMode((current) => ({ ...current, ...change }))
+    // Only the field the user changed is stored, so an applied view's other values never leak into device memory.
+    saveDartViewMode({ ...loadDartViewMode(), ...change })
   }, [])
   const setDartLayout = useCallback((layout: DartLayout) => remember({ layout }), [remember])
   const setDartShowEmptyColumns = useCallback(

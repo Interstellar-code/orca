@@ -200,7 +200,11 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
     onStale: () => setDartRefreshNonce((n) => n + 1)
   })
 
-  const { tasks: displayedDartTasks, totalCount: displayedTotalCount } = useDartDisplayedTasks({
+  const {
+    tasks: displayedDartTasks,
+    totalCount: displayedTotalCount,
+    loadedCount: dartLoadedCount
+  } = useDartDisplayedTasks({
     boardPath,
     hasWorkspace: dartHasWorkspace,
     layout,
@@ -270,6 +274,7 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
     dartLayoutSwitchDisabledReason: DartLayoutSwitchDisabledReason | null
     dartBoardPath: boolean
     dartScopeMeta: DartScopeMeta | null
+    dartLoadedCount: number
     dartBoardModel: typeof dartBoardModel
     dartSavedViews: typeof dartSavedViews
   }
@@ -296,6 +301,7 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
   nextModel.dartLayoutSwitchDisabledReason = layoutSwitchDisabledReason
   nextModel.dartBoardPath = boardPath
   nextModel.dartScopeMeta = scopeMeta
+  nextModel.dartLoadedCount = dartLoadedCount
   nextModel.dartBoardModel = dartBoardModel
   nextModel.dartSavedViews = dartSavedViews
   return nextModel
