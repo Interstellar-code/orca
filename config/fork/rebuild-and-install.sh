@@ -195,6 +195,12 @@ swap_server_install() {
   fi
   sudo -n rm -rf "$SWAP_STAGE" || fail 'could not clear the staging path'
   sudo -n cp -a "$source" "$SWAP_STAGE" || fail 'copy into the staging path failed'
+  # Electron aborts at launch unless its sandbox helper is setuid root (hosts that restrict userns).
+  if [[ -e "$SWAP_STAGE/chrome-sandbox" ]]; then
+    sudo -n chown root:root "$SWAP_STAGE/chrome-sandbox" &&
+      sudo -n chmod 4755 "$SWAP_STAGE/chrome-sandbox" ||
+      fail 'could not make chrome-sandbox setuid root'
+  fi
   sudo -n systemctl stop "$SYSTEMD_UNIT" || fail "systemctl stop $SYSTEMD_UNIT failed"
   STOPPED=1
   sudo -n mv "$INSTALL_DIR" "$SWAP_RETIRED" || fail 'could not retire the running install'
