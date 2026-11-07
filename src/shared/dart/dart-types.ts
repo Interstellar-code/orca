@@ -86,7 +86,11 @@ export type DartTaskPage = {
   tasks: DartTask[]
   /** Server total from `count`; an offset past the end returns no tasks with the same total. */
   totalCount: number
+  /** Rows and `count` as Dart sent them, before unmappable rows were dropped; board cursors advance by `rowCount`. */
+  raw?: { rowCount: number; totalCount: number }
 }
+
+export type DartHostFeatures = { board: boolean }
 
 export type DartCommentPage = {
   comments: DartComment[]
