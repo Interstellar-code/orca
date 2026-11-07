@@ -17,6 +17,19 @@ vi.mock('electron', () => ({
       ipcHandlers.set(channel, handler)
   }
 }))
+const webBridge = vi.hoisted(() => ({
+  send: null as null | ((method: string, params: unknown) => Promise<unknown>)
+}))
+vi.mock('../../renderer/src/web/preload-api/web-runtime-calls', () => ({
+  callRuntimeEnvelope: (method: string, params: unknown) => webBridge.send?.(method, params),
+  getRemoteRuntimeStatus: async () => ({
+    capabilities: ['dart.provider.v1', 'dart.writes.v2', 'dart.board.v1']
+  })
+}))
+vi.mock('../../renderer/src/web/preload-api/web-runtime-session', () => ({
+  requireActiveEnvironment: () => ({ id: 'env-1' }),
+  assertActiveEnvironment: () => undefined
+}))
 vi.mock('../preflight/agent-detection', () => ({ _resetPreflightCache: vi.fn() }))
 vi.mock('../network/proxy-settings', () => ({
   ensureElectronProxyFromEnvironment: vi.fn().mockResolvedValue(undefined)
@@ -52,8 +65,12 @@ async function transports() {
     runtime: runtime as unknown as ConstructorParameters<typeof RpcDispatcher>[0]['runtime'],
     methods: DART_METHODS
   })
+  webBridge.send = (method, params) =>
+    dispatcher.dispatch({ id: 'req', authToken: 'tok', method, params })
+  const { createWebDartApi } = await import('../../renderer/src/web/preload-api/web-dart-api')
   return {
     host,
+    web: createWebDartApi(),
     ipc: (channel: string, args?: unknown) => ipcHandlers.get(channel)?.({}, args),
     rpc: async (method: string, params?: unknown) => {
       const response = await dispatcher.dispatch({ id: 'req', authToken: 'tok', method, params })
@@ -468,7 +485,7 @@ describe('dart comment replies over both transports', () => {
 
 describe('dart list replies over both transports', () => {
   it('carries the same raw counts and order key, with one unmappable row dropped', async () => {
-    const { host, ipc, rpc } = await transports()
+    const { host, ipc, rpc, web } = await transports()
     routeSignedIn(host, CONFIG)
     await ipc('dart:connect', { apiToken: FIXTURE_TOKEN })
     const rows = Array.from({ length: 3 }, (_, i) => ({
@@ -487,6 +504,7 @@ describe('dart list replies over both transports', () => {
 
     expect(overIpc).toMatchObject({ ok: true, raw: { rowCount: 4, totalCount: 40 } })
     expect(overRpc).toEqual(overIpc)
+    expect(await web.listTasks(params)).toEqual(overIpc)
     const last = host.fetch.mock.calls.at(-1)?.[0]
     expect(String(last)).toContain('o=order')
   })
