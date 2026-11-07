@@ -126,13 +126,21 @@ export const DART_TASK_LIST_QUERY_PARAMS = {
   priority: 'priority',
   isCompleted: 'is_completed',
   title: 'title',
-  description: 'description'
+  description: 'description',
+  order: 'o'
 } as const
 
 const DartTaskId = z
   .string()
   .trim()
   .regex(DART_TASK_ID_PATTERN, 'Expected a 12-character Dart task id')
+
+const TaskOrder = z
+  .enum(['order', 'dartboard__order', 'updated_at', 'created_at', 'title', 'completed_at'])
+  .or(
+    z.enum(['-order', '-dartboard__order', '-updated_at', '-created_at', '-title', '-completed_at'])
+  )
+  .optional()
 
 const PageLimit = z.number().int().min(1).max(DART_LIST_PAGE_MAX).optional()
 const PageOffset = z.number().int().min(0).optional()
@@ -159,6 +167,8 @@ export const ListTasks = z
     isCompleted: z.boolean().optional(),
     title: OptionalString,
     description: OptionalString,
+    /** Dart's `o` sort key; a leading `-` reverses it. */
+    order: TaskOrder,
     limit: PageLimit,
     offset: PageOffset
   })

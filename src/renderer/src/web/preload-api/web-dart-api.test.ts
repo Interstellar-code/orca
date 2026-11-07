@@ -54,6 +54,32 @@ describe('web dart supportsWritesV2', () => {
   })
 })
 
+describe('web dart supportedDartFeatures', () => {
+  it('reports board when the host advertises dart.board.v1', async () => {
+    mocks.getRemoteRuntimeStatus.mockResolvedValue({ capabilities: ['dart.board.v1'] })
+    await expect(createWebDartApi().supportedDartFeatures()).resolves.toEqual({ board: true })
+    expect(mocks.assertActiveEnvironment).toHaveBeenCalledWith('env-1')
+  })
+
+  it('reports no board without the capability', async () => {
+    mocks.getRemoteRuntimeStatus.mockResolvedValue({ capabilities: ['dart.writes.v2'] })
+    await expect(createWebDartApi().supportedDartFeatures()).resolves.toEqual({ board: false })
+  })
+
+  it('reports no board when the probe fails', async () => {
+    mocks.getRemoteRuntimeStatus.mockRejectedValue(new Error('offline'))
+    await expect(createWebDartApi().supportedDartFeatures()).resolves.toEqual({ board: false })
+  })
+
+  it('does not trust a verdict for a host switched in mid-probe', async () => {
+    mocks.getRemoteRuntimeStatus.mockResolvedValue({ capabilities: ['dart.board.v1'] })
+    mocks.assertActiveEnvironment.mockImplementation(() => {
+      throw new Error('environment changed')
+    })
+    await expect(createWebDartApi().supportedDartFeatures()).rejects.toThrow('environment changed')
+  })
+})
+
 describe('web dart status capability gate', () => {
   it('throws update-required and sends no Dart request to a host without dart.provider.v1', async () => {
     mocks.getRemoteRuntimeStatus.mockResolvedValue({ capabilities: [] })
