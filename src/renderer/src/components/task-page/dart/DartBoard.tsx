@@ -28,7 +28,14 @@ export function DartBoard({ model, selectedTaskId }: DartBoardProps): React.JSX.
     return byId
   }, [model.columns])
 
-  // A refresh that drops the task closes its open menu and cancels its drag (D4.2).
+  // A refresh that drops the task closes its open menu and cancels its drag for good (D4.2).
+  if (menuTaskId && !placement.has(menuTaskId)) {
+    setMenuTaskId(null)
+  }
+  if (draggingId && !placement.has(draggingId)) {
+    setDraggingId(null)
+    setDragOverKey(null)
+  }
   const openMenuId = menuTaskId && placement.has(menuTaskId) ? menuTaskId : null
   const activeDraggingId = draggingId && placement.has(draggingId) ? draggingId : null
   const activeDragOverKey = activeDraggingId ? dragOverKey : null

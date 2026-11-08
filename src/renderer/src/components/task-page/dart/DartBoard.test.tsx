@@ -240,4 +240,37 @@ describe('DartBoard Move to', () => {
     )
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
+
+  it('keeps the menu closed when a later refresh brings the dropped task back', async () => {
+    const user = userEvent.setup()
+    const onMove = vi.fn()
+    const { rerender } = render(
+      <DartBoard model={makeModel(TASKS, onMove)} selectedTaskId={null} />
+    )
+    await user.click(moveTrigger())
+    await screen.findByRole('menu')
+    const without = TASKS.filter((task) => task.id !== TODO_TASK.id)
+    rerender(<DartBoard model={makeModel(without, onMove)} selectedTaskId={null} />)
+    rerender(<DartBoard model={makeModel(TASKS, onMove)} selectedTaskId={null} />)
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  })
+
+  it('keeps a drag cancelled when a later refresh brings the dragged task back', () => {
+    const onMove = vi.fn()
+    const { rerender } = render(
+      <DartBoard model={makeModel(TASKS, onMove)} selectedTaskId={null} />
+    )
+    const card = document.querySelector(`[data-dart-card-id="${TODO_TASK.id}"]`)
+    if (!card) {
+      throw new Error('missing card')
+    }
+    fireEvent.dragStart(card, { dataTransfer: dropData(ownPayload) })
+    const doing = column(/^Doing/)
+    // An active drag cancels dragover's default, so fireEvent reports false.
+    expect(fireEvent.dragOver(doing, { dataTransfer: dropData(ownPayload) })).toBe(false)
+    const without = TASKS.filter((task) => task.id !== TODO_TASK.id)
+    rerender(<DartBoard model={makeModel(without, onMove)} selectedTaskId={null} />)
+    rerender(<DartBoard model={makeModel(TASKS, onMove)} selectedTaskId={null} />)
+    expect(fireEvent.dragOver(column(/^Doing/), { dataTransfer: dropData(ownPayload) })).toBe(true)
+  })
 })
