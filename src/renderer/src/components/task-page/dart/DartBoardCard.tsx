@@ -93,9 +93,9 @@ export function DartBoardCard({
       )}
     >
       <div className="flex min-w-0 items-start justify-between gap-2">
-        <h3 className="line-clamp-2 min-w-0 text-[13px] font-medium leading-snug text-foreground">
+        <span className="line-clamp-2 min-w-0 text-[13px] font-medium leading-snug text-foreground">
           {task.title}
-        </h3>
+        </span>
         <DropdownMenu open={menuOpen} onOpenChange={onMenuOpenChange}>
           <DropdownMenuTrigger asChild>
             <Button

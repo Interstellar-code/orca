@@ -80,10 +80,12 @@ describe('Dart tab layout', () => {
 
     await waitFor(() => expect(document.querySelector('[data-dart-board]')).not.toBeNull())
     const column = within(document.querySelector<HTMLElement>('[data-dart-board]')!).getByRole(
-      'region',
-      { name: 'To-do' }
+      'group',
+      { name: /^To-do/ }
     )
-    expect(within(column).getByRole('button', { name: SOURCE.title })).toBeTruthy()
+    expect(
+      within(column).getByRole('button', { name: new RegExp(`^${SOURCE.title}`) })
+    ).toBeTruthy()
     expect(screen.queryByRole('heading', { name: SOURCE.title })).toBeNull()
 
     await pickLayout('List')

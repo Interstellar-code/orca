@@ -185,7 +185,7 @@ describe('DartBoard card state', () => {
     })
     render(<Harness reply={vi.fn()} />)
     const card = screen
-      .getByText(TODO_TASK.title, { selector: 'h3' })
+      .getByText(TODO_TASK.title, { selector: 'span' })
       .closest('[data-dart-card-id]')
     expect(card).toHaveAttribute('draggable', 'false')
     expect(moveTrigger()).toBeDisabled()
