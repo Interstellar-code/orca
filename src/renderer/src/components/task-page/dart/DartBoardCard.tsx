@@ -156,6 +156,7 @@ export function DartBoardCard({
         // Notice buttons must not open the task.
         <div onClick={(event) => event.stopPropagation()}>
           <DartTaskDetailNotice
+            className="flex-col"
             notice={writes.notice}
             dismissNotice={() => dismissDartTaskNotice(identity)}
             recheckNotice={() => recheckDartTaskNotice(identity)}
