@@ -340,7 +340,7 @@ describe('scope and identity over the remote RPC', () => {
 
 describe.each(TRANSPORTS)('reads and writes that cross over the $name', (transport) => {
   it('keeps a written status when a list read that began before the write lands after it', async () => {
-    const host = transport.open()
+    const host = transport.open({ board: false })
     renderPage()
     await screen.findByRole('heading', { name: SOURCE.title })
     const refresh = screen.getByRole('button', { name: 'Refresh Dart tasks' })

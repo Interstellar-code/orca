@@ -17,6 +17,7 @@ import { runDartRead, type InflightDartRead } from './dart-read-actions'
 import {
   evictDartListCache,
   getDartReadScope,
+  isFreshDartCacheEntry,
   scopedDartCacheKey,
   type DartReadScope
 } from './dart-read-coordination'
@@ -35,7 +36,10 @@ import {
 } from './dart-task-identity'
 import type { DartSlice, DartSliceGet, DartSliceSet } from './dart-slice-contract'
 
-type DartScopeReadActions = Pick<DartSlice, 'readDartScope' | 'publishDartScope' | 'readMoreDone'>
+type DartScopeReadActions = Pick<
+  DartSlice,
+  'readDartScope' | 'publishDartScope' | 'readMoreDone' | 'mountDartScope'
+>
 
 const inflightScopeReads = new Map<string, InflightDartRead<DartTaskPage>>()
 let scopeReadSequence = 0
@@ -43,7 +47,7 @@ let scopeReadSequence = 0
 let scopeReadSetToken = 0
 
 // Fixed key order, so a full filter object and its three server fields name the same entry.
-function dartScopeCacheKey(scope: DartReadScope, filters: DartServerFilters): string {
+export function dartScopeCacheKey(scope: DartReadScope, filters: DartServerFilters): string {
   const { mine, dartboard, search } = filters
   return scopedDartCacheKey(scope, `list::scope::${JSON.stringify({ mine, dartboard, search })}`)
 }
@@ -152,6 +156,18 @@ export function createDartScopeReadActions(
           )
         }
       })
+    },
+
+    mountDartScope: (serverFilters) => {
+      const key = dartScopeCacheKey(getDartReadScope(get().settings), serverFilters)
+      const state = get()
+      if (!isFreshDartCacheEntry(state.dartListCache[key]) || !state.dartScopeMetaCache[key]) {
+        return false
+      }
+      if (state.dartMountedScopeKey !== key) {
+        set({ dartMountedScopeKey: key })
+      }
+      return true
     },
 
     readMoreDone: async (serverFilters, { features }) => {

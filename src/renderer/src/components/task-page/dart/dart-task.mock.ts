@@ -61,6 +61,56 @@ export const fixtureTasks: DartTask[] = [
   }
 ]
 
+// Release A board data: finished tasks, on-hold by status and by tag, and a status /config does not list.
+export const fixtureBoardConfig: DartWorkspaceConfig = {
+  ...fixtureConfig,
+  statuses: ['To-do', 'Doing', 'On hold', 'Done'],
+  tags: ['search', 'backend', 'on-hold'],
+  priorities: ['high', 'medium', 'low']
+}
+
+export const fixtureBoardTasks: DartTask[] = [
+  ...fixtureTasks.slice(0, 3),
+  {
+    ...base,
+    id: 'eF7hI9kL1nO3',
+    title: 'Wait for legal review of the data terms',
+    dartboard: 'Example/Platform',
+    status: 'On hold',
+    priority: 'Medium',
+    updatedAt: new Date(Date.now() - 2 * 86_400_000).toISOString()
+  },
+  {
+    ...base,
+    id: 'fG8iJ0lM2oP4',
+    title: 'Migrate invoices to the new tax service',
+    dartboard: 'Example/Platform',
+    status: 'To-do',
+    priority: 'Low',
+    tags: ['on-hold'],
+    updatedAt: new Date(Date.now() - 4 * 86_400_000).toISOString()
+  },
+  {
+    ...base,
+    id: 'gH9jK1mN3pQ5',
+    title: 'Ship the dark theme for the settings page',
+    dartboard: 'Example/Design',
+    status: 'Done',
+    priority: 'Medium',
+    completedAt: new Date(Date.now() - 86_400_000).toISOString(),
+    updatedAt: new Date(Date.now() - 86_400_000).toISOString()
+  },
+  {
+    ...base,
+    id: 'hI0kL2nO4qR6',
+    title: 'Import the legacy customer notes',
+    dartboard: 'Example/Platform',
+    status: 'Archived',
+    priority: 'Low',
+    updatedAt: new Date(Date.now() - 9 * 86_400_000).toISOString()
+  }
+]
+
 export const fixtureDetailTask: DartTask = {
   ...fixtureTasks[0],
   tags: ['search', 'backend'],
