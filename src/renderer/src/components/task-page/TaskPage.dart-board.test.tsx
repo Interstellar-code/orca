@@ -290,6 +290,7 @@ describe('delivery and races', () => {
     const host = desktop.open()
     seedOpenTasks(host, 'bulk', 999, 'To-do')
     await openBoard()
+    // 1,000 cards render slowly under happy-dom, so the default 1 s wait is too short.
     await waitFor(() => expect(cardIds('To-do')).toHaveLength(1000), { timeout: 30_000 })
     const first = SOURCE.id
     const second = 'bulk001'
@@ -317,6 +318,7 @@ describe('delivery and races', () => {
     await act(async () => gate.resolve())
 
     // The read and its two re-reads are five requests each.
+    // 1,000 cards render slowly under happy-dom, so the default 1 s wait is too short.
     await waitFor(() => expect(host.count('dart.listTasks')).toBe(before + 15), { timeout: 30_000 })
     const button = screen.getByRole('button', { name: 'Refresh Dart tasks' })
     await waitFor(() => expect(button.hasAttribute('disabled')).toBe(false))
