@@ -58,15 +58,20 @@ function parseDartBoardTaskDragRef(raw: string): DartBoardTaskDragRef | null {
   } catch {
     return null
   }
-  if (typeof parsed !== 'object' || parsed === null) {
-    return null
-  }
-  const taskId = Reflect.get(parsed, 'taskId')
-  const hostKey = Reflect.get(parsed, 'hostKey')
-  if (typeof taskId !== 'string' || !taskId || typeof hostKey !== 'string' || !hostKey) {
-    return null
-  }
-  return { taskId, hostKey }
+  return isDartBoardTaskDragRef(parsed) ? { taskId: parsed.taskId, hostKey: parsed.hostKey } : null
+}
+
+function isDartBoardTaskDragRef(value: unknown): value is DartBoardTaskDragRef {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'taskId' in value &&
+    typeof value.taskId === 'string' &&
+    value.taskId !== '' &&
+    'hostKey' in value &&
+    typeof value.hostKey === 'string' &&
+    value.hostKey !== ''
+  )
 }
 
 function isDartBoardTaskDragPayloadTooLarge(payload: string): boolean {

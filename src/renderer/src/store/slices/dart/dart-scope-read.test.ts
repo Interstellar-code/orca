@@ -63,6 +63,10 @@ function openOffsets(host: FakeDartHost): (number | undefined)[] {
     .map((request) => request.params.offset)
 }
 
+function defaultScope() {
+  return getDartReadScope(store.getState().settings)
+}
+
 function connectViewer(): void {
   store.setState({
     dartStatus: { connected: true, viewer: VIEWER },
@@ -72,8 +76,10 @@ function connectViewer(): void {
 }
 
 async function readAndPublish(filters: DartServerFilters = FILTERS, current = true) {
-  const result = await store.getState().readDartScope(filters, { features: FEATURES })
-  store.getState().publishDartScope(filters, { result, current })
+  const result = await store
+    .getState()
+    .readDartScope(filters, { features: FEATURES, scope: defaultScope() })
+  store.getState().publishDartScope(filters, { result, current, scope: defaultScope() })
   return result
 }
 
@@ -102,7 +108,9 @@ describe('readDartScope paging', () => {
     const host = runtime.host(null)
     seed(host, 1300)
 
-    const result = await store.getState().readDartScope(FILTERS, { features: FEATURES })
+    const result = await store
+      .getState()
+      .readDartScope(FILTERS, { features: FEATURES, scope: defaultScope() })
 
     expect(openOffsets(host)).toEqual([0, 250, 500, 750])
     expect(result).toMatchObject({ openTotal: 1300, failure: null, incomplete: false })
@@ -113,7 +121,9 @@ describe('readDartScope paging', () => {
     const host = runtime.host(null)
     seed(host, 600)
 
-    const result = await store.getState().readDartScope(FILTERS, { features: FEATURES })
+    const result = await store
+      .getState()
+      .readDartScope(FILTERS, { features: FEATURES, scope: defaultScope() })
 
     expect(openOffsets(host)).toEqual([0, 250, 500])
     expect(result.tasks).toHaveLength(600)
@@ -123,7 +133,7 @@ describe('readDartScope paging', () => {
     const host = runtime.host(null)
     seed(host, 500)
 
-    await store.getState().readDartScope(FILTERS, { features: FEATURES })
+    await store.getState().readDartScope(FILTERS, { features: FEATURES, scope: defaultScope() })
 
     expect(openOffsets(host)).toEqual([0, 250])
   })
@@ -133,7 +143,9 @@ describe('readDartScope paging', () => {
     seed(host, 251)
     host.unmappableIds.add(openTask(7).id)
 
-    const result = await store.getState().readDartScope(FILTERS, { features: FEATURES })
+    const result = await store
+      .getState()
+      .readDartScope(FILTERS, { features: FEATURES, scope: defaultScope() })
 
     expect(openOffsets(host)).toEqual([0, 250])
     expect(result.tasks).toHaveLength(250)
@@ -145,7 +157,9 @@ describe('readDartScope paging', () => {
     seed(host, 10)
     host.omitRaw = true
 
-    const result = await store.getState().readDartScope(FILTERS, { features: FEATURES })
+    const result = await store
+      .getState()
+      .readDartScope(FILTERS, { features: FEATURES, scope: defaultScope() })
 
     expect(result.failure?.reason).toBe('error')
     expect(result.incomplete).toBe(true)
@@ -156,7 +170,7 @@ describe('readDartScope paging', () => {
     const host = runtime.host(null)
     seed(host, 3, 3)
 
-    await store.getState().readDartScope(FILTERS, { features: FEATURES })
+    await store.getState().readDartScope(FILTERS, { features: FEATURES, scope: defaultScope() })
 
     expect(listRequests(host).map((request) => request.params)).toEqual([
       { isCompleted: false, order: 'order', limit: 250, offset: 0 },
@@ -168,7 +182,9 @@ describe('readDartScope paging', () => {
     const host = runtime.host(null)
     seed(host, 3)
 
-    const result = await store.getState().readDartScope(FILTERS, { features: { board: false } })
+    const result = await store
+      .getState()
+      .readDartScope(FILTERS, { features: { board: false }, scope: defaultScope() })
 
     expect(result.failure?.reason).toBe('error')
     expect(listRequests(host)).toHaveLength(0)
@@ -177,7 +193,9 @@ describe('readDartScope paging', () => {
   it('reports the open and finished totals and the finished cursor', async () => {
     seed(runtime.host(null), 4, 120)
 
-    const result = await store.getState().readDartScope(FILTERS, { features: FEATURES })
+    const result = await store
+      .getState()
+      .readDartScope(FILTERS, { features: FEATURES, scope: defaultScope() })
 
     expect(result).toMatchObject({ openTotal: 4, doneTotal: 120, doneOffset: 50 })
     expect(result.tasks).toHaveLength(54)
@@ -190,7 +208,9 @@ describe('readDartScope incompleteness', () => {
     seed(host, 3, 120)
     host.maxRowsPerPage = 20
 
-    const result = await store.getState().readDartScope(FILTERS, { features: FEATURES })
+    const result = await store
+      .getState()
+      .readDartScope(FILTERS, { features: FEATURES, scope: defaultScope() })
 
     expect(result).toMatchObject({ doneTotal: 120, doneOffset: 20, incomplete: true })
   })
@@ -200,7 +220,9 @@ describe('readDartScope incompleteness', () => {
     seed(host, 600)
     const release = host.hold('dart.listTasks')
 
-    const pending = store.getState().readDartScope(FILTERS, { features: FEATURES })
+    const pending = store
+      .getState()
+      .readDartScope(FILTERS, { features: FEATURES, scope: defaultScope() })
     await vi.waitFor(() => expect(listRequests(host)).toHaveLength(1))
     for (let i = 0; i < 10; i += 1) {
       host.tasks.delete(openTask(i).id)
@@ -215,7 +237,9 @@ describe('readDartScope incompleteness', () => {
   it('stays complete when every page matches the count', async () => {
     seed(runtime.host(null), 600, 120)
 
-    const result = await store.getState().readDartScope(FILTERS, { features: FEATURES })
+    const result = await store
+      .getState()
+      .readDartScope(FILTERS, { features: FEATURES, scope: defaultScope() })
 
     expect(result.incomplete).toBe(false)
   })
@@ -225,7 +249,9 @@ describe('readDartScope incompleteness', () => {
     seed(host, 10)
     host.unmappableIds.add(openTask(2).id)
 
-    const uncut = await store.getState().readDartScope(FILTERS, { features: FEATURES })
+    const uncut = await store
+      .getState()
+      .readDartScope(FILTERS, { features: FEATURES, scope: defaultScope() })
 
     expect(uncut).toMatchObject({ openTotal: 10, incomplete: true })
     expect(uncut.tasks).toHaveLength(9)
@@ -233,7 +259,9 @@ describe('readDartScope incompleteness', () => {
     for (let i = 10; i < 1300; i += 1) {
       host.addTask(openTask(i))
     }
-    const cut = await store.getState().readDartScope(FILTERS, { features: FEATURES })
+    const cut = await store
+      .getState()
+      .readDartScope(FILTERS, { features: FEATURES, scope: defaultScope() })
 
     expect(cut).toMatchObject({ openTotal: 1300, incomplete: false })
   })
@@ -246,7 +274,9 @@ describe('readDartScope dedupe', () => {
     const releaseOpen = host.hold('dart.listTasks')
     const releaseDone = host.hold('dart.listTasks')
 
-    const pending = store.getState().readDartScope(FILTERS, { features: FEATURES })
+    const pending = store
+      .getState()
+      .readDartScope(FILTERS, { features: FEATURES, scope: defaultScope() })
     await vi.waitFor(() => expect(listRequests(host)).toHaveLength(1))
     host.addTask(
       openTask(1, {
@@ -275,7 +305,9 @@ describe('readDartScope dedupe', () => {
     seed(host, 400)
     const releaseFirst = host.hold('dart.listTasks')
 
-    const pending = store.getState().readDartScope(FILTERS, { features: FEATURES })
+    const pending = store
+      .getState()
+      .readDartScope(FILTERS, { features: FEATURES, scope: defaultScope() })
     await vi.waitFor(() => expect(listRequests(host)).toHaveLength(1))
     // A new first row pushes the boundary row onto page 2 as well.
     const shifted = openTask(249, {
@@ -307,7 +339,7 @@ describe('readDartScope isolation', () => {
     connectViewer()
     const before = store.getState()
 
-    await store.getState().readDartScope(FILTERS, { features: FEATURES })
+    await store.getState().readDartScope(FILTERS, { features: FEATURES, scope: defaultScope() })
 
     const after = store.getState()
     expect(after.dartListCache).toBe(before.dartListCache)
@@ -503,7 +535,9 @@ describe('readMoreDone', () => {
     const host = runtime.host(null)
     await loaded(3, 120)
 
-    const result = await store.getState().readMoreDone(FILTERS, { features: FEATURES })
+    const result = await store
+      .getState()
+      .readMoreDone(FILTERS, { features: FEATURES, scope: defaultScope() })
 
     expect(result).toEqual({ ok: true })
     expect(listRequests(host).at(-1)?.params).toEqual({
@@ -519,11 +553,11 @@ describe('readMoreDone', () => {
   it('reads by raw offset across three pages with no duplicate rows', async () => {
     const host = runtime.host(null)
     await loaded(3, 400)
-    await store.getState().readMoreDone(FILTERS, { features: FEATURES })
-    await store.getState().readMoreDone(FILTERS, { features: FEATURES })
+    await store.getState().readMoreDone(FILTERS, { features: FEATURES, scope: defaultScope() })
+    await store.getState().readMoreDone(FILTERS, { features: FEATURES, scope: defaultScope() })
     const requestsBefore = listRequests(host).length
 
-    await store.getState().readMoreDone(FILTERS, { features: FEATURES })
+    await store.getState().readMoreDone(FILTERS, { features: FEATURES, scope: defaultScope() })
 
     expect(listRequests(host)).toHaveLength(requestsBefore + 1)
     expect(listRequests(host).at(-1)?.params.offset).toBe(150)
@@ -536,8 +570,8 @@ describe('readMoreDone', () => {
   it('keeps the cursor and sends nothing while a client filter changes, then reads the next raw offset', async () => {
     const host = runtime.host(null)
     await loaded(3, 400)
-    await store.getState().readMoreDone(FILTERS, { features: FEATURES })
-    await store.getState().readMoreDone(FILTERS, { features: FEATURES })
+    await store.getState().readMoreDone(FILTERS, { features: FEATURES, scope: defaultScope() })
+    await store.getState().readMoreDone(FILTERS, { features: FEATURES, scope: defaultScope() })
     const before = mountedEntry()
     const requestsBefore = listRequests(host).length
     const idsBefore = doneIds()
@@ -551,7 +585,7 @@ describe('readMoreDone', () => {
     expect(mountedEntry().meta).toBe(before.meta)
     expect(doneIds()).toEqual(idsBefore)
 
-    await store.getState().readMoreDone(FILTERS, { features: FEATURES })
+    await store.getState().readMoreDone(FILTERS, { features: FEATURES, scope: defaultScope() })
 
     expect(listRequests(host)).toHaveLength(requestsBefore + 1)
     expect(listRequests(host).at(-1)?.params.offset).toBe(150)
@@ -566,8 +600,8 @@ describe('readMoreDone', () => {
     await loaded(3, 120)
     host.unmappableIds.add(doneTask(60).id)
 
-    await store.getState().readMoreDone(FILTERS, { features: FEATURES })
-    await store.getState().readMoreDone(FILTERS, { features: FEATURES })
+    await store.getState().readMoreDone(FILTERS, { features: FEATURES, scope: defaultScope() })
+    await store.getState().readMoreDone(FILTERS, { features: FEATURES, scope: defaultScope() })
 
     expect(listRequests(host).at(-1)?.params.offset).toBe(100)
     expect(mountedEntry().meta?.doneOffset).toBe(120)
@@ -578,7 +612,9 @@ describe('readMoreDone', () => {
     await loaded(3, 120)
     const release = host.hold('dart.listTasks')
 
-    const more = store.getState().readMoreDone(FILTERS, { features: FEATURES })
+    const more = store
+      .getState()
+      .readMoreDone(FILTERS, { features: FEATURES, scope: defaultScope() })
     await vi.waitFor(() => expect(listRequests(host)).toHaveLength(3))
     await readAndPublish()
     release()
@@ -593,10 +629,14 @@ describe('readMoreDone', () => {
     await loaded(3, 120)
     const releaseMore = host.hold('dart.listTasks')
 
-    const more = store.getState().readMoreDone(FILTERS, { features: FEATURES })
+    const more = store
+      .getState()
+      .readMoreDone(FILTERS, { features: FEATURES, scope: defaultScope() })
     await vi.waitFor(() => expect(listRequests(host)).toHaveLength(3))
     const releaseRefresh = host.hold('dart.listTasks')
-    const refresh = store.getState().readDartScope(FILTERS, { features: FEATURES })
+    const refresh = store
+      .getState()
+      .readDartScope(FILTERS, { features: FEATURES, scope: defaultScope() })
     await vi.waitFor(() => expect(listRequests(host)).toHaveLength(4))
     releaseMore()
     await more
@@ -613,7 +653,9 @@ describe('readMoreDone', () => {
     const firstKey = mountedEntry().key
     const release = host.hold('dart.listTasks')
 
-    const more = store.getState().readMoreDone(FILTERS, { features: FEATURES })
+    const more = store
+      .getState()
+      .readMoreDone(FILTERS, { features: FEATURES, scope: defaultScope() })
     await vi.waitFor(() => expect(listRequests(host)).toHaveLength(3))
     await readAndPublish({ ...FILTERS, search: 'Done 1' })
     release()
@@ -631,7 +673,9 @@ describe('readMoreDone', () => {
     const host = runtime.host(null)
     await loaded(3, 120, { ...FILTERS, mine: true })
 
-    await store.getState().readMoreDone({ ...FILTERS, mine: true }, { features: FEATURES })
+    await store
+      .getState()
+      .readMoreDone({ ...FILTERS, mine: true }, { features: FEATURES, scope: defaultScope() })
 
     expect(listRequests(host).at(-1)?.params).toMatchObject({
       isCompleted: true,
@@ -647,7 +691,7 @@ describe('readMoreDone', () => {
 
     const result = await store
       .getState()
-      .readMoreDone({ ...FILTERS, mine: true }, { features: FEATURES })
+      .readMoreDone({ ...FILTERS, mine: true }, { features: FEATURES, scope: defaultScope() })
 
     expect(result).toEqual({ ok: true })
     expect(listRequests(host)).toHaveLength(requestsBefore)
@@ -660,7 +704,9 @@ describe('readMoreDone', () => {
     const before = mountedEntry()
     host.failListRequest(3)
 
-    const result = await store.getState().readMoreDone(FILTERS, { features: FEATURES })
+    const result = await store
+      .getState()
+      .readMoreDone(FILTERS, { features: FEATURES, scope: defaultScope() })
 
     expect(result).toMatchObject({ ok: false, errorCode: 'dart.rateLimited' })
     expect(mountedEntry().entry).toBe(before.entry)
@@ -671,7 +717,9 @@ describe('readMoreDone', () => {
     const host = runtime.host(null)
     seed(host, 3, 120)
 
-    const result = await store.getState().readMoreDone(FILTERS, { features: FEATURES })
+    const result = await store
+      .getState()
+      .readMoreDone(FILTERS, { features: FEATURES, scope: defaultScope() })
 
     expect(result).toEqual({ ok: true })
     expect(listRequests(host)).toHaveLength(0)

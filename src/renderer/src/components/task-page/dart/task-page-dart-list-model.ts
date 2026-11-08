@@ -3,7 +3,7 @@ import type { DartBoardFilters } from '../../../../../shared/dart/dart-saved-vie
 import type { DartTask } from '../../../../../shared/dart/dart-types'
 import { DART_LIST_PAGE_DEFAULT } from '../../../../../shared/rpc-contract/dart-params'
 import type { DartListTasksArgs } from '../../../../../shared/rpc-contract/dart-params'
-import { translate } from '@/i18n/i18n'
+import { getIntlLocale, translate } from '@/i18n/i18n'
 import { DART_OPEN_PAGE_COUNT, DART_OPEN_PAGE_SIZE } from '@/store/slices/dart/dart-scope-paging'
 import type { DartClientFilters, DartScopeMeta, DartServerFilters } from './dart-board-contracts'
 
@@ -116,13 +116,13 @@ export function buildDartCountLine(args: {
 }): DartCountLine {
   const { meta, loadedOpen, loadedDone, clientFilterActive } = args
   const cap = DART_OPEN_PAGE_SIZE * DART_OPEN_PAGE_COUNT
-  const total = meta.openTotal.toLocaleString()
+  const total = meta.openTotal.toLocaleString(getIntlLocale())
   if (meta.incomplete) {
     return {
       text: translate(
         'auto.components.task.page.dart.task-page-dart-list-model.countIncomplete',
         'About {{open}} open tasks (Dart changed during the read) ·',
-        { open: loadedOpen.toLocaleString() }
+        { open: loadedOpen.toLocaleString(getIntlLocale()) }
       ),
       offersRefresh: true
     }
@@ -133,12 +133,12 @@ export function buildDartCountLine(args: {
         ? translate(
             'auto.components.task.page.dart.task-page-dart-list-model.countFiltering',
             'Filtering the first {{cap}} of {{total}} open tasks.',
-            { cap: cap.toLocaleString(), total }
+            { cap: cap.toLocaleString(getIntlLocale()), total }
           )
         : translate(
             'auto.components.task.page.dart.task-page-dart-list-model.countCut',
             'Showing {{cap}} of {{total}} open tasks. Pick a dartboard, Mine or search to narrow.',
-            { cap: cap.toLocaleString(), total }
+            { cap: cap.toLocaleString(getIntlLocale()), total }
           ),
       offersRefresh: false
     }
@@ -147,7 +147,11 @@ export function buildDartCountLine(args: {
     text: translate(
       'auto.components.task.page.dart.task-page-dart-list-model.countOpenOf',
       '{{open}} open of {{total}} · {{done}} latest done',
-      { open: loadedOpen.toLocaleString(), total, done: loadedDone.toLocaleString() }
+      {
+        open: loadedOpen.toLocaleString(getIntlLocale()),
+        total,
+        done: loadedDone.toLocaleString(getIntlLocale())
+      }
     ),
     offersRefresh: false
   }

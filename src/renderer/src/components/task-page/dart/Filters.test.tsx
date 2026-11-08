@@ -23,7 +23,10 @@ const config: DartWorkspaceConfig = {
   assignees: []
 }
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
+})
 
 /** The real filters row, so the New task button is the one the page renders. */
 function renderFilters(overrides: Partial<TaskPageDartFiltersProps> = {}): void {
@@ -154,6 +157,7 @@ describe('Dart filters board controls', () => {
   })
 
   it('shows "Show empty columns" only in the board layout and the data age beside refresh', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
     renderFilters({
       config: boardConfig,
       board: boardControls({ layout: 'board', fetchedAt: Date.now() - 5 * 60_000 })

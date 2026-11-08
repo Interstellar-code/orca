@@ -139,8 +139,8 @@ export function DartBoardCard({
       {shownTags.length > 0 ? (
         <div className="flex min-w-0 flex-wrap items-center gap-1">
           {shownTags.map((tag) => (
-            <Badge key={tag} variant="referenceLabel" className="max-w-full truncate">
-              {tag}
+            <Badge key={tag} variant="referenceLabel" className="max-w-full">
+              <span className="truncate">{tag}</span>
             </Badge>
           ))}
           {extraTags > 0 ? (

@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Check, LayoutList, Pencil, Plus, Trash2 } from 'lucide-react'
 import {
-  DART_SAVED_VIEWS_UPDATE_REQUIRED,
   MAX_DART_SAVED_VIEW_NAME_LENGTH,
   MAX_DART_SAVED_VIEWS,
   type DartSavedView
@@ -51,7 +50,7 @@ export function TaskPageDartSavedViews({
       <p className="text-xs text-muted-foreground">
         {translate(
           'auto.components.task.page.dart.TaskPageDartSavedViews.updateRequired',
-          DART_SAVED_VIEWS_UPDATE_REQUIRED
+          'Update the remote Orca server to save and reuse views.'
         )}
       </p>
     )

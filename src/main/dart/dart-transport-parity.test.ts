@@ -491,3 +491,72 @@ describe('dart list replies over both transports', () => {
     expect(String(last)).toContain('o=order')
   })
 })
+
+describe('dart board page over both transports', () => {
+  it.each([
+    ['order', 500],
+    ['-completed_at', 500]
+  ] as const)(
+    'sends o=%s offset=%i identically and returns the same 249 tasks with raw counts',
+    async (order, offset) => {
+      const { host, ipc, rpc } = await transports()
+      routeSignedIn(host, CONFIG)
+      await ipc('dart:connect', { apiToken: FIXTURE_TOKEN })
+      const rows = Array.from({ length: 249 }, (_, i) => ({
+        id: `id${String(i).padStart(10, '0')}`,
+        htmlUrl: `https://app.dartai.com/t/id${String(i).padStart(10, '0')}-t`,
+        title: `Task ${i}`,
+        status: 'Doing'
+      }))
+      host.route('GET', '/tasks/list', () =>
+        jsonResponse(200, { count: 900, results: [...rows, { title: 'no id' }] })
+      )
+      const params = { order, offset }
+      const listUrls = () =>
+        host.fetch.mock.calls
+          .map(([url]) => new URL(url))
+          .filter((url) => url.pathname.endsWith('/tasks/list'))
+
+      const overIpc = await ipc('dart:listTasks', params)
+      const overRpc = await rpc('dart.listTasks', params)
+
+      const [ipcQuery, rpcQuery] = listUrls().map((url) => Object.fromEntries(url.searchParams))
+      expect(ipcQuery).toMatchObject({ o: order, offset: String(offset) })
+      expect(rpcQuery).toEqual(ipcQuery)
+      expect(overIpc).toMatchObject({ ok: true, raw: { rowCount: 250, totalCount: 900 } })
+      expect(overIpc).toHaveProperty('tasks.length', 249)
+      expect(overRpc).toEqual(overIpc)
+    }
+  )
+
+  it('refuses an unknown order the same way on both transports, with no Dart request', async () => {
+    const { host, ipc, rpc } = await transports()
+    routeSignedIn(host, CONFIG)
+    await ipc('dart:connect', { apiToken: FIXTURE_TOKEN })
+    host.route('GET', '/tasks/list', () => jsonResponse(200, { count: 0, results: [] }))
+    const before = host.fetch.mock.calls.length
+
+    await expect(ipc('dart:listTasks', { order: 'priority' })).resolves.toMatchObject({
+      ok: false,
+      errorCode: 'dart.badRequest'
+    })
+    await expect(rpc('dart.listTasks', { order: 'priority' })).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'invalid_argument' }
+    })
+    expect(host.fetch.mock.calls).toHaveLength(before)
+  })
+
+  it('advertises the board and saved-view capabilities the host now serves', async () => {
+    await transports()
+    const { RUNTIME_CAPABILITIES } = await import('../../shared/protocol-version')
+    const { DART_METHODS } = await import('../runtime/rpc/methods/dart')
+
+    expect(RUNTIME_CAPABILITIES).toEqual(
+      expect.arrayContaining(['dart.board.v1', 'dart.savedViews.v1'])
+    )
+    // dart.board.v1 stands for the `order` list key, so the served method must accept it.
+    const listTasks = DART_METHODS.find((method) => method.name === 'dart.listTasks')
+    expect(listTasks?.params?.safeParse({ order: 'order', offset: 500 }).success).toBe(true)
+  })
+})

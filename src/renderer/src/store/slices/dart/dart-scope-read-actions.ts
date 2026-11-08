@@ -16,7 +16,6 @@ import type { CacheEntry } from '../../github/cache-model'
 import { runDartRead, type InflightDartRead } from './dart-read-actions'
 import {
   evictDartListCache,
-  getDartReadScope,
   isFreshDartCacheEntry,
   scopedDartCacheKey,
   type DartReadScope
@@ -88,9 +87,8 @@ export function createDartScopeReadActions(
   get: DartSliceGet
 ): DartScopeReadActions {
   return {
-    readDartScope: async (serverFilters, { features }) => {
+    readDartScope: async (serverFilters, { features, scope }) => {
       scopeReadSetToken += 1
-      const scope = getDartReadScope(get().settings)
       registerDartCacheAlias(scope, dartScopeViewerId(get(), scope))
       const base = buildDartListArgs(
         { ...serverFilters, status: null },
@@ -109,8 +107,7 @@ export function createDartScopeReadActions(
       return readDartScopePages(base, (args) => readScopePage(set, get, scope, args))
     },
 
-    publishDartScope: (serverFilters, { result, current }) => {
-      const scope = getDartReadScope(get().settings)
+    publishDartScope: (serverFilters, { result, current, scope }) => {
       const viewerId = dartScopeViewerId(get(), scope)
       registerDartCacheAlias(scope, viewerId)
       const key = dartScopeCacheKey(scope, serverFilters)
@@ -158,8 +155,8 @@ export function createDartScopeReadActions(
       })
     },
 
-    mountDartScope: (serverFilters) => {
-      const key = dartScopeCacheKey(getDartReadScope(get().settings), serverFilters)
+    mountDartScope: (serverFilters, scope) => {
+      const key = dartScopeCacheKey(scope, serverFilters)
       const state = get()
       if (!isFreshDartCacheEntry(state.dartListCache[key]) || !state.dartScopeMetaCache[key]) {
         return false
@@ -170,8 +167,7 @@ export function createDartScopeReadActions(
       return true
     },
 
-    readMoreDone: async (serverFilters, { features }) => {
-      const scope = getDartReadScope(get().settings)
+    readMoreDone: async (serverFilters, { features, scope }) => {
       const key = dartScopeCacheKey(scope, serverFilters)
       const started = get()
       const startMeta = started.dartScopeMetaCache[key]
