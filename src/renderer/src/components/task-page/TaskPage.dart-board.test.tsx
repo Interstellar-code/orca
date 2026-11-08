@@ -286,50 +286,57 @@ describe('delivery and races', () => {
     })
   })
 
-  it('ends with both drops in place when two drags settle during a five-request refresh and the second re-read publishes', async () => {
-    const host = desktop.open()
-    seedOpenTasks(host, 'bulk', 999, 'To-do')
-    await openBoard()
-    // 1,000 cards render slowly under happy-dom, so the default 1 s wait is too short.
-    await waitFor(() => expect(cardIds('To-do')).toHaveLength(1000), { timeout: 30_000 })
-    const first = SOURCE.id
-    const second = 'bulk001'
-    const before = host.count('dart.listTasks')
-    const releaseFirst = host.hold('dart.listTasks')
-    const gate = Promise.withResolvers<void>()
-    const handle = host.handle.bind(host)
-    // The re-read's first page is the 6th list request after the refresh began (4 open pages and 1 finished page).
-    host.handle = async (method, params) => {
-      const reply = handle(method, params)
-      if (method === 'dart.listTasks' && host.count('dart.listTasks') === before + 6) {
-        await gate.promise
+  it(
+    'ends with both drops in place when two drags settle during a five-request refresh and the second re-read publishes',
+    async () => {
+      const host = desktop.open()
+      seedOpenTasks(host, 'bulk', 999, 'To-do')
+      await openBoard()
+      // 1,000 cards render slowly under happy-dom, so the default 1 s wait is too short.
+      await waitFor(() => expect(cardIds('To-do')).toHaveLength(1000), { timeout: 30_000 })
+      const first = SOURCE.id
+      const second = 'bulk001'
+      const before = host.count('dart.listTasks')
+      const releaseFirst = host.hold('dart.listTasks')
+      const gate = Promise.withResolvers<void>()
+      const handle = host.handle.bind(host)
+      // The re-read's first page is the 6th list request after the refresh began (4 open pages and 1 finished page).
+      host.handle = async (method, params) => {
+        const reply = handle(method, params)
+        if (method === 'dart.listTasks' && host.count('dart.listTasks') === before + 6) {
+          await gate.promise
+        }
+        return reply
       }
-      return reply
-    }
 
-    await refresh()
-    await waitFor(() => expect(host.count('dart.listTasks')).toBe(before + 1))
-    drag(first, 'Doing')
-    await waitFor(() => expect(host.tasks.get(first)?.status).toBe('Doing'))
-    await act(async () => releaseFirst())
-    await waitFor(() => expect(host.count('dart.listTasks')).toBe(before + 6))
-    drag(second, 'Doing')
-    await waitFor(() => expect(host.tasks.get(second)?.status).toBe('Doing'))
-    await act(async () => gate.resolve())
+      await refresh()
+      await waitFor(() => expect(host.count('dart.listTasks')).toBe(before + 1))
+      drag(first, 'Doing')
+      await waitFor(() => expect(host.tasks.get(first)?.status).toBe('Doing'))
+      await act(async () => releaseFirst())
+      await waitFor(() => expect(host.count('dart.listTasks')).toBe(before + 6))
+      drag(second, 'Doing')
+      await waitFor(() => expect(host.tasks.get(second)?.status).toBe('Doing'))
+      await act(async () => gate.resolve())
 
-    // The read and its two re-reads are five requests each.
-    // 1,000 cards render slowly under happy-dom, so the default 1 s wait is too short.
-    await waitFor(() => expect(host.count('dart.listTasks')).toBe(before + 15), { timeout: 30_000 })
-    const button = screen.getByRole('button', { name: 'Refresh Dart tasks' })
-    await waitFor(() => expect(button.hasAttribute('disabled')).toBe(false))
-    const onHost = (status: string): string[] =>
-      Array.from(host.tasks.values())
-        .filter((task) => task.status === status)
-        .map((task) => task.id)
-    expect(cardIds('Doing').sort()).toEqual(onHost('Doing').sort())
-    expect(cardIds('To-do').sort()).toEqual(onHost('To-do').sort())
-    expect(cardIds('Doing').sort()).toEqual([second, first].sort())
-  }, 90_000)
+      // The read and its two re-reads are five requests each.
+      // 1,000 cards render slowly under happy-dom, so the default 1 s wait is too short.
+      await waitFor(() => expect(host.count('dart.listTasks')).toBe(before + 15), {
+        timeout: 30_000
+      })
+      const button = screen.getByRole('button', { name: 'Refresh Dart tasks' })
+      await waitFor(() => expect(button.hasAttribute('disabled')).toBe(false))
+      const onHost = (status: string): string[] =>
+        Array.from(host.tasks.values())
+          .filter((task) => task.status === status)
+          .map((task) => task.id)
+      expect(cardIds('Doing').sort()).toEqual(onHost('Doing').sort())
+      expect(cardIds('To-do').sort()).toEqual(onHost('To-do').sort())
+      expect(cardIds('Doing').sort()).toEqual([second, first].sort())
+    },
+    // Three 5-page reads of 1,000 cards render slowly under happy-dom.
+    90_000
+  )
 
   it('drops a stale "Show 50 more finished" reply after the server filter changes and restarts the offset', async () => {
     const host = desktop.open()
