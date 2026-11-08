@@ -538,15 +538,17 @@ describe('useTaskPageDartState on a board host', () => {
       fetchDartTask: state.fetchDartTask,
       fetchDartConfig: state.fetchDartConfig
     }
-    const hook = renderHook(() =>
-      useTaskPageDartState({
-        ...input,
-        providerRuntimeContextKey: useAppStore((s) => getProviderRuntimeContextKey(s.settings))
-      })
-    )
+    const mount = () =>
+      renderHook(() =>
+        useTaskPageDartState({
+          ...input,
+          providerRuntimeContextKey: useAppStore((s) => getProviderRuntimeContextKey(s.settings))
+        })
+      )
+    const hook = mount()
     const listRequests = () => host.requests.filter(({ method }) => method === 'dart.listTasks')
     const meta = () => hook.result.current.dartScopeMeta
-    return { env, host, hook, listRequests, meta }
+    return { env, host, hook, listRequests, meta, mount }
   }
 
   it('reads open and finished pages through the scope reads and lists them together', async () => {
@@ -874,5 +876,49 @@ describe('useTaskPageDartState on a board host', () => {
     expect(JSON.parse(localStorage.getItem('orca.dart.view-mode.v1') ?? 'null')).toEqual({
       showEmptyColumns: true
     })
+  })
+
+  it('reuses a fresh scope entry on re-mount with no read, and "Show 50 more" still works', async () => {
+    const { hook, mount, listRequests } = openBoardPage({ finished: 120 })
+    await waitFor(() => expect(hook.result.current.dartScopeMeta?.doneTotal).toBe(120))
+    hook.unmount()
+    useAppStore.setState({ dartMountedScopeKey: null })
+    const reads = listRequests().length
+
+    const remounted = mount()
+
+    await waitFor(() => expect(remounted.result.current.dartTasks).toHaveLength(52))
+    expect(remounted.result.current.dartLoading).toBe(false)
+    expect(listRequests()).toHaveLength(reads)
+    await act(async () => remounted.result.current.dartBoardModel.showMoreDone())
+    await waitFor(() => expect(remounted.result.current.dartScopeMeta?.doneOffset).toBe(100))
+    expect(listRequests().at(-1)?.params).toMatchObject({ isCompleted: true, offset: 50 })
+  })
+
+  it('reads again on re-mount once the scope entry is older than 60 seconds', async () => {
+    const { hook, mount, listRequests, meta } = openBoardPage()
+    await waitFor(() => expect(meta()?.fetchedAt).toBeGreaterThan(0))
+    hook.unmount()
+    const reads = listRequests().length
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(Date.now() + 61_000)
+
+    const remounted = mount()
+
+    await waitFor(() => expect(listRequests().length).toBeGreaterThan(reads))
+    await waitFor(() => expect(remounted.result.current.dartLoading).toBe(false))
+  })
+
+  it('still reads when the user refreshes right after a re-mount reused the entry', async () => {
+    const { hook, mount, listRequests } = openBoardPage()
+    await waitFor(() => expect(hook.result.current.dartTasks).toHaveLength(2))
+    hook.unmount()
+    const remounted = mount()
+    await waitFor(() => expect(remounted.result.current.dartTasks).toHaveLength(2))
+    const reads = listRequests().length
+
+    act(() => remounted.result.current.setDartRefreshNonce((n) => n + 1))
+
+    await waitFor(() => expect(listRequests().length).toBeGreaterThan(reads))
   })
 })

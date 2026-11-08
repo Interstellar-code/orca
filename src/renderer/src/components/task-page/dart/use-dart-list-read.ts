@@ -48,6 +48,7 @@ export type DartListReadActions = {
   }) => Promise<DartClientResult<{ config: DartWorkspaceConfig }>>
   readDartScope: DartSlice['readDartScope']
   publishDartScope: DartSlice['publishDartScope']
+  mountDartScope: DartSlice['mountDartScope']
   openDartDetailPage?: (task: DartTask) => void
 }
 
@@ -97,6 +98,7 @@ export function useDartListRead(args: {
   const [dartLoading, setDartLoading] = useState(false)
   const [dartError, setDartError] = useState<TaskPageDartError | null>(null)
   const shownRowsKeyRef = useRef<string | null>(null)
+  const lastRefreshNonceRef = useRef(refreshNonce)
 
   useEffect(() => {
     if (!active || !featuresReady) {
@@ -104,6 +106,14 @@ export function useDartListRead(args: {
     }
     let cancelled = false
     clearPinsOnNewList(JSON.stringify([hostKey, listKey, hasWorkspace, refreshNonce, boardPath]))
+    const refreshRequested = lastRefreshNonceRef.current !== refreshNonce
+    lastRefreshNonceRef.current = refreshNonce
+    // D3.7: a fresh scope entry answers a re-mount or a return to earlier filters with no read.
+    if (boardPath && !refreshRequested && actionsRef.current.mountDartScope(serverFilters)) {
+      setDartLoading(false)
+      setDartError(null)
+      return
+    }
     setDartLoading(true)
     setDartError(null)
     const force = refreshNonce > 0

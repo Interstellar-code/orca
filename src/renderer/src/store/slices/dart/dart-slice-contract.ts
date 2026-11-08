@@ -50,6 +50,8 @@ export type DartScopeReadSlice = {
     serverFilters: DartServerFilters,
     outcome: { result: DartScopeReadResult; current: boolean }
   ) => void
+  /** Re-mount reuse (D3.7): when the scope entry for these filters is still fresh, marks it mounted and returns true; no read. */
+  mountDartScope: (serverFilters: DartServerFilters) => boolean
   /** Reads the next 50 finished tasks by `doneOffset`; the viewer id comes from `dartStatus`. */
   readMoreDone: (
     serverFilters: DartServerFilters,

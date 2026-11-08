@@ -66,6 +66,7 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
   } = model
   const readDartScope = useAppStore((s) => s.readDartScope)
   const publishDartScope = useAppStore((s) => s.publishDartScope)
+  const mountDartScope = useAppStore((s) => s.mountDartScope)
   const [dartHasWorkspace, setDartHasWorkspace] = useState(false)
   const [dartRefreshNonce, setDartRefreshNonce] = useState(0)
   const [dartTasks, setDartTasks] = useState<DartTask[]>([])
@@ -89,6 +90,7 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
     fetchDartConfig,
     readDartScope,
     publishDartScope,
+    mountDartScope,
     openDartDetailPage: model.openDartDetailPage
   }
   const actionsRef = useRef(actions)
