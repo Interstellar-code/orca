@@ -25,6 +25,7 @@ import type {
 } from '@/components/task-page/dart/dart-board-contracts'
 import type { CacheEntry } from '../../github/cache-model'
 import type { AppState } from '../../types'
+import type { DartReadScope } from './dart-read-coordination'
 import type { DartAccountIdentity, DartTaskIdentity } from './dart-task-identity'
 
 export type DartReadOptions = {
@@ -44,18 +45,18 @@ export type DartScopeReadSlice = {
   /** Read-only: reads the open pages and the first finished page, writes no cache. The viewer id comes from `dartStatus`. */
   readDartScope: (
     serverFilters: DartServerFilters,
-    options: { features: DartHostFeatures }
+    options: { features: DartHostFeatures; scope: DartReadScope }
   ) => Promise<DartScopeReadResult>
   publishDartScope: (
     serverFilters: DartServerFilters,
-    outcome: { result: DartScopeReadResult; current: boolean }
+    outcome: { result: DartScopeReadResult; current: boolean; scope: DartReadScope }
   ) => void
   /** Re-mount reuse (D3.7): when the scope entry for these filters is still fresh, marks it mounted and returns true; no read. */
-  mountDartScope: (serverFilters: DartServerFilters) => boolean
+  mountDartScope: (serverFilters: DartServerFilters, scope: DartReadScope) => boolean
   /** Reads the next 50 finished tasks by `doneOffset`; the viewer id comes from `dartStatus`. */
   readMoreDone: (
     serverFilters: DartServerFilters,
-    options: { features: DartHostFeatures }
+    options: { features: DartHostFeatures; scope: DartReadScope }
   ) => Promise<DartClientResult<object>>
 }
 

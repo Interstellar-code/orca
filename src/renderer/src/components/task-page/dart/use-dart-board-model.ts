@@ -18,6 +18,7 @@ import type {
   DartScopeMeta,
   DartServerFilters
 } from './dart-board-contracts'
+import type { DartReadScope } from '@/store/slices/dart/dart-read-coordination'
 import { enqueueDartTaskWrite } from './dart-task-write-queue'
 import { mergeDartPinnedRows, type PinnedDartRow } from './use-dart-list-pinned-rows'
 
@@ -43,6 +44,7 @@ function foldStatus(status: string | null | undefined): string {
 
 export function useDartBoardModel(args: {
   scopeKey: string | null
+  pageScope: DartReadScope
   layout: DartLayout
   serverFilters: DartServerFilters
   clientFilters: DartClientFilters
@@ -56,6 +58,7 @@ export function useDartBoardModel(args: {
 }): DartBoardModel {
   const {
     scopeKey,
+    pageScope,
     layout,
     serverFilters,
     clientFilters,
@@ -121,7 +124,7 @@ export function useDartBoardModel(args: {
     run.running = true
     const { token } = run
     setDoneMoreState({ state: 'loading', error: null })
-    void readMoreDone(serverFilters, { features }).then((result) => {
+    void readMoreDone(serverFilters, { features, scope: pageScope }).then((result) => {
       if (token !== run.token) {
         return
       }
@@ -130,7 +133,7 @@ export function useDartBoardModel(args: {
         result.ok ? { state: 'ready', error: null } : { state: 'error', error: result.error }
       )
     })
-  }, [scopeKey, readMoreDone, serverFilters, features])
+  }, [scopeKey, readMoreDone, serverFilters, features, pageScope])
 
   const doneMore = useMemo<DartLoad<null>>(
     () => ({

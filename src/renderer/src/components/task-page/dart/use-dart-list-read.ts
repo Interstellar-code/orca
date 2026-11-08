@@ -20,6 +20,7 @@ import { taskProviderErrorMessage } from '@/lib/task-provider-error-copy'
 import type { DartClientResult } from '@/runtime/runtime-dart-client'
 import type { DartSlice } from '@/store/slices/dart/dart-slice-contract'
 import { captureDartEpoch } from '@/store/slices/dart/dart-task-identity'
+import type { DartReadScope } from '@/store/slices/dart/dart-read-coordination'
 import type { DartServerFilters } from './dart-board-contracts'
 import { readPastDartWrites } from './dart-stale-read'
 import { withPendingDartPatches } from './dart-task-write-queue'
@@ -57,6 +58,7 @@ export function useDartListRead(args: {
   active: boolean
   featuresReady: boolean
   boardPath: boolean
+  pageScope: DartReadScope
   hostFeatures: DartHostFeatures | null
   listKey: string
   filters: DartBoardFilters
@@ -78,6 +80,7 @@ export function useDartListRead(args: {
     active,
     featuresReady,
     boardPath,
+    pageScope,
     hostFeatures,
     listKey,
     filters,
@@ -109,7 +112,11 @@ export function useDartListRead(args: {
     const refreshRequested = lastRefreshNonceRef.current !== refreshNonce
     lastRefreshNonceRef.current = refreshNonce
     // D3.7: a fresh scope entry answers a re-mount or a return to earlier filters with no read.
-    if (boardPath && !refreshRequested && actionsRef.current.mountDartScope(serverFilters)) {
+    if (
+      boardPath &&
+      !refreshRequested &&
+      actionsRef.current.mountDartScope(serverFilters, pageScope)
+    ) {
       setDartLoading(false)
       setDartError(null)
       return
@@ -123,13 +130,17 @@ export function useDartListRead(args: {
         captureEpoch: () => captureDartEpoch({ hostKey }),
         cancelled: () => cancelled,
         force,
-        read: () => actionsRef.current.readDartScope(serverFilters, { features })
+        read: () => actionsRef.current.readDartScope(serverFilters, { features, scope: pageScope })
       })
         .then(({ result, current }) => {
           if (cancelled) {
             return
           }
-          actionsRef.current.publishDartScope(serverFilters, { result, current })
+          actionsRef.current.publishDartScope(serverFilters, {
+            result,
+            current,
+            scope: pageScope
+          })
           setDartError(result.failure ? { message: result.failure.message } : null)
         })
         .catch(() => {

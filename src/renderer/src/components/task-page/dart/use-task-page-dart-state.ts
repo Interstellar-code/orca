@@ -10,10 +10,7 @@ import {
   findDartTaskWorkspaceAttachmentsInIndex
 } from '@/lib/dart-issue-workspace-attachment'
 import { useAppStore } from '@/store'
-import {
-  dartPageScopeFromContextKey,
-  getDartReadScope
-} from '@/store/slices/dart/dart-read-coordination'
+import { dartPageScopeFromContextKey } from '@/store/slices/dart/dart-read-coordination'
 import { dartScopeCacheKey } from '@/store/slices/dart/dart-scope-read-actions'
 import { dartAccountIdentity, dartScopeViewerId } from '@/store/slices/dart/dart-task-identity'
 import type { DartBoardFeatures, DartScopeMeta } from './dart-board-contracts'
@@ -125,12 +122,8 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
   // oxlint-disable-next-line react-hooks/exhaustive-deps -- Why: the four client filters are listed individually.
   const clientFilters = useMemo(() => client, [status, tag, priority, onHold])
   const scopeKey = useMemo(
-    () =>
-      boardPath
-        ? dartScopeCacheKey(getDartReadScope(useAppStore.getState().settings), serverFilters)
-        : null,
-    // oxlint-disable-next-line react-hooks/exhaustive-deps -- Why: the page context key names the host the default scope resolves to.
-    [boardPath, serverFilters, providerRuntimeContextKey]
+    () => (boardPath ? dartScopeCacheKey(pageScope, serverFilters) : null),
+    [boardPath, serverFilters, pageScope]
   )
   const scopeEntry = useAppStore((s) => (scopeKey ? s.dartListCache[scopeKey] : undefined))
   const scopeMeta: DartScopeMeta | null = useAppStore((s) =>
@@ -178,6 +171,7 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
     active,
     featuresReady,
     boardPath,
+    pageScope,
     hostFeatures,
     listKey,
     filters: dartFilters,
@@ -239,6 +233,7 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
   }, [])
   const dartBoardModel = useDartBoardModel({
     scopeKey,
+    pageScope,
     layout,
     serverFilters,
     clientFilters,

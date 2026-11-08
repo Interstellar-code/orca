@@ -84,8 +84,8 @@ async function openScope(tasks: DartTask[]) {
     dartStatusContextKey: scope.contextKey
   })
   const state = useAppStore.getState()
-  const result = await state.readDartScope(SERVER_FILTERS, { features: FEATURES })
-  state.publishDartScope(SERVER_FILTERS, { result, current: true })
+  const result = await state.readDartScope(SERVER_FILTERS, { features: FEATURES, scope })
+  state.publishDartScope(SERVER_FILTERS, { result, current: true, scope })
   const scopeKey = useAppStore.getState().dartMountedScopeKey
   const account = dartAccountIdentity(scope, VIEWER.id)
   return { host, scopeKey, account, scope }
@@ -100,6 +100,7 @@ function mountModel(
     (props: { pinnedRows: ReadonlyMap<string, PinnedDartRow> }) =>
       useDartBoardModel({
         scopeKey,
+        pageScope: getDartReadScope(useAppStore.getState().settings),
         layout: overrides.layout ?? 'board',
         serverFilters: SERVER_FILTERS,
         clientFilters: CLIENT_FILTERS,
