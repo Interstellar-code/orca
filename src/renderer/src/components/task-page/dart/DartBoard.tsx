@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { DartTask } from '../../../../../shared/dart/dart-types'
 import { Button } from '@/components/ui/button'
 import { translate } from '@/i18n/i18n'
@@ -29,15 +29,9 @@ export function DartBoard({ model, selectedTaskId }: DartBoardProps): React.JSX.
   }, [model.columns])
 
   // A refresh that drops the task closes its open menu and cancels its drag (D4.2).
-  useEffect(() => {
-    if (menuTaskId && !placement.has(menuTaskId)) {
-      setMenuTaskId(null)
-    }
-    if (draggingId && !placement.has(draggingId)) {
-      setDraggingId(null)
-      setDragOverKey(null)
-    }
-  }, [placement, menuTaskId, draggingId])
+  const openMenuId = menuTaskId && placement.has(menuTaskId) ? menuTaskId : null
+  const activeDraggingId = draggingId && placement.has(draggingId) ? draggingId : null
+  const activeDragOverKey = activeDraggingId ? dragOverKey : null
 
   useLayoutEffect(() => {
     const pending = pendingFocus.current
@@ -88,12 +82,12 @@ export function DartBoard({ model, selectedTaskId }: DartBoardProps): React.JSX.
     event: React.DragEvent<HTMLElement>,
     column: DartBoardColumnData
   ): void => {
-    if (!draggingId) {
+    if (!activeDraggingId) {
       return
     }
     event.preventDefault()
     event.dataTransfer.dropEffect = 'move'
-    const source = placement.get(draggingId)
+    const source = placement.get(activeDraggingId)
     setDragOverKey(column.inConfig && source?.column.key !== column.key ? column.key : null)
   }
 
@@ -103,7 +97,9 @@ export function DartBoard({ model, selectedTaskId }: DartBoardProps): React.JSX.
     setDragOverKey(null)
     const read = readDartBoardTaskDragData(event.dataTransfer)
     const taskId =
-      read.status === 'hidden' ? draggingId : isDartBoardDragFromHost(read, model.hostKey)?.taskId
+      read.status === 'hidden'
+        ? activeDraggingId
+        : isDartBoardDragFromHost(read, model.hostKey)?.taskId
     setDraggingId(null)
     const source = taskId ? placement.get(taskId) : undefined
     if (!source || source.column.key === column.key) {
@@ -136,7 +132,7 @@ export function DartBoard({ model, selectedTaskId }: DartBoardProps): React.JSX.
           <DartBoardColumn
             key={column.key}
             column={column}
-            dropTarget={dragOverKey === column.key}
+            dropTarget={activeDragOverKey === column.key}
             onDragOver={(event) => handleDragOver(event, column)}
             onDrop={(event) => handleDrop(event, column)}
           >
@@ -146,7 +142,7 @@ export function DartBoard({ model, selectedTaskId }: DartBoardProps): React.JSX.
                 task={task}
                 model={model}
                 current={task.id === selectedTaskId}
-                menuOpen={menuTaskId === task.id}
+                menuOpen={openMenuId === task.id}
                 onMenuOpenChange={(open) => setMenuTaskId(open ? task.id : null)}
                 onMoveTo={(status) => void moveTask(task, status)}
                 onDragStartTask={() => setDraggingId(task.id)}
