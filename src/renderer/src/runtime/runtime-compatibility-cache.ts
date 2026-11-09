@@ -21,6 +21,32 @@ export type RuntimeCompatibilityCacheEntry = {
 
 export const runtimeCompatibilityChecks = new Map<string, RuntimeCompatibilityCacheEntry>()
 
+// Why: identity checks on the entry cannot see a status observation on an empty cache; a counter that
+// moves on every write, clear and observation can. Values come from one monotonic source, and an
+// environment without a counter reads `floor`, which jumps on clear-all and eviction so it never repeats.
+const GENERATION_MAX = 256
+const generations = new Map<string, number>()
+let generationCounter = 0
+let generationFloor = 0
+
+export function runtimeCompatibilityGeneration(environmentId: string): number {
+  return generations.get(environmentId.trim()) ?? generationFloor
+}
+
+export function bumpRuntimeCompatibilityGeneration(environmentId: string): void {
+  const trimmed = environmentId.trim()
+  generations.delete(trimmed)
+  generations.set(trimmed, ++generationCounter)
+  while (generations.size > GENERATION_MAX) {
+    const oldest = generations.keys().next().value
+    if (oldest === undefined) {
+      break
+    }
+    generations.delete(oldest)
+    generationFloor = ++generationCounter
+  }
+}
+
 /** A pending probe by default; an observed status is proof of itself. */
 export function compatibilityEntry(
   status: RuntimeStatus | null = null,
@@ -50,6 +76,7 @@ export function getCachedRuntimeCompatibilityCheck(
     Date.now() - cached.failedAt >= RECENT_RUNTIME_COMPATIBILITY_FAILURE_TTL_MS
   ) {
     runtimeCompatibilityChecks.delete(environmentId)
+    bumpRuntimeCompatibilityGeneration(environmentId)
     return null
   }
   if (cached.failedAt !== null && options.reuseRecentCompatibilityFailure !== true) {
@@ -68,12 +95,14 @@ export function rememberRuntimeEnvironmentCompatibility(
   // renderer sessions; compatibility cache entries should not grow forever.
   runtimeCompatibilityChecks.delete(environmentId)
   runtimeCompatibilityChecks.set(environmentId, entry)
+  bumpRuntimeCompatibilityGeneration(environmentId)
   while (runtimeCompatibilityChecks.size > RUNTIME_COMPATIBILITY_CACHE_MAX) {
     const oldest = runtimeCompatibilityChecks.keys().next().value
     if (oldest === undefined) {
       break
     }
     runtimeCompatibilityChecks.delete(oldest)
+    bumpRuntimeCompatibilityGeneration(oldest)
   }
 }
 
@@ -87,6 +116,8 @@ export function clearRecentRuntimeCompatibilityFailure(
   if (!trimmed) {
     return
   }
+  // Even with nothing cached, a live status answer is newer than any probe still in flight.
+  bumpRuntimeCompatibilityGeneration(trimmed)
   const cached = runtimeCompatibilityChecks.get(trimmed)
   if (
     cached &&
@@ -111,9 +142,12 @@ export function clearRuntimeCompatibilityCache(environmentId?: string | null): v
   const trimmed = environmentId?.trim()
   if (trimmed) {
     runtimeCompatibilityChecks.delete(trimmed)
+    bumpRuntimeCompatibilityGeneration(trimmed)
     return
   }
   runtimeCompatibilityChecks.clear()
+  generations.clear()
+  generationFloor = ++generationCounter
 }
 
 export function markRuntimeEnvironmentCompatible(

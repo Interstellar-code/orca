@@ -220,6 +220,14 @@ describe('dartBoardFeaturesForTarget', () => {
     expect(supportedDartFeaturesLocal).not.toHaveBeenCalled()
   })
 
+  it('re-probes a remote host within the capability cache window: a downgraded host reports no board', async () => {
+    mockRemoteBoardCapability(true)
+    await expect(dartBoardFeaturesForTarget(remote)).resolves.toEqual({ board: true })
+
+    mockRemoteBoardCapability(false)
+    await expect(dartBoardFeaturesForTarget(remote)).resolves.toEqual({ board: false })
+  })
+
   it('asks the local bridge for a local target', async () => {
     supportedDartFeaturesLocal.mockResolvedValue({ board: true })
 

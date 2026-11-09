@@ -65,6 +65,14 @@ export function mergeDartScopeTasks(
   return { tasks, repeated }
 }
 
+/** A finished page short of the limit while rows remain: Dart held back rows or the set moved. */
+export function isShortDartDonePage(
+  raw: NonNullable<DartTaskPage['raw']>,
+  offset: number
+): boolean {
+  return raw.rowCount < DART_DONE_PAGE_SIZE && offset + raw.rowCount < raw.totalCount
+}
+
 /** Reads the open pages one after another, then the first finished page; cursors advance by raw row counts. */
 export async function readDartScopePages(
   baseArgs: NonNullable<DartListTasksArgs>,
@@ -136,8 +144,7 @@ export async function readDartScopePages(
     return fail(missingRowCountsFailure())
   }
   absorb(done)
-  const doneShort =
-    done.raw.rowCount < DART_DONE_PAGE_SIZE && done.raw.rowCount < done.raw.totalCount
+  const doneShort = isShortDartDonePage(done.raw, 0)
   return {
     tasks,
     openTotal,

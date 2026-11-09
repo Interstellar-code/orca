@@ -150,20 +150,26 @@ export function TaskPageDartContent({
 
   const truncated =
     !dartBoardPath && !dartHasWorkspace && isDartListTruncated(dartTasks.length, dartTotalCount)
+  const clientFilterActive = hasDartClientFilter(splitDartBoardFilters(dartFilters).client)
   const countLine =
     dartBoardPath && dartScopeMeta
       ? buildDartCountLine({
           meta: dartScopeMeta,
           loadedOpen: dartTasks.filter((task) => !isDartTaskFinished(task)).length,
           loadedDone: dartTasks.filter(isDartTaskFinished).length,
-          clientFilterActive: hasDartClientFilter(splitDartBoardFilters(dartFilters).client)
+          clientFilterActive
         })
       : null
   const refresh = (): void => setDartRefreshNonce((n) => n + 1)
   const readChanged = dartBoardPath && dartScopeMeta?.partialReason === 'changed'
   const { doneMore, hasMoreDone, showMoreDone } = dartBoardModel
   const authFailed = isDartAuthFailureCode(dartError?.code)
-  const showEmpty = !dartLoading && dartTasks.length === 0 && !dartError
+  // Why: a client filter can hide every loaded row while later pages may still match.
+  const boardMounted =
+    dartBoardPath &&
+    dartLayout === 'board' &&
+    (dartTasks.length > 0 || hasMoreDone || (clientFilterActive && dartLoadedCount > 0))
+  const showEmpty = !dartLoading && dartTasks.length === 0 && !dartError && !boardMounted
 
   return (
     <div className="@container flex min-h-0 max-h-full flex-col overflow-hidden rounded-md rounded-t-none border border-t-0 border-border/50 bg-background shadow-sm">
@@ -293,7 +299,7 @@ export function TaskPageDartContent({
           </div>
         ) : null}
 
-        {dartTasks.length > 0 && dartBoardPath && dartLayout === 'board' ? (
+        {boardMounted ? (
           <DartBoard model={dartBoardModel} selectedTaskId={selectedDartTask?.id ?? null} />
         ) : null}
 
@@ -322,10 +328,12 @@ export function TaskPageDartContent({
               disabled={doneMore.state === 'loading'}
               onClick={showMoreDone}
             >
-              {translate(
-                'auto.components.task.page.dart.Content.showMoreDone',
-                'Show 50 more finished'
-              )}
+              {doneMore.error
+                ? translate('auto.components.task.page.dart.Content.readRetry', 'Retry')
+                : translate(
+                    'auto.components.task.page.dart.Content.showMoreDone',
+                    'Show 50 more finished'
+                  )}
             </Button>
           </div>
         ) : null}

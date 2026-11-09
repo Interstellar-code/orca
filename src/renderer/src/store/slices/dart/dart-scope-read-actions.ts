@@ -23,6 +23,7 @@ import {
 import {
   DART_DONE_PAGE_SIZE,
   dartScopeFailure,
+  isShortDartDonePage,
   mergeDartScopeTasks,
   missingRowCountsFailure,
   readDartScopePages,
@@ -92,7 +93,7 @@ export function createDartScopeReadActions(
       registerDartCacheAlias(scope, dartScopeViewerId(get(), scope))
       const base = buildDartListArgs(
         { ...serverFilters, status: null },
-        get().dartStatus.viewer?.id
+        dartScopeViewerId(get(), scope)
       )
       if (!base) {
         return EMPTY_SCOPE_READ
@@ -173,7 +174,7 @@ export function createDartScopeReadActions(
       const startMeta = started.dartScopeMetaCache[key]
       const base = buildDartListArgs(
         { ...serverFilters, status: null },
-        started.dartStatus.viewer?.id
+        dartScopeViewerId(started, scope)
       )
       if (!base || !startMeta || !started.dartListCache[key]?.data) {
         return { ok: true }
@@ -214,6 +215,7 @@ export function createDartScopeReadActions(
         ) {
           return state
         }
+        const merged = mergeDartScopeTasks(entry.data.tasks, rows)
         return {
           dartListCache: {
             ...state.dartListCache,
@@ -221,7 +223,7 @@ export function createDartScopeReadActions(
               ...entry,
               data: {
                 ...entry.data,
-                tasks: mergeDartScopeTasks(entry.data.tasks, rows).tasks
+                tasks: merged.tasks
               }
             }
           },
@@ -230,7 +232,9 @@ export function createDartScopeReadActions(
             [key]: {
               ...meta,
               doneTotal: raw.totalCount,
-              doneOffset: meta.doneOffset + raw.rowCount
+              doneOffset: meta.doneOffset + raw.rowCount,
+              incomplete:
+                meta.incomplete || merged.repeated || isShortDartDonePage(raw, meta.doneOffset)
             }
           }
         }

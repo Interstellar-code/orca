@@ -9,32 +9,42 @@ export type PinnedDartRow = {
   survivesNextClear: boolean
 }
 
+const NO_ROWS: readonly DartTask[] = []
+
 // List rows never carry a description, but confirmed and evidence patches do.
 function rowFieldsOf(patch: Partial<DartTask>): Partial<DartTask> {
   const { description: _description, ...fields } = patch
   return fields
 }
 
-/** D12: pinned rows missing from the read go on top of it; never writes to the store or to `tasks`. */
-export function mergeDartPinnedRows(
+/** The pinned rows the read did not return, with their pending edits applied. */
+export function missingDartPinnedRows(
   tasks: readonly DartTask[],
   pinned: ReadonlyMap<string, PinnedDartRow>,
   account: DartAccountIdentity
 ): readonly DartTask[] {
   if (pinned.size === 0) {
-    return tasks
+    return NO_ROWS
   }
   const returned = new Set(tasks.map((row) => row.id))
-  const missing = [...pinned.values()]
+  return [...pinned.values()]
     .filter((pin) => !returned.has(pin.row.id))
     .map((pin) => ({
       ...pin.row,
       ...rowFieldsOf(pendingDartPatches({ ...account, taskId: pin.row.id }))
     }))
-  if (missing.length === 0) {
-    return tasks
-  }
-  return [...missing, ...tasks]
+}
+
+/** D12: pinned rows the filtered read does not show go on top of it; a pin lasts until the next refresh clears it, so `readFilter` never hides an edited row; never writes to the store or to `tasks`. */
+export function mergeDartPinnedRows(
+  tasks: readonly DartTask[],
+  pinned: ReadonlyMap<string, PinnedDartRow>,
+  account: DartAccountIdentity,
+  readFilter?: (read: readonly DartTask[]) => readonly DartTask[]
+): readonly DartTask[] {
+  const read = readFilter ? readFilter(tasks) : tasks
+  const missing = missingDartPinnedRows(read, pinned, account)
+  return missing.length === 0 ? read : [...missing, ...read]
 }
 
 function fieldsAlreadyApplied(row: DartTask, fields: Partial<DartTask>): boolean {

@@ -94,7 +94,11 @@ async function openScope(tasks: DartTask[]) {
 function mountModel(
   scopeKey: string | null,
   account: { hostKey: string; accountKey: string },
-  overrides: { layout?: 'list' | 'board'; pinnedRows?: ReadonlyMap<string, PinnedDartRow> } = {}
+  overrides: {
+    layout?: 'list' | 'board'
+    pinnedRows?: ReadonlyMap<string, PinnedDartRow>
+    clientFilters?: DartClientFilters
+  } = {}
 ) {
   return renderHook(
     (props: { pinnedRows: ReadonlyMap<string, PinnedDartRow> }) =>
@@ -103,7 +107,7 @@ function mountModel(
         pageScope: getDartReadScope(useAppStore.getState().settings),
         layout: overrides.layout ?? 'board',
         serverFilters: SERVER_FILTERS,
-        clientFilters: CLIENT_FILTERS,
+        clientFilters: overrides.clientFilters ?? CLIENT_FILTERS,
         showEmptyColumns: false,
         config: CONFIG,
         features: FEATURES,
@@ -167,6 +171,24 @@ describe('useDartBoardModel', () => {
     expect(useAppStore.getState().dartListCache[scopeKey!]?.data?.tasks).toBe(storedRows)
   })
 
+  it('keeps a pinned row on the board after it stops matching a client filter, also while the store still holds it, until its pin is gone', async () => {
+    const stored = openTask('stored', 'Doing')
+    const moved = openTask('moved', 'Doing')
+    const { scopeKey, account } = await openScope([stored])
+    const pinnedRows = new Map([[moved.id, { row: moved, survivesNextClear: false }]])
+    const clientFilters = { ...CLIENT_FILTERS, status: 'To-do' }
+    const hook = mountModel(scopeKey, account, { pinnedRows, clientFilters })
+
+    expect(columnIds(hook, 'Doing')).toEqual([moved.id])
+    expect(columnIds(hook, 'To-do')).toBeUndefined()
+
+    hook.rerender({ pinnedRows: new Map([[stored.id, { row: stored, survivesNextClear: false }]]) })
+    expect(columnIds(hook, 'Doing')).toEqual([stored.id])
+
+    hook.rerender({ pinnedRows: NO_PINS })
+    expect(hook.result.current.columns).toEqual([])
+  })
+
   it('builds no columns in list layout but still offers more finished tasks', async () => {
     const { scopeKey, account } = await openScope([
       openTask('list'),
@@ -223,6 +245,32 @@ describe('useDartBoardModel', () => {
       expect(result).toMatchObject({ ok: false, outcome: 'notApplied' })
       expect(columnIds(hook, 'To-do')).toEqual([task.id])
       expect(columnIds(hook, 'Doing')).toBeUndefined()
+    })
+
+    it('sends a queued move to the host it was dropped on after the page switches hosts', async () => {
+      const task = openTask('switch')
+      const { host, scopeKey, account } = await openScope([task])
+      const otherHost = runtime.host('move-switch-remote')
+      otherHost.addTask({ ...task, status: 'To-do' })
+      const hook = mountModel(scopeKey, account)
+      const localSettings = useAppStore.getState().settings!
+
+      let moved: ReturnType<typeof hook.result.current.onMove> | undefined
+      act(() => {
+        moved = hook.result.current.onMove(task, 'Doing')
+        useAppStore.setState({
+          settings: { ...localSettings, activeRuntimeEnvironmentId: 'move-switch-remote' }
+        })
+      })
+      await act(async () => {
+        await moved
+      })
+      useAppStore.setState({ settings: localSettings })
+
+      expect(await moved).toMatchObject({ ok: true })
+      expect(host.count('dart.updateTask')).toBe(1)
+      expect(otherHost.requests).toEqual([])
+      expect(useAppStore.getState().dartListCache[scopeKey!]?.data?.tasks[0]?.status).toBe('Doing')
     })
 
     it('sends nothing for a drop on the task’s own status', async () => {

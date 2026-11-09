@@ -232,7 +232,8 @@ export async function dartBoardFeaturesForTarget(
         board: await runtimeEnvironmentSupportsCapability(
           target.environmentId,
           DART_BOARD_RUNTIME_CAPABILITY,
-          CAPABILITY_PROBE_TIMEOUT_MS
+          CAPABILITY_PROBE_TIMEOUT_MS,
+          { fresh: true }
         )
       }
     }

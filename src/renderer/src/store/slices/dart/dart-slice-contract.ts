@@ -30,11 +30,15 @@ import type { DartAccountIdentity, DartTaskIdentity } from './dart-task-identity
 
 export type DartReadOptions = {
   sourceContext?: TaskSourceContext | null
+  /** A scope the caller resolved earlier (its alias is already registered), so the call never re-resolves the host from settings. */
+  scope?: DartReadScope
   force?: boolean
 }
 
 export type DartWriteOptions = {
   sourceContext?: TaskSourceContext | null
+  /** A scope the caller resolved earlier (its alias is already registered), so the call never re-resolves the host from settings. */
+  scope?: DartReadScope
 }
 
 /** Board reads; `DartSlice` includes it together with the implementations. */

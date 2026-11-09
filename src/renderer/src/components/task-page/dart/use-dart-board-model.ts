@@ -84,11 +84,15 @@ export function useDartBoardModel(args: {
   const meta = storedMeta ?? EMPTY_META
 
   const { columns, cardInfoById } = useMemo(() => {
-    const merged = mergeDartPinnedRows(rows ?? NO_TASKS, pinnedRows, { hostKey, accountKey })
-    const filtered = applyDartBoardFilters(merged, clientFilters)
+    const merged = mergeDartPinnedRows(
+      rows ?? NO_TASKS,
+      pinnedRows,
+      { hostKey, accountKey },
+      (read) => applyDartBoardFilters(read, clientFilters)
+    )
     const built =
       layout === 'board' && config
-        ? buildDartBoardColumns(filtered, config, { showEmptyColumns })
+        ? buildDartBoardColumns(merged, config, { showEmptyColumns })
         : NO_COLUMNS
     const info = new Map<string, DartCardInfo>()
     for (const column of built) {
@@ -166,13 +170,21 @@ export function useDartBoardModel(args: {
         identity,
         previous: task,
         optimistic: { status },
-        write: () => updateDartTask(task.id, { status }),
-        refresh: () => fetchDartTask(task.id, { force: true }),
+        write: () => updateDartTask(task.id, { status }, { scope: pageScope }),
+        refresh: () => fetchDartTask(task.id, { force: true, scope: pageScope }),
         patch: (patch) => patchDartTask(identity, patch),
         invalidateLists: () => invalidateDartLists(identity)
       })
     },
-    [hostKey, accountKey, updateDartTask, fetchDartTask, patchDartTask, invalidateDartLists]
+    [
+      hostKey,
+      accountKey,
+      pageScope,
+      updateDartTask,
+      fetchDartTask,
+      patchDartTask,
+      invalidateDartLists
+    ]
   )
 
   return useMemo(

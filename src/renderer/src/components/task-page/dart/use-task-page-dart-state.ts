@@ -54,7 +54,6 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
     providerRuntimeContextKey,
     taskSource,
     dartConnected,
-    dartStatus,
     dartTaskSourceContext,
     linearAttachmentWorkspaces,
     listDartTasks,
@@ -70,12 +69,13 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
   const [dartTotalCount, setDartTotalCount] = useState(0)
   const { viewMode, setViewMode, setDartLayout, setDartShowEmptyColumns } = useDartViewMode()
   const active = taskSource === 'dart' && dartConnected
-  const viewerId = dartStatus.viewer?.id ?? null
   const pageScope = useMemo(
     () => dartPageScopeFromContextKey(providerRuntimeContextKey),
     [providerRuntimeContextKey]
   )
   const accountViewerId = useAppStore((s) => dartScopeViewerId(s, pageScope))
+  // Scoped: a status that still describes another host gives this page no viewer.
+  const viewerId = accountViewerId
   const { hostKey, accountKey } = dartAccountIdentity(pageScope, accountViewerId)
   const [dartFilters, setDartFilters] = useDartAccountFilters(hostKey, accountKey)
   const { dartSearchInput, setDartSearchInput, setDartFilter, applyDartSearch } =

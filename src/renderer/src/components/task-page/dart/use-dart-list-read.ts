@@ -38,11 +38,11 @@ type DartListOutcome = {
 export type DartListReadActions = {
   listDartTasks: (
     args?: DartListTasksArgs,
-    options?: { force?: boolean }
+    options?: { force?: boolean; scope?: DartReadScope }
   ) => Promise<DartClientResult<DartTaskPage>>
   fetchDartTask: (
     taskId: string,
-    options?: { sourceContext?: TaskSourceContext | null; force?: boolean }
+    options?: { sourceContext?: TaskSourceContext | null; force?: boolean; scope?: DartReadScope }
   ) => Promise<DartClientResult<{ task: DartTask }>>
   fetchDartConfig: (options?: {
     force?: boolean
@@ -163,7 +163,12 @@ export function useDartListRead(args: {
       const request: Promise<DartListOutcome> = hasWorkspace
         ? readLinkedDartTasks(
             linkedRefs,
-            (taskId, options) => actionsRef.current.fetchDartTask(taskId, options),
+            // A ref without a source context reads on this read's host even if the page has moved on.
+            (taskId, options) =>
+              actionsRef.current.fetchDartTask(
+                taskId,
+                options.sourceContext ? options : { ...options, scope: pageScope }
+              ),
             sourceContext,
             forced
           ).then((linked) => ({
@@ -173,15 +178,17 @@ export function useDartListRead(args: {
           }))
         : listArgs === null
           ? Promise.resolve({ tasks: [], totalCount: 0, error: null })
-          : actionsRef.current.listDartTasks(listArgs, { force: forced }).then((result) =>
-              result.ok
-                ? { tasks: result.tasks, totalCount: result.totalCount, error: null }
-                : {
-                    tasks: [],
-                    totalCount: 0,
-                    error: { message: taskProviderErrorMessage(result), code: result.errorCode }
-                  }
-            )
+          : actionsRef.current
+              .listDartTasks(listArgs, { force: forced, scope: pageScope })
+              .then((result) =>
+                result.ok
+                  ? { tasks: result.tasks, totalCount: result.totalCount, error: null }
+                  : {
+                      tasks: [],
+                      totalCount: 0,
+                      error: { message: taskProviderErrorMessage(result), code: result.errorCode }
+                    }
+              )
       return request.catch((): DartListOutcome => ({
         tasks: [],
         totalCount: 0,

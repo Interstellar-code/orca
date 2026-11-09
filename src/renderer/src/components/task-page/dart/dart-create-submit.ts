@@ -11,6 +11,7 @@ import {
   dartAccountIdentity,
   dartScopeHostKey,
   dartScopeViewerId,
+  registerDartCacheAlias,
   UNKNOWN_DART_ACCOUNT
 } from '@/store/slices/dart/dart-task-identity'
 
@@ -252,7 +253,9 @@ export async function submitDartCreate(
     notice: null,
     listChecked: false
   })
-  const result = await store.createDartTask(args)
+  // Pinned scope skips the store's own alias registration, and the create's list invalidation needs it.
+  registerDartCacheAlias(deps.scope, viewerId)
+  const result = await store.createDartTask(args, { scope: deps.scope })
   if (result.ok) {
     store.clearDartCreateSession(deps.key)
     deps.onSuccess(result.task)
