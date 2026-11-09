@@ -278,6 +278,65 @@ describe('useDartTaskDetailData', () => {
     expect(otherHost.requests).toEqual([])
   })
 
+  it('sends a queued description edit and the preflight read to the host it was made on after the page switches hosts', async () => {
+    const page = openDetail()
+    const otherHost = runtime.host('detail-switch-remote-description')
+    otherHost.addTask(dartTaskFixture(page.taskId))
+    const pageSettings = useAppStore.getState().settings!
+    const pageKey = getProviderRuntimeContextKey(pageSettings)
+    const hook = renderHook(() => useDartTaskDetailData(page.row, null, pageKey))
+    await waitFor(() => expect(hook.result.current.full.status).toBe('ready'))
+    const readsBefore = page.host.count('dart.getTask')
+
+    let save: Promise<unknown> = Promise.resolve()
+    let preflight: Promise<unknown> = Promise.resolve()
+    act(() => {
+      save = hook.result.current.onSavePatch([
+        { type: 'replace', oldText: 'Original', newText: 'New' }
+      ])
+      preflight = hook.result.current.readLatestTask()
+      useAppStore.setState({
+        settings: {
+          ...pageSettings,
+          activeRuntimeEnvironmentId: 'detail-switch-remote-description'
+        }
+      })
+    })
+    await act(async () => {
+      await Promise.all([save, preflight])
+    })
+    useAppStore.setState({ settings: pageSettings })
+
+    expect(page.host.count('dart.updateTaskDescription')).toBe(1)
+    expect(page.host.count('dart.getTask')).toBeGreaterThan(readsBefore)
+    expect(otherHost.requests).toEqual([])
+  })
+
+  it('sends a comment written on one host to that host after the page switches hosts', async () => {
+    const page = openDetail()
+    const otherHost = runtime.host('detail-switch-remote-comment')
+    otherHost.addTask(dartTaskFixture(page.taskId))
+    const pageSettings = useAppStore.getState().settings!
+    const pageKey = getProviderRuntimeContextKey(pageSettings)
+    const hook = renderHook(() => useDartTaskDetailData(page.row, null, pageKey))
+    await waitFor(() => expect(hook.result.current.full.status).toBe('ready'))
+
+    let add: Promise<unknown> = Promise.resolve()
+    act(() => {
+      add = hook.result.current.onAddComment({ text: 'Queued on A' })
+      useAppStore.setState({
+        settings: { ...pageSettings, activeRuntimeEnvironmentId: 'detail-switch-remote-comment' }
+      })
+    })
+    await act(async () => {
+      await add
+    })
+    useAppStore.setState({ settings: pageSettings })
+
+    expect(page.host.count('dart.addComment')).toBe(1)
+    expect(otherHost.requests).toEqual([])
+  })
+
   it('rolls a refused write back with a notice and does not retry it', async () => {
     const { hook, host } = await openReady()
     host.refusals.push({
