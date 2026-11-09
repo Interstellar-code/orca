@@ -250,6 +250,34 @@ describe('useDartTaskDetailData', () => {
     expect(hook.result.current.notice).toBeNull()
   })
 
+  it('sends a queued detail edit and its refresh to the host it was made on after the page switches hosts', async () => {
+    const page = openDetail()
+    const otherHost = runtime.host('detail-switch-remote')
+    otherHost.addTask(dartTaskFixture(page.taskId))
+    const pageSettings = useAppStore.getState().settings!
+    // The key stays the page's own, so the switch reaches only what resolves the host when it runs.
+    const pageKey = getProviderRuntimeContextKey(pageSettings)
+    const hook = renderHook(() => useDartTaskDetailData(page.row, null, pageKey))
+    await waitFor(() => expect(hook.result.current.full.status).toBe('ready'))
+    const before = page.host.count('dart.getTask')
+
+    let edit: Promise<unknown> = Promise.resolve()
+    act(() => {
+      edit = hook.result.current.onUpdate({ status: 'Done' }, { status: 'Done' })
+      useAppStore.setState({
+        settings: { ...pageSettings, activeRuntimeEnvironmentId: 'detail-switch-remote' }
+      })
+    })
+    await act(async () => {
+      await edit
+    })
+    useAppStore.setState({ settings: pageSettings })
+
+    expect(page.host.count('dart.updateTask')).toBe(1)
+    expect(page.host.count('dart.getTask')).toBe(before + 1)
+    expect(otherHost.requests).toEqual([])
+  })
+
   it('rolls a refused write back with a notice and does not retry it', async () => {
     const { hook, host } = await openReady()
     host.refusals.push({

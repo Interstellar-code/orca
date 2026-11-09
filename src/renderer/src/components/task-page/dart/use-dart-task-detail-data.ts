@@ -12,7 +12,8 @@ import {
   captureDartEpoch,
   dartAccountIdentity,
   dartScopeViewerId,
-  isDartEpochCurrent
+  isDartEpochCurrent,
+  registerDartCacheAlias
 } from '@/store/slices/dart/dart-task-identity'
 import { dartDraftKey } from './dart-draft-store'
 import { readAllDartComments, reloadDartComments } from './dart-comment-reload'
@@ -63,6 +64,8 @@ export function useDartTaskDetailData(
   )
   const viewerId = useAppStore((s) => dartScopeViewerId(s, scope, sourceContext))
   const { hostKey, accountKey } = dartAccountIdentity(scope, viewerId)
+  // Reads and writes below carry this scope pinned, which skips the registration that resolving it would do.
+  useEffect(() => registerDartCacheAlias(scope, viewerId), [scope, viewerId])
   // Generation-free strings, so a host session bump does not reopen the task.
   const identity = useMemo(
     () => (taskId ? { hostKey, accountKey, taskId } : null),
@@ -117,7 +120,7 @@ export function useDartTaskDetailData(
     sourceContext,
     reloadNonce,
     fetchDartTask,
-    target: scope.target,
+    scope,
     setFull,
     setComments,
     applyCommentsRead,
@@ -149,7 +152,7 @@ export function useDartTaskDetailData(
   useEffect(() => {
     displayedRef.current = displayed
   })
-  const writes = useDartTaskDetailWrites({ identity, sourceContext, displayedRef })
+  const writes = useDartTaskDetailWrites({ identity, sourceContext, scope, displayedRef })
 
   const commentReadKey = identity
     ? JSON.stringify([identity.hostKey, identity.accountKey, identity.taskId])
@@ -251,7 +254,7 @@ export function useDartTaskDetailData(
     const { result, current } = await readPastDartWrites({
       captureEpoch: () => captureDartEpoch(identity),
       force: true,
-      read: () => fetchDartTask(identity.taskId, { sourceContext, force: true })
+      read: () => fetchDartTask(identity.taskId, { sourceContext, scope, force: true })
     })
     if (
       result.ok &&
@@ -263,7 +266,7 @@ export function useDartTaskDetailData(
       setFull({ status: 'ready', value: latest })
     }
     return result
-  }, [fetchDartTask, identity, sourceContext])
+  }, [fetchDartTask, identity, sourceContext, scope])
 
   const description: DartDetailLoadState<string> =
     shownFull.status === 'ready'

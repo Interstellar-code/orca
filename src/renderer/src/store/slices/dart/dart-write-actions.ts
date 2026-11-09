@@ -88,6 +88,7 @@ export function createDartWriteActions(set: DartSliceSet, get: DartSliceGet): Da
         set,
         get,
         sourceContext: options?.sourceContext,
+        pinnedScope: options?.scope,
         send: (scope) => dartUpdateTaskDescriptionForTarget(scope.target, args)
       }),
 
@@ -96,6 +97,7 @@ export function createDartWriteActions(set: DartSliceSet, get: DartSliceGet): Da
         set,
         get,
         sourceContext: options?.sourceContext,
+        pinnedScope: options?.scope,
         send: async (scope, viewerId) => {
           const identity = dartTaskIdentity(scope, args.taskId, viewerId)
           bumpDartEpochs(identity)
@@ -112,6 +114,7 @@ export function createDartWriteActions(set: DartSliceSet, get: DartSliceGet): Da
         set,
         get,
         sourceContext: options?.sourceContext,
+        pinnedScope: options?.scope,
         send: async (scope, viewerId) => {
           beginDartMutation()
           // A throw or an unknown create may have landed, so a page cached before it can no longer be trusted.

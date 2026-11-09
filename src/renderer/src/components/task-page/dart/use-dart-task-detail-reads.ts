@@ -14,7 +14,6 @@ import type {
   DartUser,
   DartWorkspaceConfig
 } from '../../../../../shared/dart/dart-types'
-import type { RuntimeClientTarget } from '../../../../../shared/runtime-client-target'
 import type { TaskSourceContext } from '../../../../../shared/task-source-context'
 import { taskProviderErrorMessage, taskProviderErrorText } from '@/lib/task-provider-error-copy'
 import { dartStatusForTarget, type DartClientResult } from '@/runtime/runtime-dart-client'
@@ -126,10 +125,10 @@ type Options = {
   identity: Identity | null
   sourceContext: TaskSourceContext | null
   reloadNonce: number
-  target: RuntimeClientTarget
+  scope: DartReadScope
   fetchDartTask: (
     taskId: string,
-    options: { sourceContext: TaskSourceContext | null; force: boolean }
+    options: { sourceContext: TaskSourceContext | null; scope: DartReadScope; force: boolean }
   ) => Promise<DartClientResult<{ task: DartTask }>>
   setFull: Dispatch<SetStateAction<DartDetailLoadState<DartTask>>>
   setComments: Dispatch<SetStateAction<DartDetailLoadState<DartCommentsView>>>
@@ -158,7 +157,7 @@ export function useDartTaskDetailReads({
   identity,
   sourceContext,
   reloadNonce,
-  target,
+  scope,
   fetchDartTask,
   setFull,
   setComments,
@@ -206,7 +205,7 @@ export function useDartTaskDetailReads({
       captureEpoch,
       cancelled: isCancelled,
       force,
-      read: (forced) => fetchDartTask(taskId, { sourceContext, force: forced })
+      read: (forced) => fetchDartTask(taskId, { sourceContext, scope, force: forced })
     })
       .then(({ result, current }) => {
         if (cancelled || taskRead !== latestTaskReadRef.current || !isCurrentRead()) {
@@ -246,7 +245,7 @@ export function useDartTaskDetailReads({
       captureEpoch,
       cancelled: isCancelled,
       force,
-      read: () => readAllDartComments(target, taskId)
+      read: () => readAllDartComments(scope.target, taskId)
     })
       .then(({ result, current }) => {
         if (
@@ -285,7 +284,7 @@ export function useDartTaskDetailReads({
     identity,
     sourceContext,
     reloadNonce,
-    target,
+    scope,
     fetchDartTask,
     applyCommentsRead,
     setFull,
