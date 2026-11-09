@@ -4,6 +4,7 @@ import {
   callRuntimeRpc,
   clearRecentRuntimeCompatibilityFailure,
   clearRuntimeCompatibilityCacheForTests,
+  peekRuntimeEnvironmentCapability,
   runtimeEnvironmentSupportsCapability
 } from './runtime-rpc-client'
 import './runtime-rpc-result'
@@ -275,17 +276,17 @@ describe('runtime RPC client routing', () => {
   })
 
   describe('fresh capability probe', () => {
-    const statusResponse = (capabilities: string[]) => ({
+    const statusResponse = (capabilities: string[], runtimeId = 'remote-runtime') => ({
       id: 'status',
       ok: true,
       result: {
-        runtimeId: 'remote-runtime',
-        graphStatus: 'ready',
+        runtimeId,
+        graphStatus: 'ready' as const,
         runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
         minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
         capabilities
       },
-      _meta: { runtimeId: 'remote-runtime' }
+      _meta: { runtimeId }
     })
     const target = { kind: 'environment', environmentId: 'env-fresh' } as const
 
@@ -339,6 +340,80 @@ describe('runtime RPC client routing', () => {
 
       resolveStatus(statusResponse(['dart.board.v1']))
       await expect(probe).resolves.toBe(true)
+    })
+
+    it('does not let an older fresh probe overwrite the answer of a newer one', async () => {
+      await proveCompatible()
+      const resolvers: ((value: unknown) => void)[] = []
+      runtimeEnvironmentCall.mockImplementation(
+        () => new Promise((resolve) => resolvers.push(resolve))
+      )
+      const probe = () =>
+        runtimeEnvironmentSupportsCapability('env-fresh', 'dart.board.v1', undefined, {
+          fresh: true
+        })
+
+      const older = probe()
+      const newer = probe()
+      resolvers[1](statusResponse(['dart.board.v1'], 'runtime-new'))
+      await newer
+      resolvers[0](statusResponse([], 'runtime-old'))
+      await older
+
+      expect(peekRuntimeEnvironmentCapability('env-fresh', 'dart.board.v1', 'runtime-new')).toBe(
+        true
+      )
+      expect(
+        peekRuntimeEnvironmentCapability('env-fresh', 'dart.board.v1', 'runtime-old')
+      ).toBeUndefined()
+    })
+
+    it('publishes the newest fresh probe even when an older one resolved before it', async () => {
+      await proveCompatible()
+      const resolvers: ((value: unknown) => void)[] = []
+      runtimeEnvironmentCall.mockImplementation(
+        () => new Promise((resolve) => resolvers.push(resolve))
+      )
+      const probe = () =>
+        runtimeEnvironmentSupportsCapability('env-fresh', 'dart.board.v1', undefined, {
+          fresh: true
+        })
+
+      const first = probe()
+      const second = probe()
+      resolvers[0](statusResponse(['dart.board.v1'], 'runtime-first'))
+      await first
+      resolvers[1](statusResponse(['dart.board.v1'], 'runtime-second'))
+      await second
+
+      expect(peekRuntimeEnvironmentCapability('env-fresh', 'dart.board.v1', 'runtime-second')).toBe(
+        true
+      )
+    })
+
+    it('does not repopulate an entry a runtime status change cleared while the probe was in flight', async () => {
+      await proveCompatible()
+      let resolveStatus: (value: unknown) => void = () => {}
+      runtimeEnvironmentCall.mockImplementation(
+        () => new Promise((resolve) => (resolveStatus = resolve))
+      )
+
+      const probe = runtimeEnvironmentSupportsCapability('env-fresh', 'dart.board.v1', undefined, {
+        fresh: true
+      })
+      clearRecentRuntimeCompatibilityFailure('env-fresh', {
+        ...statusResponse([], 'runtime-replacement').result,
+        rendererGraphEpoch: 0,
+        authoritativeWindowId: null,
+        liveTabCount: 0,
+        liveLeafCount: 0
+      })
+      resolveStatus(statusResponse(['dart.board.v1'], 'runtime-stale'))
+      await expect(probe).resolves.toBe(true)
+
+      expect(
+        peekRuntimeEnvironmentCapability('env-fresh', 'dart.board.v1', 'runtime-stale')
+      ).toBeUndefined()
     })
 
     it('reports a downgraded host as unsupported on the next fresh probe', async () => {

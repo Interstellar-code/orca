@@ -177,22 +177,39 @@ export async function getRuntimeEnvironmentStatus(
   return entry.status
 }
 
-// Why: a fresh probe must never replace, fail or delay the shared entry other RPCs await; only a successful answer is published.
+const latestDetachedProbe = new Map<string, symbol>()
+
+// Why: a fresh probe must never replace, fail or delay the shared entry other RPCs await; its answer is
+// published only if it is the newest probe and nothing else changed the entry since it started.
 async function probeRuntimeEnvironmentStatusDetached(
   environmentId: string,
   timeoutMs?: number
 ): Promise<RuntimeStatus> {
-  const response = await window.api.runtimeEnvironments.call({
-    selector: environmentId,
-    method: 'status.get',
-    timeoutMs
-  })
-  const status = unwrapRuntimeRpcResult<RuntimeStatus>(
-    response as RuntimeRpcResponse<RuntimeStatus>
-  )
-  assertRuntimeStatusCompatible(status)
-  rememberRuntimeEnvironmentCompatibility(environmentId, compatibilityEntry(status))
-  return status
+  const token = Symbol(environmentId)
+  const startedFrom = runtimeCompatibilityChecks.get(environmentId)
+  latestDetachedProbe.set(environmentId, token)
+  try {
+    const response = await window.api.runtimeEnvironments.call({
+      selector: environmentId,
+      method: 'status.get',
+      timeoutMs
+    })
+    const status = unwrapRuntimeRpcResult<RuntimeStatus>(
+      response as RuntimeRpcResponse<RuntimeStatus>
+    )
+    assertRuntimeStatusCompatible(status)
+    if (
+      latestDetachedProbe.get(environmentId) === token &&
+      runtimeCompatibilityChecks.get(environmentId) === startedFrom
+    ) {
+      rememberRuntimeEnvironmentCompatibility(environmentId, compatibilityEntry(status))
+    }
+    return status
+  } finally {
+    if (latestDetachedProbe.get(environmentId) === token) {
+      latestDetachedProbe.delete(environmentId)
+    }
+  }
 }
 
 /** The capability as last probed, without waiting (for synchronous terminal replies); null before
