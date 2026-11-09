@@ -225,6 +225,32 @@ describe('useDartBoardModel', () => {
       expect(columnIds(hook, 'Doing')).toBeUndefined()
     })
 
+    it('sends a queued move to the host it was dropped on after the page switches hosts', async () => {
+      const task = openTask('switch')
+      const { host, scopeKey, account } = await openScope([task])
+      const otherHost = runtime.host('move-switch-remote')
+      otherHost.addTask({ ...task, status: 'To-do' })
+      const hook = mountModel(scopeKey, account)
+      const localSettings = useAppStore.getState().settings!
+
+      let moved: ReturnType<typeof hook.result.current.onMove> | undefined
+      act(() => {
+        moved = hook.result.current.onMove(task, 'Doing')
+        useAppStore.setState({
+          settings: { ...localSettings, activeRuntimeEnvironmentId: 'move-switch-remote' }
+        })
+      })
+      await act(async () => {
+        await moved
+      })
+      useAppStore.setState({ settings: localSettings })
+
+      expect(await moved).toMatchObject({ ok: true })
+      expect(host.count('dart.updateTask')).toBe(1)
+      expect(otherHost.requests).toEqual([])
+      expect(useAppStore.getState().dartListCache[scopeKey!]?.data?.tasks[0]?.status).toBe('Doing')
+    })
+
     it('sends nothing for a drop on the task’s own status', async () => {
       const task = openTask('same')
       const { host, scopeKey, account } = await openScope([task])

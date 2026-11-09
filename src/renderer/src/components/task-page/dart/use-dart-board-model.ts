@@ -166,13 +166,21 @@ export function useDartBoardModel(args: {
         identity,
         previous: task,
         optimistic: { status },
-        write: () => updateDartTask(task.id, { status }),
-        refresh: () => fetchDartTask(task.id, { force: true }),
+        write: () => updateDartTask(task.id, { status }, { scope: pageScope }),
+        refresh: () => fetchDartTask(task.id, { force: true, scope: pageScope }),
         patch: (patch) => patchDartTask(identity, patch),
         invalidateLists: () => invalidateDartLists(identity)
       })
     },
-    [hostKey, accountKey, updateDartTask, fetchDartTask, patchDartTask, invalidateDartLists]
+    [
+      hostKey,
+      accountKey,
+      pageScope,
+      updateDartTask,
+      fetchDartTask,
+      patchDartTask,
+      invalidateDartLists
+    ]
   )
 
   return useMemo(

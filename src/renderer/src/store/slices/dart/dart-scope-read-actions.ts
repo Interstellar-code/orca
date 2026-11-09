@@ -92,7 +92,7 @@ export function createDartScopeReadActions(
       registerDartCacheAlias(scope, dartScopeViewerId(get(), scope))
       const base = buildDartListArgs(
         { ...serverFilters, status: null },
-        get().dartStatus.viewer?.id
+        dartScopeViewerId(get(), scope)
       )
       if (!base) {
         return EMPTY_SCOPE_READ
@@ -173,7 +173,7 @@ export function createDartScopeReadActions(
       const startMeta = started.dartScopeMetaCache[key]
       const base = buildDartListArgs(
         { ...serverFilters, status: null },
-        started.dartStatus.viewer?.id
+        dartScopeViewerId(started, scope)
       )
       if (!base || !startMeta || !started.dartListCache[key]?.data) {
         return { ok: true }

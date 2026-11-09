@@ -97,8 +97,10 @@ function listCacheKey(args: unknown): string {
 export function createDartReadActions(set: DartSliceSet, get: DartSliceGet): DartReadActions {
   return {
     fetchDartTask: async (taskId, options) => {
-      const scope = getDartReadScope(get().settings, options?.sourceContext)
-      registerDartCacheAlias(scope, dartScopeViewerId(get(), scope, options?.sourceContext))
+      const scope = options?.scope ?? getDartReadScope(get().settings, options?.sourceContext)
+      if (!options?.scope) {
+        registerDartCacheAlias(scope, dartScopeViewerId(get(), scope, options?.sourceContext))
+      }
       const cacheKey = scopedDartCacheKey(scope, `task::${taskId}`)
       const cached = get().dartTaskCache[cacheKey]
       if (!options?.force && isFreshDartCacheEntry(cached) && cached.data) {
