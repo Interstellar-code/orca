@@ -171,7 +171,7 @@ describe('useDartBoardModel', () => {
     expect(useAppStore.getState().dartListCache[scopeKey!]?.data?.tasks).toBe(storedRows)
   })
 
-  it('keeps a pinned row on the board after it stops matching a client filter, and filters it once a read returns it', async () => {
+  it('keeps a pinned row on the board after it stops matching a client filter, also while the store still holds it, until its pin is gone', async () => {
     const stored = openTask('stored', 'Doing')
     const moved = openTask('moved', 'Doing')
     const { scopeKey, account } = await openScope([stored])
@@ -183,7 +183,9 @@ describe('useDartBoardModel', () => {
     expect(columnIds(hook, 'To-do')).toBeUndefined()
 
     hook.rerender({ pinnedRows: new Map([[stored.id, { row: stored, survivesNextClear: false }]]) })
+    expect(columnIds(hook, 'Doing')).toEqual([stored.id])
 
+    hook.rerender({ pinnedRows: NO_PINS })
     expect(hook.result.current.columns).toEqual([])
   })
 

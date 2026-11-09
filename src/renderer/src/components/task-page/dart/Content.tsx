@@ -328,10 +328,12 @@ export function TaskPageDartContent({
               disabled={doneMore.state === 'loading'}
               onClick={showMoreDone}
             >
-              {translate(
-                'auto.components.task.page.dart.Content.showMoreDone',
-                'Show 50 more finished'
-              )}
+              {doneMore.error
+                ? translate('auto.components.task.page.dart.Content.readRetry', 'Retry')
+                : translate(
+                    'auto.components.task.page.dart.Content.showMoreDone',
+                    'Show 50 more finished'
+                  )}
             </Button>
           </div>
         ) : null}

@@ -46,12 +46,25 @@ describe('useDartDisplayedTasks pinned rows and client filters', () => {
     expect(result.loadedCount).toBe(3)
   })
 
-  it('applies the client filter to a pinned row once the read returns it', () => {
+  it('keeps an edited row listed while the patched store row still holds it, though it no longer matches the client filter', () => {
+    const edited = dartTaskFixture('edited', { status: 'Doing' })
+
+    const result = displayed({
+      base: [edited],
+      pinned: [edited],
+      clientFilters: { ...NO_FILTERS, status: 'To-do' }
+    })
+
+    expect(result.tasks).toEqual([expect.objectContaining({ id: 'edited', status: 'Doing' })])
+    expect(result.loadedCount).toBe(1)
+  })
+
+  it('filters the read row like any other once its pin is gone after a refresh', () => {
     const returned = dartTaskFixture('returned', { status: 'Doing' })
 
     const result = displayed({
       base: [returned],
-      pinned: [returned],
+      pinned: [],
       clientFilters: { ...NO_FILTERS, status: 'To-do' }
     })
 

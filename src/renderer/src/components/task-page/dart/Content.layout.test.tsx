@@ -125,6 +125,23 @@ describe('Dart tab layout', () => {
     })
   })
 
+  it('labels the list retry "Retry" after a failed more-finished read and re-reads on click', async () => {
+    const host = desktop.open()
+    addFinished(host, 60)
+    host.failListRequest(3)
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Show 50 more finished' }))
+
+    expect((await screen.findByRole('alert')).textContent).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Show 50 more finished' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+    expect(
+      host.requests.findLast(({ method }) => method === 'dart.listTasks')?.params
+    ).toMatchObject({ isCompleted: true, offset: 50 })
+  })
+
   it('keeps phase 2 reads on a host without the board and disables the switch', async () => {
     const host = desktop.open({ board: false })
     addFinished(host, 60)

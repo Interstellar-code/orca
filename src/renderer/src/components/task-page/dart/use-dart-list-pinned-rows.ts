@@ -35,15 +35,15 @@ export function missingDartPinnedRows(
     }))
 }
 
-/** D12: pinned rows missing from the read go on top of it, past `readFilter`, which narrows only the read rows; never writes to the store or to `tasks`. */
+/** D12: pinned rows the filtered read does not show go on top of it; a pin lasts until the next refresh clears it, so `readFilter` never hides an edited row; never writes to the store or to `tasks`. */
 export function mergeDartPinnedRows(
   tasks: readonly DartTask[],
   pinned: ReadonlyMap<string, PinnedDartRow>,
   account: DartAccountIdentity,
   readFilter?: (read: readonly DartTask[]) => readonly DartTask[]
 ): readonly DartTask[] {
-  const missing = missingDartPinnedRows(tasks, pinned, account)
   const read = readFilter ? readFilter(tasks) : tasks
+  const missing = missingDartPinnedRows(read, pinned, account)
   return missing.length === 0 ? read : [...missing, ...read]
 }
 
