@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAppStore } from '@/store'
 import { taskProviderErrorMessage } from '@/lib/task-provider-error-copy'
-import { getDartReadScope } from '@/store/slices/dart/dart-read-coordination'
 import { buildDartWorkspaceSource } from '../../../../shared/new-workspace/workspace-source'
 import { DART_APP_HOST, type DartTask } from '../../../../shared/dart/dart-types'
 import { parseDartTaskUrl } from '../../../../shared/dart/dart-issue-url'
@@ -76,14 +75,8 @@ export function useDartAttachmentUrlSource(args: {
       return
     }
     const taskId = parsed.taskId
-    // A row without a source context reads on the host active now, not the one active when the timer fires.
-    const pinnedScope = sourceContext ? null : getDartReadScope(useAppStore.getState().settings)
     const timer = setTimeout(() => {
-      void fetchDartTask(taskId, {
-        sourceContext,
-        force: retryGeneration > 0,
-        ...(pinnedScope ? { scope: pinnedScope } : {})
-      })
+      void fetchDartTask(taskId, { sourceContext, force: retryGeneration > 0 })
         .then((result) => {
           if (generationRef.current !== generation) {
             return
