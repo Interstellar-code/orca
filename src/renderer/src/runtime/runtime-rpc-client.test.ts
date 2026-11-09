@@ -288,6 +288,13 @@ describe('runtime RPC client routing', () => {
       },
       _meta: { runtimeId }
     })
+    const observedStatus = (runtimeId: string) => ({
+      ...statusResponse([], runtimeId).result,
+      rendererGraphEpoch: 0,
+      authoritativeWindowId: null,
+      liveTabCount: 0,
+      liveLeafCount: 0
+    })
     const target = { kind: 'environment', environmentId: 'env-fresh' } as const
 
     async function proveCompatible(): Promise<void> {
@@ -401,13 +408,25 @@ describe('runtime RPC client routing', () => {
       const probe = runtimeEnvironmentSupportsCapability('env-fresh', 'dart.board.v1', undefined, {
         fresh: true
       })
-      clearRecentRuntimeCompatibilityFailure('env-fresh', {
-        ...statusResponse([], 'runtime-replacement').result,
-        rendererGraphEpoch: 0,
-        authoritativeWindowId: null,
-        liveTabCount: 0,
-        liveLeafCount: 0
+      clearRecentRuntimeCompatibilityFailure('env-fresh', observedStatus('runtime-replacement'))
+      resolveStatus(statusResponse(['dart.board.v1'], 'runtime-stale'))
+      await expect(probe).resolves.toBe(true)
+
+      expect(
+        peekRuntimeEnvironmentCapability('env-fresh', 'dart.board.v1', 'runtime-stale')
+      ).toBeUndefined()
+    })
+
+    it('does not publish a fresh probe answer when a runtime status was observed on a cold cache meanwhile', async () => {
+      let resolveStatus: (value: unknown) => void = () => {}
+      runtimeEnvironmentCall.mockImplementation(
+        () => new Promise((resolve) => (resolveStatus = resolve))
+      )
+
+      const probe = runtimeEnvironmentSupportsCapability('env-fresh', 'dart.board.v1', undefined, {
+        fresh: true
       })
+      clearRecentRuntimeCompatibilityFailure('env-fresh', observedStatus('runtime-observed'))
       resolveStatus(statusResponse(['dart.board.v1'], 'runtime-stale'))
       await expect(probe).resolves.toBe(true)
 

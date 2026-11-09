@@ -10,11 +10,13 @@ import { unwrapRuntimeRpcResult } from './runtime-rpc-result'
 import { captureRuntimeEnvironmentRequestRevision } from './runtime-environment-revision'
 import type { RuntimeClientTarget } from '../../../shared/runtime-client-target'
 import {
+  bumpRuntimeCompatibilityGeneration,
   clearRuntimeCompatibilityCache,
   compatibilityEntry,
   getCachedRuntimeCompatibilityCheck,
   rememberRuntimeEnvironmentCompatibility,
   runtimeCompatibilityChecks,
+  runtimeCompatibilityGeneration,
   RUNTIME_CAPABILITY_STATUS_TTL_MS
 } from './runtime-compatibility-cache'
 
@@ -119,6 +121,7 @@ export async function ensureRuntimeEnvironmentCompatible(
     entry.status = status
     entry.statusCheckedAt = Date.now()
     entry.statusObservedAt = entry.statusCheckedAt
+    bumpRuntimeCompatibilityGeneration(environmentId)
   })()
   entry.check = check
   rememberRuntimeEnvironmentCompatibility(environmentId, entry)
@@ -126,12 +129,14 @@ export async function ensureRuntimeEnvironmentCompatible(
     await check
     if (runtimeCompatibilityChecks.get(environmentId) === entry) {
       entry.provenCompatible = true
+      bumpRuntimeCompatibilityGeneration(environmentId)
     }
     return entry.status
   } catch (error) {
     if (runtimeCompatibilityChecks.get(environmentId) === entry) {
       // Startup repo/group/folder bursts should pay one offline-host timeout, not three.
       entry.failedAt = Date.now()
+      bumpRuntimeCompatibilityGeneration(environmentId)
     }
     throw error
   }
@@ -158,6 +163,7 @@ export async function getRuntimeEnvironmentStatus(
     entry.statusCheckedAt = Date.now()
     entry.statusObservedAt = entry.statusCheckedAt
     entry.provenCompatible = true
+    bumpRuntimeCompatibilityGeneration(trimmed)
   })()
   entry.check = check
   rememberRuntimeEnvironmentCompatibility(trimmed, entry)
@@ -167,6 +173,7 @@ export async function getRuntimeEnvironmentStatus(
     // Always-refetched probe failures must not remain cached verdicts; let next call retry.
     if (runtimeCompatibilityChecks.get(trimmed) === entry) {
       runtimeCompatibilityChecks.delete(trimmed)
+      bumpRuntimeCompatibilityGeneration(trimmed)
     }
     throw error
   }
@@ -180,13 +187,13 @@ export async function getRuntimeEnvironmentStatus(
 const latestDetachedProbe = new Map<string, symbol>()
 
 // Why: a fresh probe must never replace, fail or delay the shared entry other RPCs await; its answer is
-// published only if it is the newest probe and nothing else changed the entry since it started.
+// published only if it is the newest probe and the cache saw no write, clear or status observation since.
 async function probeRuntimeEnvironmentStatusDetached(
   environmentId: string,
   timeoutMs?: number
 ): Promise<RuntimeStatus> {
   const token = Symbol(environmentId)
-  const startedFrom = runtimeCompatibilityChecks.get(environmentId)
+  const startedAt = runtimeCompatibilityGeneration(environmentId)
   latestDetachedProbe.set(environmentId, token)
   try {
     const response = await window.api.runtimeEnvironments.call({
@@ -200,7 +207,7 @@ async function probeRuntimeEnvironmentStatusDetached(
     assertRuntimeStatusCompatible(status)
     if (
       latestDetachedProbe.get(environmentId) === token &&
-      runtimeCompatibilityChecks.get(environmentId) === startedFrom
+      runtimeCompatibilityGeneration(environmentId) === startedAt
     ) {
       rememberRuntimeEnvironmentCompatibility(environmentId, compatibilityEntry(status))
     }
@@ -245,6 +252,7 @@ export async function runtimeEnvironmentSupportsCapability(
         if (!supported) {
           // Keep protocol proof for this legacy call; next capability decision must observe in-place upgrades.
           cached.statusCheckedAt = null
+          bumpRuntimeCompatibilityGeneration(trimmed)
         }
         return supported
       }
@@ -260,6 +268,7 @@ export async function runtimeEnvironmentSupportsCapability(
   // Why runtimeId: a status publication may have replaced the entry with its own copy.
   if (!supported && resolved?.status?.runtimeId === status.runtimeId) {
     resolved.statusCheckedAt = null
+    bumpRuntimeCompatibilityGeneration(trimmed)
   }
   return supported
 }
