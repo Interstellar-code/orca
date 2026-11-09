@@ -9,6 +9,8 @@ import {
   installFakeDartRuntime
 } from '@/store/slices/dart/dart-fake-runtime.test-support'
 import { getDartReadScope } from '@/store/slices/dart/dart-read-coordination'
+import { makeWorktree } from '@/components/automations/automations-page-fixtures'
+import { toDartTaskAttachment } from '@/components/sidebar/use-dart-attachment-url-source'
 import { useTaskPageDartState, type TaskPageDartStateInput } from './use-task-page-dart-state'
 
 type PageInput = Omit<TaskPageDartStateInput, 'providerRuntimeContextKey' | 'dartStatus'>
@@ -35,13 +37,15 @@ function listRequests(env: string) {
   return runtime.host(env).requests.filter(({ method }) => method === 'dart.listTasks')
 }
 
-function openListModePage() {
+function openListModePage(
+  linearAttachmentWorkspaces: TaskPageDartStateInput['linearAttachmentWorkspaces'] = []
+) {
   const state = useAppStore.getState()
   const input: PageInput = {
     taskSource: 'dart',
     dartConnected: true,
     dartTaskSourceContext: null,
-    linearAttachmentWorkspaces: [],
+    linearAttachmentWorkspaces,
     listDartTasks: state.listDartTasks,
     fetchDartTask: state.fetchDartTask,
     fetchDartConfig: state.fetchDartConfig
@@ -124,5 +128,37 @@ describe('useTaskPageDartState list mode across a host switch', () => {
 
     expect(listRequests(HOST_A)).toEqual([])
     expect(hook.result.current.dartTasks).toEqual([])
+  })
+
+  it('reads every linked task on the host they were listed on when the page switches hosts mid-read', async () => {
+    // The reader runs six at a time, so the last two start only after the switch.
+    const ids = Array.from(
+      { length: 8 },
+      (_, index) => `linkedTask${String(index).padStart(2, '0')}`
+    )
+    useHost(HOST_A, VIEWER_A)
+    for (const id of ids) {
+      runtime.host(HOST_A).addTask(dartTaskFixture(id))
+    }
+    const linked = makeWorktree({
+      linkedItems: ids.map((id) => toDartTaskAttachment(dartTaskFixture(id), null))
+    })
+    const releases = Array.from({ length: 6 }, () => runtime.host(HOST_A).hold('dart.getTask'))
+    const hook = openListModePage([linked])
+    await waitFor(() => expect(hook.result.current.dartBoardPath).toBe(false))
+
+    act(() => hook.result.current.setDartHasWorkspace(true))
+    await waitFor(() => expect(runtime.host(HOST_A).count('dart.getTask')).toBe(6))
+    act(() => {
+      const settings = { ...useAppStore.getState().settings!, activeRuntimeEnvironmentId: HOST_B }
+      useAppStore.setState({ settings })
+    })
+    await act(async () => {
+      for (const release of releases) {
+        release()
+      }
+    })
+
+    await waitFor(() => expect(runtime.host(HOST_A).count('dart.getTask')).toBe(8))
   })
 })

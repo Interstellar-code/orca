@@ -42,7 +42,7 @@ export type DartListReadActions = {
   ) => Promise<DartClientResult<DartTaskPage>>
   fetchDartTask: (
     taskId: string,
-    options?: { sourceContext?: TaskSourceContext | null; force?: boolean }
+    options?: { sourceContext?: TaskSourceContext | null; force?: boolean; scope?: DartReadScope }
   ) => Promise<DartClientResult<{ task: DartTask }>>
   fetchDartConfig: (options?: {
     force?: boolean
@@ -163,7 +163,12 @@ export function useDartListRead(args: {
       const request: Promise<DartListOutcome> = hasWorkspace
         ? readLinkedDartTasks(
             linkedRefs,
-            (taskId, options) => actionsRef.current.fetchDartTask(taskId, options),
+            // A ref without a source context reads on this read's host even if the page has moved on.
+            (taskId, options) =>
+              actionsRef.current.fetchDartTask(
+                taskId,
+                options.sourceContext ? options : { ...options, scope: pageScope }
+              ),
             sourceContext,
             forced
           ).then((linked) => ({
