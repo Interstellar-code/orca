@@ -38,7 +38,7 @@ type DartListOutcome = {
 export type DartListReadActions = {
   listDartTasks: (
     args?: DartListTasksArgs,
-    options?: { force?: boolean }
+    options?: { force?: boolean; scope?: DartReadScope }
   ) => Promise<DartClientResult<DartTaskPage>>
   fetchDartTask: (
     taskId: string,
@@ -173,15 +173,17 @@ export function useDartListRead(args: {
           }))
         : listArgs === null
           ? Promise.resolve({ tasks: [], totalCount: 0, error: null })
-          : actionsRef.current.listDartTasks(listArgs, { force: forced }).then((result) =>
-              result.ok
-                ? { tasks: result.tasks, totalCount: result.totalCount, error: null }
-                : {
-                    tasks: [],
-                    totalCount: 0,
-                    error: { message: taskProviderErrorMessage(result), code: result.errorCode }
-                  }
-            )
+          : actionsRef.current
+              .listDartTasks(listArgs, { force: forced, scope: pageScope })
+              .then((result) =>
+                result.ok
+                  ? { tasks: result.tasks, totalCount: result.totalCount, error: null }
+                  : {
+                      tasks: [],
+                      totalCount: 0,
+                      error: { message: taskProviderErrorMessage(result), code: result.errorCode }
+                    }
+              )
       return request.catch((): DartListOutcome => ({
         tasks: [],
         totalCount: 0,

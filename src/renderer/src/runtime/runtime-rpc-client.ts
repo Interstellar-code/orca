@@ -190,12 +190,14 @@ export function readCachedRuntimeEnvironmentCapability(
 export async function runtimeEnvironmentSupportsCapability(
   environmentId: string,
   capability: RuntimeCapability,
-  timeoutMs?: number
+  timeoutMs?: number,
+  options: { fresh?: boolean } = {}
 ): Promise<boolean> {
   const trimmed = environmentId.trim()
   const cached = runtimeCompatibilityChecks.get(trimmed)
   // Capability reads must discard rejected probes like ordinary RPCs or a recovered host stays blocked until failure TTL.
-  if (cached && cached.failedAt === null) {
+  // fresh: a caller reactivating against a possibly replaced host must not trust a cached positive verdict.
+  if (!options.fresh && cached && cached.failedAt === null) {
     try {
       await cached.check
       if (

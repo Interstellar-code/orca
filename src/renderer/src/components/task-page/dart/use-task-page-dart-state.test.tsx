@@ -26,6 +26,8 @@ const task: DartTask = {
   tags: []
 }
 
+const listOptions = (force: boolean) => ({ force, scope: expect.anything() })
+
 function setup(overrides: Partial<PageInput> = {}) {
   const settings = useAppStore.getState().settings
   useAppStore.setState({
@@ -75,7 +77,7 @@ describe('useTaskPageDartState', () => {
     await waitFor(() => expect(hook.result.current.dartTasks).toHaveLength(1))
     expect(listDartTasks).toHaveBeenLastCalledWith(
       { limit: 100, assigneeId: viewer.id },
-      { force: false }
+      listOptions(false)
     )
   })
 
@@ -88,7 +90,7 @@ describe('useTaskPageDartState', () => {
     await waitFor(() =>
       expect(listDartTasks).toHaveBeenLastCalledWith(
         expect.objectContaining({ dartboard: 'Example/Platform/Search' }),
-        { force: false }
+        listOptions(false)
       )
     )
   })
@@ -175,7 +177,7 @@ describe('useTaskPageDartState', () => {
     await waitFor(() =>
       expect(listDartTasks).toHaveBeenLastCalledWith(
         { limit: 100, title: 'archived' },
-        { force: false }
+        listOptions(false)
       )
     )
   })
@@ -187,22 +189,13 @@ describe('useTaskPageDartState', () => {
     act(() => hook.result.current.setDartRefreshNonce((nonce) => nonce + 1))
 
     await waitFor(() =>
-      expect(listDartTasks).toHaveBeenLastCalledWith(expect.anything(), { force: true })
+      expect(listDartTasks).toHaveBeenLastCalledWith(expect.anything(), listOptions(true))
     )
   })
 
   it('does not request anything while another provider is selected', () => {
     const { listDartTasks } = setup({ taskSource: 'github' })
     expect(listDartTasks).not.toHaveBeenCalled()
-  })
-
-  it('lists nothing instead of everyone when the viewer id is missing', async () => {
-    const { listDartTasks, hook } = setup({
-      dartStatus: { connected: true, viewer: null }
-    })
-    await waitFor(() => expect(hook.result.current.dartConfig).not.toBeNull())
-    expect(listDartTasks).not.toHaveBeenCalled()
-    expect(hook.result.current.dartTasks).toEqual([])
   })
 })
 

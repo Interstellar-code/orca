@@ -125,7 +125,7 @@ export function createDartReadActions(set: DartSliceSet, get: DartSliceGet): Dar
     },
 
     listDartTasks: async (args, options) => {
-      const scope = getDartReadScope(get().settings, options?.sourceContext)
+      const scope = options?.scope ?? getDartReadScope(get().settings, options?.sourceContext)
       registerDartCacheAlias(scope, dartScopeViewerId(get(), scope, options?.sourceContext))
       const cacheKey = scopedDartCacheKey(scope, listCacheKey(args))
       const cached = get().dartListCache[cacheKey]
