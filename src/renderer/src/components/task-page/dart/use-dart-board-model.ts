@@ -84,11 +84,15 @@ export function useDartBoardModel(args: {
   const meta = storedMeta ?? EMPTY_META
 
   const { columns, cardInfoById } = useMemo(() => {
-    const merged = mergeDartPinnedRows(rows ?? NO_TASKS, pinnedRows, { hostKey, accountKey })
-    const filtered = applyDartBoardFilters(merged, clientFilters)
+    const merged = mergeDartPinnedRows(
+      rows ?? NO_TASKS,
+      pinnedRows,
+      { hostKey, accountKey },
+      (read) => applyDartBoardFilters(read, clientFilters)
+    )
     const built =
       layout === 'board' && config
-        ? buildDartBoardColumns(filtered, config, { showEmptyColumns })
+        ? buildDartBoardColumns(merged, config, { showEmptyColumns })
         : NO_COLUMNS
     const info = new Map<string, DartCardInfo>()
     for (const column of built) {

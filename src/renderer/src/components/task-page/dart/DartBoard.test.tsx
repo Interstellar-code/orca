@@ -274,3 +274,28 @@ describe('DartBoard Move to', () => {
     expect(fireEvent.dragOver(column(/^Doing/), { dataTransfer: dropData(ownPayload) })).toBe(true)
   })
 })
+
+describe('DartBoard more finished', () => {
+  it('shows a failed more-finished read with a Retry that reads again', async () => {
+    const showMoreDone = vi.fn()
+    const model: DartBoardModel = {
+      ...makeModel(TASKS, vi.fn()),
+      hasMoreDone: true,
+      doneMore: { state: 'error', data: null, error: 'Dart is rate limited', retry: showMoreDone },
+      showMoreDone
+    }
+    render(<DartBoard model={model} selectedTaskId={null} />)
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Dart is rate limited')
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Retry' }))
+    expect(showMoreDone).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows an empty state with the more-finished button when no column has a task', () => {
+    const model: DartBoardModel = { ...makeModel([], vi.fn()), hasMoreDone: true }
+    render(<DartBoard model={model} selectedTaskId={null} />)
+
+    expect(screen.getByText('No tasks match these filters.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show 50 more finished' })).toBeInTheDocument()
+  })
+})

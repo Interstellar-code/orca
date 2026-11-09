@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { installAppKeyboardRouter } from '@/lib/app-keyboard-router'
@@ -154,5 +155,26 @@ describe('Dart tab layout', () => {
     ).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy()
     expect(useAppStore.getState().dartScopeMetaCache).not.toEqual({})
+  })
+
+  it('keeps the board and "Show 50 more finished" when a client filter matches no loaded row', async () => {
+    const host = desktop.open()
+    addFinished(host, 60)
+    renderPage()
+    await pickLayout('Board')
+    await waitFor(() => expect(document.querySelector('[data-dart-board]')).not.toBeNull())
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('combobox', { name: 'Tag' }))
+    await user.click(await screen.findByRole('option', { name: 'backend' }))
+
+    const board = await waitFor(() => {
+      const found = document.querySelector<HTMLElement>('[data-dart-board]')
+      expect(found).not.toBeNull()
+      return found!
+    })
+    expect(within(board).queryAllByRole('button', { name: /^Finished / })).toHaveLength(0)
+    expect(within(board).getByText('No tasks match these filters.')).toBeTruthy()
+    expect(within(board).getByRole('button', { name: 'Show 50 more finished' })).toBeTruthy()
   })
 })

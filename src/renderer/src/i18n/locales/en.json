@@ -18916,7 +18916,9 @@
               "moved": "Moved to {{status}}",
               "statusNotInConfig": "This status is not in the workspace settings",
               "wholeWorkspaceHint": "Includes statuses from the whole workspace.",
-              "showMoreFinished": "Show 50 more finished"
+              "showMoreFinished": "Show 50 more finished",
+              "retryMoreFinished": "Retry",
+              "emptyFiltered": "No tasks match these filters."
             },
             "DartBoardCard": {
               "moveTo": "Move “{{title}}” to…",

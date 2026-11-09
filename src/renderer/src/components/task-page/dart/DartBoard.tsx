@@ -36,6 +36,7 @@ export function DartBoard({ model, selectedTaskId }: DartBoardProps): React.JSX.
     setDraggingId(null)
     setDragOverKey(null)
   }
+  const boardEmpty = model.columns.every((column) => column.tasks.length === 0)
   const openMenuId = menuTaskId && placement.has(menuTaskId) ? menuTaskId : null
   const activeDraggingId = draggingId && placement.has(draggingId) ? draggingId : null
   const activeDragOverKey = activeDraggingId ? dragOverKey : null
@@ -134,6 +135,14 @@ export function DartBoard({ model, selectedTaskId }: DartBoardProps): React.JSX.
           )}
         </p>
       ) : null}
+      {boardEmpty ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">
+          {translate(
+            'auto.components.task.page.dart.DartBoard.emptyFiltered',
+            'No tasks match these filters.'
+          )}
+        </p>
+      ) : null}
       <div className="flex min-w-0 items-start gap-3 overflow-x-auto scrollbar-sleek">
         {model.columns.map((column) => (
           <DartBoardColumn
@@ -163,7 +172,12 @@ export function DartBoard({ model, selectedTaskId }: DartBoardProps): React.JSX.
         ))}
       </div>
       {model.hasMoreDone ? (
-        <div className="flex justify-center">
+        <div className="flex flex-col items-center gap-2">
+          {model.doneMore.error ? (
+            <p role="alert" className="text-xs text-destructive">
+              {model.doneMore.error}
+            </p>
+          ) : null}
           <Button
             type="button"
             variant="outline"
@@ -171,10 +185,12 @@ export function DartBoard({ model, selectedTaskId }: DartBoardProps): React.JSX.
             disabled={model.doneMore.state === 'loading'}
             onClick={model.showMoreDone}
           >
-            {translate(
-              'auto.components.task.page.dart.DartBoard.showMoreFinished',
-              'Show 50 more finished'
-            )}
+            {model.doneMore.error
+              ? translate('auto.components.task.page.dart.DartBoard.retryMoreFinished', 'Retry')
+              : translate(
+                  'auto.components.task.page.dart.DartBoard.showMoreFinished',
+                  'Show 50 more finished'
+                )}
           </Button>
         </div>
       ) : null}

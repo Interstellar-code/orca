@@ -94,7 +94,11 @@ async function openScope(tasks: DartTask[]) {
 function mountModel(
   scopeKey: string | null,
   account: { hostKey: string; accountKey: string },
-  overrides: { layout?: 'list' | 'board'; pinnedRows?: ReadonlyMap<string, PinnedDartRow> } = {}
+  overrides: {
+    layout?: 'list' | 'board'
+    pinnedRows?: ReadonlyMap<string, PinnedDartRow>
+    clientFilters?: DartClientFilters
+  } = {}
 ) {
   return renderHook(
     (props: { pinnedRows: ReadonlyMap<string, PinnedDartRow> }) =>
@@ -103,7 +107,7 @@ function mountModel(
         pageScope: getDartReadScope(useAppStore.getState().settings),
         layout: overrides.layout ?? 'board',
         serverFilters: SERVER_FILTERS,
-        clientFilters: CLIENT_FILTERS,
+        clientFilters: overrides.clientFilters ?? CLIENT_FILTERS,
         showEmptyColumns: false,
         config: CONFIG,
         features: FEATURES,
@@ -165,6 +169,22 @@ describe('useDartBoardModel', () => {
     expect(columnIds(hook, 'Doing')).toEqual([pinned.id])
     expect(hook.result.current.cardInfo(pinned.id).task).toMatchObject({ id: pinned.id })
     expect(useAppStore.getState().dartListCache[scopeKey!]?.data?.tasks).toBe(storedRows)
+  })
+
+  it('keeps a pinned row on the board after it stops matching a client filter, and filters it once a read returns it', async () => {
+    const stored = openTask('stored', 'Doing')
+    const moved = openTask('moved', 'Doing')
+    const { scopeKey, account } = await openScope([stored])
+    const pinnedRows = new Map([[moved.id, { row: moved, survivesNextClear: false }]])
+    const clientFilters = { ...CLIENT_FILTERS, status: 'To-do' }
+    const hook = mountModel(scopeKey, account, { pinnedRows, clientFilters })
+
+    expect(columnIds(hook, 'Doing')).toEqual([moved.id])
+    expect(columnIds(hook, 'To-do')).toBeUndefined()
+
+    hook.rerender({ pinnedRows: new Map([[stored.id, { row: stored, survivesNextClear: false }]]) })
+
+    expect(hook.result.current.columns).toEqual([])
   })
 
   it('builds no columns in list layout but still offers more finished tasks', async () => {
