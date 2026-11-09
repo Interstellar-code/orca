@@ -177,6 +177,24 @@ export async function getRuntimeEnvironmentStatus(
   return entry.status
 }
 
+// Why: a fresh probe must never replace, fail or delay the shared entry other RPCs await; only a successful answer is published.
+async function probeRuntimeEnvironmentStatusDetached(
+  environmentId: string,
+  timeoutMs?: number
+): Promise<RuntimeStatus> {
+  const response = await window.api.runtimeEnvironments.call({
+    selector: environmentId,
+    method: 'status.get',
+    timeoutMs
+  })
+  const status = unwrapRuntimeRpcResult<RuntimeStatus>(
+    response as RuntimeRpcResponse<RuntimeStatus>
+  )
+  assertRuntimeStatusCompatible(status)
+  rememberRuntimeEnvironmentCompatibility(environmentId, compatibilityEntry(status))
+  return status
+}
+
 /** The capability as last probed, without waiting (for synchronous terminal replies); null before
  *  the environment's first status probe. */
 export function readCachedRuntimeEnvironmentCapability(
@@ -217,7 +235,9 @@ export async function runtimeEnvironmentSupportsCapability(
       // Fall through to a fresh status.get that refreshes the cache.
     }
   }
-  const status = await getRuntimeEnvironmentStatus(trimmed, timeoutMs)
+  const status = options.fresh
+    ? await probeRuntimeEnvironmentStatusDetached(trimmed, timeoutMs)
+    : await getRuntimeEnvironmentStatus(trimmed, timeoutMs)
   const supported = status.capabilities?.includes(capability) === true
   const resolved = runtimeCompatibilityChecks.get(trimmed)
   // Why runtimeId: a status publication may have replaced the entry with its own copy.

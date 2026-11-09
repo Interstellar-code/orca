@@ -274,6 +274,85 @@ describe('runtime RPC client routing', () => {
     }
   })
 
+  describe('fresh capability probe', () => {
+    const statusResponse = (capabilities: string[]) => ({
+      id: 'status',
+      ok: true,
+      result: {
+        runtimeId: 'remote-runtime',
+        graphStatus: 'ready',
+        runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
+        minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+        capabilities
+      },
+      _meta: { runtimeId: 'remote-runtime' }
+    })
+    const target = { kind: 'environment', environmentId: 'env-fresh' } as const
+
+    async function proveCompatible(): Promise<void> {
+      runtimeEnvironmentCall.mockResolvedValueOnce(statusResponse(['dart.board.v1']))
+      runtimeEnvironmentCall.mockResolvedValueOnce({ id: 'warm', ok: true, result: {} })
+      await callRuntimeRpc(target, 'github.warm')
+      runtimeEnvironmentCall.mockReset()
+    }
+
+    it('does not fail a concurrent RPC with prior compatible proof when the fresh probe fails', async () => {
+      await proveCompatible()
+      let rejectStatus: (error: Error) => void = () => {}
+      runtimeEnvironmentCall.mockImplementation(({ method }: { method: string }) =>
+        method === 'status.get'
+          ? new Promise((_, reject) => {
+              rejectStatus = reject
+            })
+          : Promise.resolve({ id: 'rpc', ok: true, result: { ok: 1 } })
+      )
+
+      const probe = runtimeEnvironmentSupportsCapability('env-fresh', 'dart.board.v1', undefined, {
+        fresh: true
+      })
+      const probeOutcome = probe.then(
+        () => 'resolved',
+        () => 'rejected'
+      )
+      const concurrent = callRuntimeRpc(target, 'jira.list')
+      rejectStatus(new Error('offline'))
+
+      await expect(concurrent).resolves.toEqual({ ok: 1 })
+      await expect(probeOutcome).resolves.toBe('rejected')
+    })
+
+    it('does not make a non-Dart RPC wait on an in-flight fresh probe', async () => {
+      await proveCompatible()
+      let resolveStatus: (value: unknown) => void = () => {}
+      runtimeEnvironmentCall.mockImplementation(({ method }: { method: string }) =>
+        method === 'status.get'
+          ? new Promise((resolve) => {
+              resolveStatus = resolve
+            })
+          : Promise.resolve({ id: 'rpc', ok: true, result: { ok: 1 } })
+      )
+
+      const probe = runtimeEnvironmentSupportsCapability('env-fresh', 'dart.board.v1', undefined, {
+        fresh: true
+      })
+      await expect(callRuntimeRpc(target, 'linear.list')).resolves.toEqual({ ok: 1 })
+
+      resolveStatus(statusResponse(['dart.board.v1']))
+      await expect(probe).resolves.toBe(true)
+    })
+
+    it('reports a downgraded host as unsupported on the next fresh probe', async () => {
+      await proveCompatible()
+      runtimeEnvironmentCall.mockResolvedValue(statusResponse([]))
+
+      await expect(
+        runtimeEnvironmentSupportsCapability('env-fresh', 'dart.board.v1', undefined, {
+          fresh: true
+        })
+      ).resolves.toBe(false)
+    })
+  })
+
   it('bounds successful remote compatibility checks by evicting old environments', async () => {
     runtimeEnvironmentCall.mockImplementation(({ method }: { method: string }) => {
       const result =
