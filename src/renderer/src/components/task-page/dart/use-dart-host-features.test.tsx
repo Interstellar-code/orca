@@ -52,10 +52,11 @@ describe('useDartHostFeatures', () => {
 
   it('drops the verdict when the target changes before the new probe answers', async () => {
     probe.mockResolvedValueOnce({ board: true })
+    const initialProps: { target: RuntimeClientTarget } = { target: LOCAL }
     const { result, rerender } = renderHook(
       (props: { target: RuntimeClientTarget }) =>
         useDartHostFeatures({ active: true, hostKey: 'host', target: props.target }),
-      { initialProps: { target: LOCAL } }
+      { initialProps }
     )
     await waitFor(() => expect(result.current.featuresReady).toBe(true))
 
