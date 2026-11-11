@@ -484,6 +484,39 @@ describe('useDartBoardModel', () => {
       expect(hook.result.current.cardInfo(newParent.id).subtasks?.loaded).toBe(1)
     })
 
+    it('counts a child under the parent whose newer cache entry holds it, not the older entry’s parent', async () => {
+      const parentA = openTask('parenta')
+      const parentB = openTask('parentb')
+      const olderCopy = {
+        ...openTask('moved'),
+        parentId: parentA.id,
+        updatedAt: '2026-11-01T00:00:00.000Z'
+      }
+      const newerCopy = {
+        ...olderCopy,
+        parentId: parentB.id,
+        updatedAt: '2026-11-10T00:00:00.000Z'
+      }
+      const { scopeKey, account, scope } = await openScope([parentA, parentB])
+      useAppStore.setState((state) => ({
+        dartListCache: {
+          ...state.dartListCache,
+          [scopedDartCacheKey(scope, `list::children::${parentA.id}`)]: {
+            data: { tasks: [olderCopy], totalCount: 1 },
+            fetchedAt: T0
+          },
+          [scopedDartCacheKey(scope, `list::children::${parentB.id}`)]: {
+            data: { tasks: [newerCopy], totalCount: 1 },
+            fetchedAt: T0
+          }
+        }
+      }))
+      const hook = mountModel(scopeKey, account, { features: RELATIONSHIPS_FEATURES, nested: true })
+
+      expect(hook.result.current.cardInfo(parentA.id).subtasks?.loaded ?? 0).toBe(0)
+      expect(hook.result.current.cardInfo(parentB.id).subtasks?.loaded).toBe(1)
+    })
+
     it('checks the next 20 not-checked on-hold tasks in read order', async () => {
       const held = Array.from({ length: 25 }, (_, index) =>
         openTask(`held${String(index).padStart(2, '0')}-`, 'On Hold')

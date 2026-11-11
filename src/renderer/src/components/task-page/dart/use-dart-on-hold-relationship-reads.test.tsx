@@ -15,7 +15,10 @@ import {
   dartTaskIdentityKey
 } from '@/store/slices/dart/dart-task-identity'
 import type { DartRelationshipCacheEntry, DartScopeMeta } from './dart-board-contracts'
-import { useDartOnHoldRelationshipReads } from './use-dart-on-hold-relationship-reads'
+import {
+  dartOnHoldPublicationId,
+  useDartOnHoldRelationshipReads
+} from './use-dart-on-hold-relationship-reads'
 
 const VIEWER_ID = 'user-a'
 let scopeKeyCounter = 0
@@ -251,5 +254,69 @@ describe('useDartOnHoldRelationshipReads', () => {
     hook.rerender({ tasks: [...tasks], scopeMeta: meta(1, 2000) })
 
     expect(readSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it('reads again when the scope is evicted and republished at the same generation and fetchedAt', () => {
+    const tasks = heldTasks(2)
+    const hook = mountReads({ tasks, scopeMeta: meta(1, 1000) })
+    expect(readSpy).toHaveBeenCalledTimes(1)
+
+    hook.rerender({ tasks: undefined, scopeMeta: null })
+    hook.rerender({ tasks: [...tasks], scopeMeta: meta(1, 1000) })
+
+    expect(readSpy).toHaveBeenCalledTimes(2)
+    expect(readSpy).toHaveBeenLastCalledWith(tasks.map((task) => task.id))
+  })
+
+  it('reads again for a republished generation 1 while the relationship entries are still cached', () => {
+    const tasks = heldTasks(2)
+    const hook = mountReads({ tasks, scopeMeta: meta(1, 1000) })
+
+    hook.rerender({ tasks: [...tasks], scopeMeta: meta(1, 2000) })
+
+    expect(readSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it('reads again on a remount that never saw the evicted publication', () => {
+    const tasks = heldTasks(2)
+    mountReads({ tasks, scopeMeta: meta(1, 1000) }).unmount()
+
+    mountReads({ tasks, scopeMeta: meta(1, 2000) })
+
+    expect(readSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it('reads at most the first 20 of a publication in total while its rows grow', () => {
+    const initial = heldTasks(10)
+    const hook = mountReads({ tasks: initial, scopeMeta: meta(1, 1000) })
+    const appended = [...initial, ...heldTasks(15, 'appended')]
+
+    hook.rerender({ tasks: appended, scopeMeta: meta(1, 1000) })
+    hook.rerender({ tasks: [...heldTasks(15, 'prepended'), ...appended], scopeMeta: meta(1, 1000) })
+
+    expect(readSpy).toHaveBeenCalledTimes(1)
+    expect(readSpy).toHaveBeenCalledWith(initial.map((task) => task.id))
+  })
+
+  it('lets the rows that grew into the scope enter through the next publication', () => {
+    const initial = heldTasks(10)
+    const hook = mountReads({ tasks: initial, scopeMeta: meta(1, 1000) })
+    const grown = [...heldTasks(15, 'prepended'), ...initial, ...heldTasks(15, 'appended')]
+    hook.rerender({ tasks: grown, scopeMeta: meta(1, 1000) })
+
+    hook.rerender({ tasks: grown, scopeMeta: meta(2, 2000) })
+
+    expect(readSpy).toHaveBeenCalledTimes(2)
+    expect(readSpy).toHaveBeenLastCalledWith(grown.slice(0, 20).map((task) => task.id))
+  })
+
+  it('keeps one publication id across meta copies and issues a new one per generation', () => {
+    const tasks = heldTasks(2)
+    const first = dartOnHoldPublicationId(SCOPE_KEY, meta(1, 1000), tasks)
+
+    expect(dartOnHoldPublicationId(SCOPE_KEY, { ...meta(1, 1000), openTotal: 5 }, tasks)).toBe(
+      first
+    )
+    expect(dartOnHoldPublicationId(SCOPE_KEY, meta(2, 1000), tasks)).toBeGreaterThan(first)
   })
 })

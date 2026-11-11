@@ -24,6 +24,7 @@ import type {
 import { scopedDartCacheKey, type DartReadScope } from '@/store/slices/dart/dart-read-coordination'
 import { dartTaskIdentityKey } from '@/store/slices/dart/dart-task-identity'
 import { useDartOnHoldCheckMore } from './use-dart-on-hold-check-more'
+import { useDartOnHoldPublication } from './use-dart-on-hold-relationship-reads'
 import { dartLoadedChildren } from './dart-loaded-children'
 import { enqueueDartTaskWrite } from './dart-task-write-queue'
 import { mergeDartPinnedRows, type PinnedDartRow } from './use-dart-list-pinned-rows'
@@ -149,13 +150,20 @@ export function useDartBoardModel(args: {
       layout === 'board' && config
         ? buildDartBoardColumns(merged, config, { showEmptyColumns, nested })
         : NO_COLUMNS
-    // Scope rows and the parent's children entry, deduped by id with the newest copy winning (D13.4).
+    // Every children entry of the scope, so a child that moved to another parent counts only there (D13.4).
+    const childrenEntries: (readonly DartTask[])[] = []
+    if (relationshipView && nested && listCache) {
+      for (const [key, entry] of Object.entries(listCache)) {
+        if (key.startsWith(childrenKeyPrefix) && entry.data) {
+          childrenEntries.push(entry.data.tasks)
+        }
+      }
+    }
     const loadedChildrenOf = (taskId: string): readonly DartTask[] | undefined => {
       if (!relationshipView || !nested) {
         return undefined
       }
-      const stored = listCache?.[`${childrenKeyPrefix}${taskId}`]?.data?.tasks ?? NO_TASKS
-      const all = dartLoadedChildren(taskId, relationshipView.candidates, [stored])
+      const all = dartLoadedChildren(taskId, relationshipView.candidates, childrenEntries)
       return all.length > 0 ? all : undefined
     }
     const info = new Map<string, DartCardInfo>()
@@ -181,10 +189,11 @@ export function useDartBoardModel(args: {
   ])
 
   const notChecked = relationshipView?.unchecked.length
+  const publication = useDartOnHoldPublication(relationshipsHost, scopeKey, storedMeta, rows)
   const checkMore = useDartOnHoldCheckMore({
     unchecked: relationshipView?.unchecked,
     errored: relationshipView?.errored,
-    publication: `${scopeKey ?? ''}:${meta.generation}`,
+    publication,
     read: readDartOnHoldRelationships
   })
 
