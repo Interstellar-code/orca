@@ -4,11 +4,20 @@ import { renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { useAppStore } from '@/store'
 import { dartTaskFixture } from '@/store/slices/dart/dart-fake-runtime.test-support'
-import type { DartClientFilters } from './dart-board-contracts'
+import type { DartClientFilters, DartScopeMeta } from './dart-board-contracts'
 import { dartTaskIdentityKey } from '@/store/slices/dart/dart-task-identity'
 import { useDartDisplayedTasks } from './use-dart-displayed-tasks'
 
 const NO_FILTERS: DartClientFilters = { status: null, tag: null, priority: null, onHold: false }
+const EMPTY_META: DartScopeMeta = {
+  openTotal: 0,
+  doneTotal: 0,
+  doneOffset: 0,
+  generation: 1,
+  fetchedAt: 1,
+  incomplete: false,
+  partialReason: null
+}
 const ACCOUNT = { hostKey: 'displayed-host', accountKey: 'user-a' }
 
 function displayed(args: {
@@ -16,6 +25,7 @@ function displayed(args: {
   pinned: ReturnType<typeof dartTaskFixture>[]
   clientFilters: DartClientFilters
   relationshipsHost?: boolean
+  publicationId?: number
 }) {
   return renderHook(() =>
     useDartDisplayedTasks({
@@ -24,7 +34,10 @@ function displayed(args: {
       layout: 'list',
       baseTasks: args.base,
       localTotal: 0,
-      scopeMeta: null,
+      scopeMeta:
+        args.publicationId === undefined
+          ? null
+          : { ...EMPTY_META, publicationId: args.publicationId },
       pinnedRows: new Map(args.pinned.map((row) => [row.id, { row, survivesNextClear: false }])),
       ...ACCOUNT,
       search: '',
@@ -78,7 +91,7 @@ describe('useDartDisplayedTasks pinned rows and client filters', () => {
 
 describe('useDartDisplayedTasks blocked on-hold filter', () => {
   const BLOCKED_ONLY: DartClientFilters = { ...NO_FILTERS, blockedOnHold: true }
-  const entry = (blockerIds: string[]) => ({
+  const entry = (blockerIds: string[], publicationId = 5) => ({
     state: 'known' as const,
     relationships: {
       subtaskIds: [],
@@ -88,7 +101,8 @@ describe('useDartDisplayedTasks blocked on-hold filter', () => {
       relatedIds: []
     },
     fetchedAt: 1,
-    error: null
+    error: null,
+    publicationId
   })
   const key = (taskId: string): string => dartTaskIdentityKey({ ...ACCOUNT, taskId })
 
@@ -106,10 +120,28 @@ describe('useDartDisplayedTasks blocked on-hold filter', () => {
       base,
       pinned: [],
       clientFilters: BLOCKED_ONLY,
-      relationshipsHost: true
+      relationshipsHost: true,
+      publicationId: 5
     })
 
     expect(result.tasks.map((row) => row.id).sort()).toEqual(['stuck', 'unread'])
+  })
+
+  it('keeps an on-hold row whose no-blocker entry was read in an older publication, like the board', () => {
+    useAppStore.setState({
+      dartRelationshipCache: { [key('old')]: entry([], 4), [key('free')]: entry([], 5) }
+    })
+    const base = ['old', 'free'].map((id) => dartTaskFixture(id, { status: 'On Hold' }))
+
+    const result = displayed({
+      base,
+      pinned: [],
+      clientFilters: BLOCKED_ONLY,
+      relationshipsHost: true,
+      publicationId: 5
+    })
+
+    expect(result.tasks.map((row) => row.id)).toEqual(['old'])
   })
 
   it('keeps every on-hold row when the host has no relationships', () => {

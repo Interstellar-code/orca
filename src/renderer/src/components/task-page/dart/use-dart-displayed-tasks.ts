@@ -39,7 +39,12 @@ export function useDartDisplayedTasks(args: {
         read,
         clientFilters,
         relationshipCache
-          ? buildDartRelationshipEntries(read, relationshipCache, { hostKey, accountKey })
+          ? buildDartRelationshipEntries(
+              read,
+              relationshipCache,
+              { hostKey, accountKey },
+              scopeMeta?.publicationId
+            )
           : undefined
       )
     )
@@ -54,7 +59,8 @@ export function useDartDisplayedTasks(args: {
     search,
     layout,
     clientFilters,
-    relationshipCache
+    relationshipCache,
+    scopeMeta?.publicationId
   ])
   const pinnedExtra = useMemo(
     () => missingDartPinnedRows(baseTasks, pinnedRows, { hostKey, accountKey }).length,
