@@ -637,3 +637,89 @@ describe('dart board page over both transports', () => {
     expect(listTasks?.params?.safeParse({ order: 'order', offset: 500 }).success).toBe(true)
   })
 })
+
+describe('dart release B on a release A client and across accounts', () => {
+  const OTHER_TOKEN = 'dsa_other-account-token-9876543210'
+  const OTHER_USER = { id: 'usr000000002', name: 'Bo', email: 'bo@example.com' }
+
+  function sentWith(host: DartHost, method: string, pathSuffix: string): string[] {
+    return host.fetch.mock.calls
+      .filter(
+        ([url, init]) =>
+          (init?.method ?? 'GET') === method && new URL(url).pathname.endsWith(pathSuffix)
+      )
+      .map(([, init]) => String(new Headers(init?.headers).get('authorization')))
+  }
+
+  it('sends no parent_id or ids query key for a list read without parentId or ids, on both transports', async () => {
+    const { host, ipc, rpc } = await transports()
+    routeSignedIn(host, CONFIG)
+    await ipc('dart:connect', { apiToken: FIXTURE_TOKEN })
+    host.route('GET', '/tasks/list', () => jsonResponse(200, { count: 0, results: [] }))
+
+    await ipc('dart:listTasks', { order: 'order', offset: 0 })
+    await rpc('dart.listTasks', { order: 'order', offset: 0 })
+
+    const queries = host.fetch.mock.calls
+      .map(([url]) => new URL(url))
+      .filter((url) => url.pathname.endsWith('/tasks/list'))
+      .map((url) => [...url.searchParams.keys()])
+    expect(queries).toHaveLength(2)
+    for (const keys of queries) {
+      expect(keys).not.toContain('parent_id')
+      expect(keys).not.toContain('ids')
+    }
+  })
+
+  it('advertises relationships and accepts the blocker write, so a client without the capability never needs it', async () => {
+    await transports()
+    const { RUNTIME_CAPABILITIES } = await import('../../shared/protocol-version')
+    const { DART_METHODS } = await import('../runtime/rpc/methods/dart')
+
+    expect(RUNTIME_CAPABILITIES).toContain('dart.relationships.v1')
+    const blockers = DART_METHODS.find((method) => method.name === 'dart.updateTaskBlockers')
+    expect(blockers?.params?.safeParse(BLOCKER_PARAMS).success).toBe(true)
+  })
+
+  it('sends each account its own token for a blocker write and none after disconnect', async () => {
+    const { host, ipc, rpc } = await transports()
+    host.route('GET', '/config', () => jsonResponse(200, CONFIG))
+    host.route('GET', '/me', ({ init }) => {
+      const bearer = new Headers(init?.headers).get('authorization')
+      return jsonResponse(200, {
+        isLoggedIn: true,
+        user: bearer === `Bearer ${OTHER_TOKEN}` ? OTHER_USER : FIXTURE_USER
+      })
+    })
+    host.route('GET', `/tasks/${TASK_ID}`, () =>
+      jsonResponse(200, { item: { ...BLOCKER_RAW_TASK, taskRelationships: { subtaskIds: [] } } })
+    )
+    host.route('PUT', `/tasks/${TASK_ID}`, () => jsonResponse(200, { item: BLOCKER_RAW_TASK }))
+
+    await ipc('dart:connect', { apiToken: FIXTURE_TOKEN })
+    await ipc('dart:updateTaskBlockers', BLOCKER_PARAMS)
+    await ipc('dart:disconnect')
+    await expect(rpc('dart.status')).resolves.toMatchObject({ connected: false })
+    const sentBefore = host.fetch.mock.calls.length
+    await expect(rpc('dart.updateTaskBlockers', BLOCKER_PARAMS)).resolves.toMatchObject({
+      ok: false,
+      errorCode: 'dart.notConnected',
+      outcome: 'notApplied'
+    })
+    expect(host.fetch.mock.calls).toHaveLength(sentBefore)
+
+    await rpc('dart.connect', { apiToken: OTHER_TOKEN })
+    await expect(ipc('dart:status')).resolves.toMatchObject({ viewer: { id: OTHER_USER.id } })
+    await rpc('dart.updateTaskBlockers', BLOCKER_PARAMS)
+
+    const bearerOf = (token: string): string => `Bearer ${token}`
+    expect(sentWith(host, 'PUT', `/tasks/${TASK_ID}`)).toEqual([
+      bearerOf(FIXTURE_TOKEN),
+      bearerOf(OTHER_TOKEN)
+    ])
+    expect(sentWith(host, 'GET', `/tasks/${TASK_ID}`)).toEqual([
+      bearerOf(FIXTURE_TOKEN),
+      bearerOf(OTHER_TOKEN)
+    ])
+  })
+})
