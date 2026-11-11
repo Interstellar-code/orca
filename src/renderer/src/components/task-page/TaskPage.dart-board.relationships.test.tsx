@@ -239,7 +239,7 @@ describe('on-hold relationship reads over the desktop IPC', () => {
     host
       .requestsOf('dart.getTask')
       .filter(isHoldRead)
-      .map((params) => params.taskId as string)
+      .flatMap((params) => (params.taskId === undefined ? [] : [params.taskId]))
 
   it('reads the first 20 on-hold tasks per publication and the next 20 on Check, showing the rest as not checked', async () => {
     const host = desktop.open({ relationships: true })
