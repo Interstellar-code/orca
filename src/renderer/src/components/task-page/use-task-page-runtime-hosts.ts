@@ -12,7 +12,7 @@ import { TASK_SOURCE_CONTEXT_RUNTIME_CAPABILITY } from '../../../../shared/task-
 import { callRuntimeRpc } from '@/runtime/runtime-rpc-client'
 import type { PreflightStatus } from '../../../../preload/api/preflight-api'
 import { getTaskPageRepoSourceContext } from '../../lib/task-repo-source-context'
-import { withWebClientLocalHostLabel } from './web-client-local-host-label'
+import { getWebClientLocalHostLabel } from './web-client-local-host-label'
 export function useTaskPageRuntimeHosts(model: TaskPageRepoSelectionModel) {
   const {
     settings,
@@ -63,7 +63,8 @@ export function useTaskPageRuntimeHosts(model: TaskPageRepoSelectionModel) {
           sshConnectionStates,
           runtimeEnvironments,
           runtimeStatusByEnvironmentId,
-          hostLabelOverrides: getHostDisplayLabelOverrides(settings)
+          hostLabelOverrides: getHostDisplayLabelOverrides(settings),
+          localHostLabel: getWebClientLocalHostLabel()
         }).map((host) => [host.id, host])
       ),
     [
@@ -76,10 +77,7 @@ export function useTaskPageRuntimeHosts(model: TaskPageRepoSelectionModel) {
     ]
   )
   const hostLabelById = useMemo(
-    () =>
-      withWebClientLocalHostLabel(
-        new Map([...hostRegistryById].map(([hostId, host]) => [hostId, host.label]))
-      ),
+    () => new Map([...hostRegistryById].map(([hostId, host]) => [hostId, host.label])),
     [hostRegistryById]
   )
   const runtimeTaskSourceHostIds = useMemo(() => {
