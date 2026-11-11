@@ -130,6 +130,19 @@ describe('nested task list rows', () => {
     focus.mockRestore()
   })
 
+  it('keeps focus in the list when the expanded parent turns out to have no children', () => {
+    const { rerender } = render(<List options={{ tasks: [PARENT], totals: { [PARENT.id]: 1 } }} />)
+    const button = expandButton(PARENT.title)
+    button.focus()
+    fireEvent.click(button)
+    expect(document.activeElement).toBe(button)
+
+    rerender(<List options={{ tasks: [PARENT], totals: { [PARENT.id]: 0 } }} />)
+
+    expect(document.activeElement).not.toBe(document.body)
+    expect(document.activeElement?.closest('[data-dart-row-id]')).toBeTruthy()
+  })
+
   it('expands on Right, collapses on Left, and opens on Enter; Right does nothing on a leaf', () => {
     const onOpenTask = vi.fn()
     render(<List options={{ tasks: HIERARCHY }} onOpenTask={onOpenTask} />)

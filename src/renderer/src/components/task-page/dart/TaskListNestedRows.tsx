@@ -115,8 +115,9 @@ export function TaskListNestedRows({
 
   const renderRow = (row: DartNestedListRow): React.JSX.Element => {
     const { task } = row
-    const canExpand = row.depth === 0 && model.canExpand(task)
-    const expanded = canExpand && model.expanded.has(task.id)
+    const expanded = row.depth === 0 && model.expanded.has(task.id)
+    // Why: an expanded row keeps its button when the child read comes back empty, so focus is not lost.
+    const canExpand = row.depth === 0 && (expanded || model.canExpand(task))
     return (
       <DartTaskRow
         key={task.id}
@@ -150,7 +151,7 @@ export function TaskListNestedRows({
       childRows.push(model.rows[index])
     }
     const parent = parentRow.task
-    const open = model.canExpand(parent) && model.expanded.has(parent.id)
+    const open = model.expanded.has(parent.id)
     blocks.push(
       <div key={parent.id} className="divide-y divide-border/50">
         {renderRow(parentRow)}

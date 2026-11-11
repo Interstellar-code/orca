@@ -328,7 +328,7 @@ export function TaskPageDartContent({
             tasks={dartTasks}
             nested={dartNestedList.nested ? dartNestedList : undefined}
             rowMarkers={
-              dartNestedList.nested
+              dartRelationshipsHost
                 ? (task) => <DartCardMarkers info={dartNestedList.cardInfo(task.id)} />
                 : undefined
             }

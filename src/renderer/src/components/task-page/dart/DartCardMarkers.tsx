@@ -6,7 +6,8 @@ export function DartCardMarkers({ info }: { info: DartCardInfo }): React.JSX.Ele
   const blockedBy = info.blockedBy ?? 0
   const blocking = info.blocking ?? 0
   const subtaskCount = info.subtasks ? (info.subtasks.total ?? info.subtasks.loaded) : 0
-  const notChecked = info.onHold && info.relationshipState === 'notChecked'
+  const notChecked =
+    info.onHold && (info.relationshipState === 'notChecked' || info.relationshipState === 'error')
   if (blockedBy <= 0 && blocking <= 0 && subtaskCount <= 0 && !notChecked) {
     return null
   }

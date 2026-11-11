@@ -378,6 +378,16 @@ describe('DartBoard card markers', () => {
     expect(within(doneCard).queryByText('Blockers not checked')).not.toBeInTheDocument()
   })
 
+  it('says "Blockers not checked" on an on-hold card whose relationship fetch errored', () => {
+    const entries = new Map<string, DartRelationshipCacheEntry>([
+      [onHold.id, { state: 'error', relationships: null, fetchedAt: 0, error: 'boom' }],
+      [plain.id, { state: 'error', relationships: null, fetchedAt: 0, error: 'boom' }]
+    ])
+    render(<DartBoard model={modelWith([onHold, plain], entries)} selectedTaskId={null} />)
+
+    expect(screen.getAllByText('Blockers not checked')).toHaveLength(1)
+  })
+
   it('renders no markers on a host without relationships', () => {
     render(<DartBoard model={modelWith([onHold, plain], new Map())} selectedTaskId={null} />)
 
