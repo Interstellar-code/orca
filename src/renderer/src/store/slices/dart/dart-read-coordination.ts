@@ -37,6 +37,7 @@ export const EMPTY_DART_READ_CACHES = {
   dartTaskCache: {},
   dartListCache: {},
   dartConfigCache: {},
+  dartRelationshipCache: {},
   dartScopeMetaCache: {},
   dartMountedScopeKey: null
 } satisfies Partial<DartSlice>
@@ -73,12 +74,18 @@ export function pruneDartScopeMetaCache(
   return kept.length === entries.length ? metaCache : Object.fromEntries(kept)
 }
 
-/** The mounted scope entry keeps its slot even when a patch marked it stale. */
+/** An expanded parent's children must not be evicted by scope reads. */
+const CHILDREN_LIST_KEY_MARKER = '::list::children::'
+
+/** The mounted scope entry and children entries keep their slots even when a patch marked them stale. */
 export function evictDartListCache(
   state: Pick<DartSlice, 'dartMountedScopeKey' | 'dartScopeMetaCache'>,
   listCache: Record<string, CacheEntry<DartTaskPage>>
 ): Pick<DartSlice, 'dartListCache' | 'dartScopeMetaCache'> {
-  const keep = new Set(state.dartMountedScopeKey ? [state.dartMountedScopeKey] : [])
+  const keep = new Set([
+    ...(state.dartMountedScopeKey ? [state.dartMountedScopeKey] : []),
+    ...Object.keys(listCache).filter((key) => key.includes(CHILDREN_LIST_KEY_MARKER))
+  ])
   const dartListCache = evictStaleDartCacheEntries(listCache, keep)
   return {
     dartListCache,
@@ -249,8 +256,13 @@ export function dropDartScopeCachesForHost(
   contextKey: string
 ): Pick<DartSlice, 'dartListCache' | 'dartScopeMetaCache' | 'dartMountedScopeKey'> {
   const prefix = `${contextKey}::list::scope::`
+  const childrenPrefix = `${contextKey}${CHILDREN_LIST_KEY_MARKER}`
   const keep = <T>(cache: Record<string, T>): Record<string, T> =>
-    Object.fromEntries(Object.entries(cache).filter(([key]) => !key.startsWith(prefix)))
+    Object.fromEntries(
+      Object.entries(cache).filter(
+        ([key]) => !key.startsWith(prefix) && !key.startsWith(childrenPrefix)
+      )
+    )
   return {
     dartListCache: keep(state.dartListCache),
     dartScopeMetaCache: keep(state.dartScopeMetaCache),

@@ -21,7 +21,8 @@ const EDITABLE_DART_TASK_FIELDS = [
   'tags',
   'size',
   'startAt',
-  'dueAt'
+  'dueAt',
+  'relationships'
 ] as const
 export type EditableDartTaskField = (typeof EDITABLE_DART_TASK_FIELDS)[number]
 

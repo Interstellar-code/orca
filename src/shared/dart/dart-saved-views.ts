@@ -70,6 +70,10 @@ function normalizeNullableFilter(value: unknown): NullableFilterResult {
   return { ok: true, value: value.length === 0 ? null : value }
 }
 
+function isOptionalBoolean(value: unknown): value is boolean | undefined {
+  return value === undefined || typeof value === 'boolean'
+}
+
 function normalizeBoardFilters(value: unknown): DartBoardFilters | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return null
@@ -94,6 +98,10 @@ function normalizeBoardFilters(value: unknown): DartBoardFilters | null {
   if (!status.ok || !dartboard.ok || !tag.ok || !priority.ok) {
     return null
   }
+  const blockedOnHold = 'blockedOnHold' in value ? value.blockedOnHold : undefined
+  if (!isOptionalBoolean(blockedOnHold)) {
+    return null
+  }
   return {
     mine: value.mine,
     status: status.value,
@@ -101,7 +109,9 @@ function normalizeBoardFilters(value: unknown): DartBoardFilters | null {
     search: value.search,
     tag: tag.value,
     priority: priority.value,
-    onHold: value.onHold
+    onHold: value.onHold,
+    // Why: absent stays absent so release A views round-trip unchanged.
+    ...(blockedOnHold === undefined ? {} : { blockedOnHold })
   }
 }
 
@@ -122,16 +132,25 @@ function normalizeDartSavedView(candidate: unknown): DartSavedView | null {
   const name = normalizeBoundedName(candidate.name, MAX_DART_SAVED_VIEW_NAME_LENGTH)
   const filters = normalizeBoardFilters(candidate.filters)
   const { layout, showEmptyColumns } = candidate
+  const nestSubtasks = 'nestSubtasks' in candidate ? candidate.nestSubtasks : undefined
   if (
     !id ||
     !name ||
     !filters ||
     (layout !== 'list' && layout !== 'board') ||
-    typeof showEmptyColumns !== 'boolean'
+    typeof showEmptyColumns !== 'boolean' ||
+    !isOptionalBoolean(nestSubtasks)
   ) {
     return null
   }
-  return { id, name, filters, layout, showEmptyColumns }
+  return {
+    id,
+    name,
+    filters,
+    layout,
+    showEmptyColumns,
+    ...(nestSubtasks === undefined ? {} : { nestSubtasks })
+  }
 }
 
 function normalizeDartSavedViews(value: unknown): DartSavedView[] {

@@ -3,7 +3,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   DART_BOARD_RUNTIME_CAPABILITY,
-  DART_PROVIDER_RUNTIME_CAPABILITY
+  DART_PROVIDER_RUNTIME_CAPABILITY,
+  DART_RELATIONSHIPS_RUNTIME_CAPABILITY
 } from '../../../shared/dart/dart-capabilities'
 import type { DartTask } from '../../../shared/dart/dart-types'
 import {
@@ -34,7 +35,11 @@ function task(overrides: Partial<DartTask>): DartTask {
   }
 }
 
-function mockRemote(options: { withDartCapability: boolean; reply?: unknown }): void {
+function mockRemote(options: {
+  withDartCapability: boolean
+  withRelationships?: boolean
+  reply?: unknown
+}): void {
   runtimeCall.mockImplementation(async (args: { method: string; params: unknown }) => {
     if (args.method === 'status.get') {
       const status = createCompatibleRuntimeStatusResponse('remote-dart')
@@ -42,9 +47,15 @@ function mockRemote(options: { withDartCapability: boolean; reply?: unknown }): 
       const others = (status.result.capabilities ?? []).filter(
         (capability) => capability !== DART_PROVIDER_RUNTIME_CAPABILITY
       )
-      status.result.capabilities = options.withDartCapability
+      const withProvider = options.withDartCapability
         ? [...others, DART_PROVIDER_RUNTIME_CAPABILITY]
         : others
+      status.result.capabilities =
+        options.withRelationships === false
+          ? withProvider.filter(
+              (capability) => capability !== DART_RELATIONSHIPS_RUNTIME_CAPABILITY
+            )
+          : withProvider
       return status
     }
     return {
@@ -56,13 +67,22 @@ function mockRemote(options: { withDartCapability: boolean; reply?: unknown }): 
   })
 }
 
-function mockRemoteBoardCapability(advertised: boolean): void {
+function mockRemoteFeatureCapabilities(advertised: {
+  board: boolean
+  relationships?: boolean
+}): void {
   runtimeCall.mockImplementation(async () => {
     const status = createCompatibleRuntimeStatusResponse('remote-dart')
     const others = (status.result.capabilities ?? []).filter(
-      (capability) => capability !== DART_BOARD_RUNTIME_CAPABILITY
+      (capability) =>
+        capability !== DART_BOARD_RUNTIME_CAPABILITY &&
+        capability !== DART_RELATIONSHIPS_RUNTIME_CAPABILITY
     )
-    status.result.capabilities = advertised ? [...others, DART_BOARD_RUNTIME_CAPABILITY] : others
+    status.result.capabilities = [
+      ...others,
+      ...(advertised.board ? [DART_BOARD_RUNTIME_CAPABILITY] : []),
+      ...(advertised.relationships ? [DART_RELATIONSHIPS_RUNTIME_CAPABILITY] : [])
+    ]
     return status
   })
 }
@@ -207,31 +227,111 @@ describe('runtime Dart client', () => {
     )
     expect(result).toMatchObject({ ok: true, raw })
   })
+
+  describe('parentId and ids', () => {
+    const IDS = ['aB3dE5gH7jK9', 'zY8xW6vU4tS2']
+
+    it('passes parentId and ids to a remote host that advertises dart.relationships.v1', async () => {
+      mockRemote({
+        withDartCapability: true,
+        reply: { ok: true, tasks: [task({})], totalCount: 1 }
+      })
+
+      await dartListTasksForTarget(remote, { parentId: 'pQ4rS6tU8vW0', limit: 250 })
+      expect(runtimeCall).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          method: 'dart.listTasks',
+          params: { parentId: 'pQ4rS6tU8vW0', limit: 250 }
+        })
+      )
+
+      await dartListTasksForTarget(remote, { ids: IDS })
+      expect(runtimeCall).toHaveBeenLastCalledWith(
+        expect.objectContaining({ method: 'dart.listTasks', params: { ids: IDS } })
+      )
+    })
+
+    it('refuses without sending them to a remote host without dart.relationships.v1', async () => {
+      mockRemote({ withDartCapability: true, withRelationships: false })
+
+      const results = [
+        await dartListTasksForTarget(remote, { parentId: 'pQ4rS6tU8vW0' }),
+        await dartListTasksForTarget(remote, { ids: IDS })
+      ]
+
+      for (const result of results) {
+        expect(result).toMatchObject({ ok: false, error: expect.stringContaining('Update') })
+      }
+      expect(runtimeCall.mock.calls.map(([call]) => call.method)).not.toContain('dart.listTasks')
+    })
+
+    it('still reads without them on a host without the capability', async () => {
+      mockRemote({
+        withDartCapability: true,
+        withRelationships: false,
+        reply: { ok: true, tasks: [task({})], totalCount: 1 }
+      })
+
+      await expect(dartListTasksForTarget(remote, { limit: 100 })).resolves.toMatchObject({
+        ok: true
+      })
+    })
+
+    it('asks the local bridge for support and sends nothing without it', async () => {
+      supportedDartFeaturesLocal.mockResolvedValue({ board: true })
+
+      await expect(
+        dartListTasksForTarget({ kind: 'local' }, { parentId: 'pQ4rS6tU8vW0' })
+      ).resolves.toMatchObject({ ok: false })
+      expect(dartListTasksLocal).not.toHaveBeenCalled()
+
+      supportedDartFeaturesLocal.mockResolvedValue({ board: true, relationships: true })
+      dartListTasksLocal.mockResolvedValue({ ok: true, tasks: [], totalCount: 0 })
+      await dartListTasksForTarget({ kind: 'local' }, { parentId: 'pQ4rS6tU8vW0' })
+      expect(dartListTasksLocal).toHaveBeenCalledWith({ parentId: 'pQ4rS6tU8vW0' })
+    })
+  })
 })
 
 describe('dartBoardFeaturesForTarget', () => {
   it('reports board support from the remote host capability', async () => {
-    mockRemoteBoardCapability(true)
-    await expect(dartBoardFeaturesForTarget(remote)).resolves.toEqual({ board: true })
+    mockRemoteFeatureCapabilities({ board: true, relationships: true })
+    await expect(dartBoardFeaturesForTarget(remote)).resolves.toEqual({
+      board: true,
+      relationships: true
+    })
 
     clearRuntimeCompatibilityCacheForTests()
-    mockRemoteBoardCapability(false)
-    await expect(dartBoardFeaturesForTarget(remote)).resolves.toEqual({ board: false })
+    mockRemoteFeatureCapabilities({ board: true })
+    await expect(dartBoardFeaturesForTarget(remote)).resolves.toEqual({
+      board: true,
+      relationships: false
+    })
+
+    clearRuntimeCompatibilityCacheForTests()
+    mockRemoteFeatureCapabilities({ board: false })
+    await expect(dartBoardFeaturesForTarget(remote)).resolves.toEqual({
+      board: false,
+      relationships: false
+    })
     expect(supportedDartFeaturesLocal).not.toHaveBeenCalled()
   })
 
   it('re-probes a remote host within the capability cache window: a downgraded host reports no board', async () => {
-    mockRemoteBoardCapability(true)
-    await expect(dartBoardFeaturesForTarget(remote)).resolves.toEqual({ board: true })
+    mockRemoteFeatureCapabilities({ board: true })
+    await expect(dartBoardFeaturesForTarget(remote)).resolves.toMatchObject({ board: true })
 
-    mockRemoteBoardCapability(false)
-    await expect(dartBoardFeaturesForTarget(remote)).resolves.toEqual({ board: false })
+    mockRemoteFeatureCapabilities({ board: false })
+    await expect(dartBoardFeaturesForTarget(remote)).resolves.toMatchObject({ board: false })
   })
 
   it('asks the local bridge for a local target', async () => {
-    supportedDartFeaturesLocal.mockResolvedValue({ board: true })
+    supportedDartFeaturesLocal.mockResolvedValue({ board: true, relationships: true })
 
-    await expect(dartBoardFeaturesForTarget({ kind: 'local' })).resolves.toEqual({ board: true })
+    await expect(dartBoardFeaturesForTarget({ kind: 'local' })).resolves.toEqual({
+      board: true,
+      relationships: true
+    })
     expect(runtimeCall).not.toHaveBeenCalled()
   })
 

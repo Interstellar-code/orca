@@ -19,6 +19,7 @@ import type { TaskSourceContext } from '../../../../../shared/task-source-contex
 import type { DartClientResult } from '@/runtime/runtime-dart-client'
 import type { DartFieldUpdates, DartWriteResult } from '@/runtime/runtime-dart-write-client'
 import type {
+  DartRelationshipCacheEntry,
   DartScopeMeta,
   DartScopeReadResult,
   DartServerFilters
@@ -75,6 +76,8 @@ export type DartSlice = DartScopeReadSlice & {
   dartTaskCache: Record<string, CacheEntry<DartTask>>
   dartListCache: Record<string, CacheEntry<DartTaskPage>>
   dartConfigCache: Record<string, CacheEntry<DartWorkspaceConfig>>
+  /** On-hold tasks' blocker state, keyed by `dartTaskIdentityKey`; never expires, emptied on connect and disconnect. */
+  dartRelationshipCache: Record<string, DartRelationshipCacheEntry>
 
   checkDartConnection: () => Promise<void>
   connectDart: (args: { apiToken: string }) => Promise<DartClientResult<{ viewer: DartUser }>>
@@ -95,6 +98,23 @@ export type DartSlice = DartScopeReadSlice & {
   fetchDartConfig: (
     options?: DartReadOptions
   ) => Promise<DartClientResult<{ config: DartWorkspaceConfig }>>
+  /** Stores the children entry under `list::children::<parentId>` (D13.4); up to 250 rows. */
+  readDartSubtasks: (
+    parentId: string,
+    options?: DartReadOptions
+  ) => Promise<DartClientResult<{ tasks: DartTask[]; total: number }>>
+  /** 100 ids per read, at most 3 reads, not cached; `complete` is false when ids were left unread. */
+  readDartTasksByIds: (
+    ids: readonly string[],
+    options?: DartReadOptions
+  ) => Promise<DartClientResult<{ tasks: DartTask[]; total: number; complete: boolean }>>
+  /** Not cached: title search over open tasks, 25 rows, optionally one dartboard. */
+  searchDartTasks: (
+    text: string,
+    options: { sourceContext?: TaskSourceContext | null; dartboard?: string }
+  ) => Promise<DartClientResult<{ tasks: DartTask[] }>>
+  /** Default scope; reads `getTask` one after another for the first 20 ids, outside the epoch window. */
+  readDartOnHoldRelationships: (taskIds: readonly string[]) => Promise<void>
   /** Reaches every cached copy under the identity's host and account, whatever alias it is keyed by. */
   patchDartTask: (identity: DartTaskIdentity, patch: Partial<DartTask>) => void
   invalidateDartLists: (identity: DartAccountIdentity) => void
@@ -113,6 +133,11 @@ export type DartSlice = DartScopeReadSlice & {
   ) => Promise<DartWriteResult<{ comment: DartComment }>>
   createDartTask: (
     args: DartCreateTaskArgs,
+    options?: DartWriteOptions
+  ) => Promise<DartWriteResult<{ task: DartTask }>>
+  setDartTaskBlockers: (
+    taskId: string,
+    blockerIds: readonly string[],
     options?: DartWriteOptions
   ) => Promise<DartWriteResult<{ task: DartTask }>>
 }
