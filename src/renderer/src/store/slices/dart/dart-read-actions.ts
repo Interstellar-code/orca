@@ -85,8 +85,11 @@ export function runDartRead<T extends object>(args: {
   read: () => Promise<DartClientResult<T>>
   store: (result: { ok: true } & T) => void
 }): Promise<DartClientResult<T>> {
-  const { set, get, scope, inflightReads, flightKey, force, read, store } = args
+  const { set, get, scope, inflightReads, force, read, store } = args
   const mutationGeneration = currentDartMutationGeneration()
+  // A default-scope read belongs to the account shown when it started; an explicit scope already names its account.
+  const viewerId = scope.explicitSource ? null : dartScopeViewerId(get(), scope)
+  const flightKey = JSON.stringify([args.flightKey, viewerId])
   const inflight = inflightReads.get(flightKey)
   if (!force && inflight?.mutationGeneration === mutationGeneration) {
     return inflight.promise
@@ -94,7 +97,10 @@ export function runDartRead<T extends object>(args: {
   const promise = read()
     .catch(failureFromThrown)
     .then((result) => {
-      if (!canWriteDartReadResult(scope, mutationGeneration, get().settings)) {
+      if (
+        !canWriteDartReadResult(scope, mutationGeneration, get().settings) ||
+        (!scope.explicitSource && viewerId !== dartScopeViewerId(get(), scope))
+      ) {
         return result
       }
       if (result.ok) {

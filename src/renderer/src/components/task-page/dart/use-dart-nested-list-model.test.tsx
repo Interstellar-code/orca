@@ -35,8 +35,9 @@ function mountModel(
 ) {
   const scope = getDartReadScope(useAppStore.getState().settings)
   const account = dartAccountIdentity(scope, VIEWER.id)
+  const initialProps: { tasks: readonly DartTask[]; publicationId?: number } = { tasks }
   return renderHook(
-    (props: { tasks: readonly DartTask[] }) =>
+    (props: { tasks: readonly DartTask[]; publicationId?: number }) =>
       useDartNestedListModel({
         tasks: props.tasks,
         nested: overrides.nested ?? true,
@@ -44,10 +45,10 @@ function mountModel(
         hostKey: account.hostKey,
         accountKey: account.accountKey,
         viewerId: VIEWER.id,
-        publicationId: overrides.publicationId ?? 7,
+        publicationId: props.publicationId ?? overrides.publicationId ?? 7,
         relationshipsHost: true
       }),
-    { initialProps: { tasks } }
+    { initialProps }
   )
 }
 
@@ -211,6 +212,59 @@ describe('useDartNestedListModel', () => {
     ])
     expect(hook.result.current.cardInfo(PARENT.id).subtasks?.loaded).toBe(0)
     expect(hook.result.current.cardInfo(other.id).subtasks?.loaded).toBe(1)
+  })
+
+  it('drops a child deleted in Dart after a plain refresh, with no invalidation', async () => {
+    const scope = getDartReadScope(useAppStore.getState().settings)
+    const filters = { mine: false, dartboard: null, search: '' }
+    const second = dartTaskFixture('child0000002', { title: 'Second', parentId: PARENT.id })
+    host.addTask(second)
+    const hook = mountModel([PARENT])
+    await act(async () => hook.result.current.toggle(PARENT.id))
+    expect(hook.result.current.children(PARENT.id).data?.tasks).toHaveLength(2)
+
+    host.tasks.delete(CHILD.id)
+    const state = useAppStore.getState()
+    const result = await state.readDartScope(filters, {
+      features: { board: true, relationships: true },
+      scope
+    })
+    act(() => state.publishDartScope(filters, { result, current: true, scope }))
+    const publicationId = Object.values(useAppStore.getState().dartScopeMetaCache)[0].publicationId
+    hook.rerender({ tasks: [PARENT], publicationId })
+    await act(async () => {})
+
+    expect(hook.result.current.children(PARENT.id).data?.tasks).toEqual([second])
+    expect(hook.result.current.rows.map((row) => row.task.id)).toEqual([PARENT.id, second.id])
+    expect(hook.result.current.cardInfo(PARENT.id).subtasks?.loaded).toBe(1)
+    const reads = listRequests()
+    await act(async () => {})
+    expect(listRequests()).toBe(reads)
+  })
+
+  it('rereads an expanded parent on a new publication and drops a child deleted in Dart', async () => {
+    const scope = getDartReadScope(useAppStore.getState().settings)
+    const account = dartAccountIdentity(scope, VIEWER.id)
+    const second = dartTaskFixture('child0000002', { title: 'Second', parentId: PARENT.id })
+    host.addTask(second)
+    const hook = mountModel([PARENT], { publicationId: 7 })
+    await act(async () => hook.result.current.toggle(PARENT.id))
+    expect(hook.result.current.children(PARENT.id).data?.tasks).toHaveLength(2)
+
+    host.tasks.delete(CHILD.id)
+    act(() => useAppStore.getState().invalidateDartLists(account))
+    await act(async () => {})
+    expect(listRequests()).toBe(2)
+
+    expect(hook.result.current.children(PARENT.id).data).toEqual({
+      tasks: [second],
+      total: 1,
+      complete: true
+    })
+    expect(hook.result.current.rows.map((row) => row.task.id)).toEqual([PARENT.id, second.id])
+    expect(hook.result.current.cardInfo(PARENT.id).subtasks?.loaded).toBe(1)
+    await act(async () => {})
+    expect(listRequests()).toBe(2)
   })
 
   describe('relationships of cache-only children', () => {

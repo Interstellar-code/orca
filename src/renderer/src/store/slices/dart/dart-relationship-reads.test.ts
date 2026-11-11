@@ -61,6 +61,38 @@ describe('dart subtask reads', () => {
     expect(store.getState().dartListCache[childrenKey]?.data?.tasks[0]?.status).toBe('Doing')
   })
 
+  describe('across an account change on the same host', () => {
+    const viewerB = { id: 'user-b', name: 'Blake Example' }
+
+    it("installs nothing from account A's late reply once the status is account B", async () => {
+      const { host, store, scope } = openStore()
+      host.addTask(dartTaskFixture(taskId(1), { parentId: PARENT_ID }))
+      const release = host.hold('dart.listTasks')
+      const late = store.getState().readDartSubtasks(PARENT_ID, { scope })
+      await vi.waitFor(() => expect(host.count('dart.listTasks')).toBe(1))
+
+      store.setState({ dartStatus: { connected: true, viewer: viewerB } })
+      release()
+      await late
+
+      expect(store.getState().dartListCache).toEqual({})
+    })
+
+    it("does not coalesce account B's read onto account A's read in flight", async () => {
+      const { host, store, scope } = openStore()
+      host.addTask(dartTaskFixture(taskId(1), { parentId: PARENT_ID }))
+      const release = host.hold('dart.listTasks')
+      const first = store.getState().readDartSubtasks(PARENT_ID, { scope })
+      await vi.waitFor(() => expect(host.count('dart.listTasks')).toBe(1))
+
+      store.setState({ dartStatus: { connected: true, viewer: viewerB } })
+      const second = store.getState().readDartSubtasks(PARENT_ID, { scope })
+      await vi.waitFor(() => expect(host.count('dart.listTasks')).toBe(2))
+      release()
+      await Promise.all([first, second])
+    })
+  })
+
   it('reads nothing from a host without relationships', async () => {
     const { host, store, scope } = openStore({ relationships: false })
 

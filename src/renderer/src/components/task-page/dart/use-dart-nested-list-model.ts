@@ -67,6 +67,7 @@ export function useDartNestedListModel(args: {
   const live = useRef({ scopeId, pageScope })
   live.current = { scopeId, pageScope }
   const inflight = useRef(new Set<string>())
+  const readPublication = useRef(new Map<string, number | undefined>())
   const timers = useRef(new Set<ReturnType<typeof setTimeout>>())
   useEffect(() => {
     const pending = timers.current
@@ -102,6 +103,7 @@ export function useDartNestedListModel(args: {
         return
       }
       inflight.current.add(flight)
+      readPublication.current.set(flight, publicationId)
       writeReads(readScope, (prev) => ({ ...prev, [parentId]: { phase: 'running' } }))
       const timer = setTimeout(() => {
         timers.current.delete(timer)
@@ -120,7 +122,7 @@ export function useDartNestedListModel(args: {
         })
       })
     },
-    [readDartSubtasks, writeReads]
+    [readDartSubtasks, writeReads, publicationId]
   )
 
   const canReadChildren = nested && relationshipsHost
@@ -147,6 +149,22 @@ export function useDartNestedListModel(args: {
     },
     [canReadChildren, expanded, scopeId, readChildren]
   )
+
+  // An expanded parent rereads (forced) once per publication and when its entry is invalidated; the read replaces its entry.
+  useEffect(() => {
+    if (!canReadChildren) {
+      return
+    }
+    for (const parentId of expanded) {
+      const flight = `${scopeId}\n${parentId}`
+      const invalidated = listCache[childrenCacheKey(pageScope, parentId)]?.fetchedAt === 0
+      const newPublication =
+        readPublication.current.has(flight) && readPublication.current.get(flight) !== publicationId
+      if ((newPublication || invalidated) && !reads[parentId]) {
+        readChildren(parentId, newPublication)
+      }
+    }
+  }, [canReadChildren, expanded, scopeId, pageScope, listCache, publicationId, reads, readChildren])
 
   // One set over every children entry of the scope, shared with the board (D13).
   const reconciled = useMemo(
