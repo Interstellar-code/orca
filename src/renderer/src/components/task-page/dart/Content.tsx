@@ -13,6 +13,7 @@ import type { TaskPageComposerActionsModel } from '../use-task-page-composer-act
 import { isDartTaskFinished } from './dart-board-columns'
 import { DartBoard } from './DartBoard'
 import { effectiveDartClientFilters } from './use-dart-effective-client-filters'
+import { DartCardMarkers } from './DartCardMarkers'
 import { TaskPageDartTaskList } from './TaskList'
 import { TaskPageDartTaskDetail } from './TaskDetail'
 import { TaskPageDartCreateDialog } from './TaskCreateDialog'
@@ -332,6 +333,11 @@ export function TaskPageDartContent({
           <TaskPageDartTaskList
             tasks={dartTasks}
             nested={dartNestedList.nested ? dartNestedList : undefined}
+            rowMarkers={
+              dartNestedList.nested
+                ? (task) => <DartCardMarkers info={dartNestedList.cardInfo(task.id)} />
+                : undefined
+            }
             selectedTaskId={selectedDartTask?.id ?? null}
             getTaskWorkspaces={getDartTaskWorkspaces}
             onOpenTask={openDartDetailPage}

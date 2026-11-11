@@ -14,6 +14,7 @@ import { writeDartBoardTaskDragData } from '@/lib/dart-board-drag-payload'
 import { cn } from '@/lib/utils'
 import type { DartTaskIdentity } from '@/store/slices/dart/dart-task-identity'
 import type { DartBoardModel } from './dart-board-contracts'
+import { DartCardMarkers } from './DartCardMarkers'
 import { formatDartDate } from './dart-date-format'
 import { dismissDartTaskNotice, recheckDartTaskNotice } from './dart-task-write-queue'
 import { DartTaskDetailNotice } from './TaskDetailNotice'
@@ -57,6 +58,7 @@ export function DartBoardCard({
   const dueDate = formatDartDate(task.dueAt, getIntlLocale())
   const shownTags = task.tags.slice(0, MAX_TAG_CHIPS)
   const extraTags = task.tags.length - shownTags.length
+  const info = model.cardInfo(task.id)
 
   return (
     <div
@@ -152,6 +154,7 @@ export function DartBoardCard({
           ) : null}
         </div>
       ) : null}
+      <DartCardMarkers info={info} />
       {writes.notice ? (
         // Notice buttons must not open the task.
         <div onClick={(event) => event.stopPropagation()}>
