@@ -104,11 +104,13 @@ export function TaskListNestedRows({
 
   const toggle = (task: DartTask): void => {
     const group = document.getElementById(groupId(task.id))
-    if (group?.contains(document.activeElement)) {
-      // Why: the focused child unmounts on collapse; preventScroll keeps the list where it is.
-      containerRef.current
-        ?.querySelector<HTMLElement>(`[data-dart-row-id="${CSS.escape(task.id)}"]`)
-        ?.focus({ preventScroll: true })
+    const row = containerRef.current?.querySelector<HTMLElement>(
+      `[data-dart-row-id="${CSS.escape(task.id)}"]`
+    )
+    const active = document.activeElement
+    // Why: a focused child, or the parent's own expand button once it unmounts, would drop focus to body; preventScroll keeps the list where it is.
+    if (group?.contains(active) || (model.expanded.has(task.id) && row?.contains(active))) {
+      row?.focus({ preventScroll: true })
     }
     model.toggle(task.id)
   }

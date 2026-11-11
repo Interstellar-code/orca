@@ -141,6 +141,11 @@ describe('nested task list rows', () => {
 
     expect(document.activeElement).not.toBe(document.body)
     expect(document.activeElement?.closest('[data-dart-row-id]')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: `Collapse subtasks of ${PARENT.title}` }))
+
+    const parentRow = screen.getByText(PARENT.title).closest<HTMLElement>('[data-dart-row-id]')!
+    expect(document.activeElement).toBe(parentRow)
   })
 
   it('expands on Right, collapses on Left, and opens on Enter; Right does nothing on a leaf', () => {
