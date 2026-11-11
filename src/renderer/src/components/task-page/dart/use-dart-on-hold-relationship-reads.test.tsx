@@ -17,6 +17,8 @@ import {
 import type { DartRelationshipCacheEntry, DartScopeMeta } from './dart-board-contracts'
 import { useDartOnHoldRelationshipReads } from './use-dart-on-hold-relationship-reads'
 
+const activeScope = () => getDartReadScope(useAppStore.getState().settings)
+
 const VIEWER_ID = 'user-a'
 const SCOPE_KEY = 'scope-a'
 const realWindow = window
@@ -168,7 +170,7 @@ describe('useDartOnHoldRelationshipReads', () => {
 
     expect(readSpy).toHaveBeenCalledWith(
       tasks.map((task) => task.id),
-      { publicationId: 1 }
+      { publicationId: 1, scope: activeScope() }
     )
   })
 
@@ -188,7 +190,7 @@ describe('useDartOnHoldRelationshipReads', () => {
 
     expect(readSpy).toHaveBeenCalledWith(
       tasks.map((task) => task.id),
-      { publicationId: 1 }
+      { publicationId: 1, scope: activeScope() }
     )
   })
 
@@ -203,7 +205,7 @@ describe('useDartOnHoldRelationshipReads', () => {
     expect(readSpy).toHaveBeenCalledTimes(1)
     expect(readSpy).toHaveBeenCalledWith(
       tasks.slice(0, 20).map((task) => task.id),
-      { publicationId: 1 }
+      { publicationId: 1, scope: activeScope() }
     )
   })
 
@@ -216,7 +218,10 @@ describe('useDartOnHoldRelationshipReads', () => {
     hook.rerender({ tasks: second, scopeMeta: meta(2) })
 
     expect(readSpy).toHaveBeenCalledTimes(2)
-    expect(readSpy).toHaveBeenLastCalledWith([second[0].id], { publicationId: 2 })
+    expect(readSpy).toHaveBeenLastCalledWith([second[0].id], {
+      publicationId: 2,
+      scope: activeScope()
+    })
   })
 
   it('does not read again for the same publication when rows are re-selected or meta is copied', () => {
@@ -243,7 +248,7 @@ describe('useDartOnHoldRelationshipReads', () => {
     expect(readSpy).toHaveBeenCalledTimes(1)
     expect(readSpy).toHaveBeenCalledWith(
       tasks.map((task) => task.id),
-      { publicationId: 3 }
+      { publicationId: 3, scope: activeScope() }
     )
   })
 
@@ -260,12 +265,12 @@ describe('useDartOnHoldRelationshipReads', () => {
     expect(readSpy).toHaveBeenNthCalledWith(
       1,
       first.slice(0, 20).map((task) => task.id),
-      { publicationId: 1 }
+      { publicationId: 1, scope: activeScope() }
     )
     expect(readSpy).toHaveBeenNthCalledWith(
       2,
       second.slice(0, 20).map((task) => task.id),
-      { publicationId: 2 }
+      { publicationId: 2, scope: activeScope() }
     )
   })
 
@@ -298,7 +303,7 @@ describe('useDartOnHoldRelationshipReads', () => {
     expect(readSpy).toHaveBeenCalledTimes(2)
     expect(readSpy).toHaveBeenLastCalledWith(
       tasks.map((task) => task.id),
-      { publicationId: 2 }
+      { publicationId: 2, scope: activeScope() }
     )
   })
 
@@ -313,7 +318,7 @@ describe('useDartOnHoldRelationshipReads', () => {
     expect(readSpy).toHaveBeenCalledTimes(1)
     expect(readSpy).toHaveBeenCalledWith(
       initial.map((task) => task.id),
-      { publicationId: 1 }
+      { publicationId: 1, scope: activeScope() }
     )
   })
 
@@ -328,7 +333,7 @@ describe('useDartOnHoldRelationshipReads', () => {
     expect(readSpy).toHaveBeenCalledTimes(2)
     expect(readSpy).toHaveBeenLastCalledWith(
       grown.slice(0, 20).map((task) => task.id),
-      { publicationId: 2 }
+      { publicationId: 2, scope: activeScope() }
     )
   })
 

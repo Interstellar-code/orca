@@ -125,6 +125,8 @@ export type DartRelationshipsApi = {
 export type UseDartTaskRelationships = (args: {
   task: DartTask | null
   sourceContext: TaskSourceContext | null
+  /** Names the owning host when the task has no source row. */
+  pageContextKey: string
   config: DartWorkspaceConfig | null
 }) => DartRelationshipsApi | undefined
 

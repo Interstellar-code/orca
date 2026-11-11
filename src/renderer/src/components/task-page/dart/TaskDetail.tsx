@@ -35,6 +35,7 @@ export function TaskPageDartTaskDetail({
   const relationships = useDartTaskRelationships({
     task: displayed,
     sourceContext,
+    pageContextKey: providerRuntimeContextKey,
     config: data.config
   })
   const openTaskIdRef = useRef(task?.id ?? null)

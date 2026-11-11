@@ -21,6 +21,8 @@ import { useDartBoardModel } from './use-dart-board-model'
 import { useDartNestedListModel } from './use-dart-nested-list-model'
 import type { PinnedDartRow } from './use-dart-list-pinned-rows'
 
+const activeScope = () => getDartReadScope(useAppStore.getState().settings)
+
 const VIEWER = { id: 'user-a', name: 'Alex Example' }
 const SERVER_FILTERS: DartServerFilters = { mine: false, dartboard: null, search: '' }
 const CLIENT_FILTERS: DartClientFilters = { status: null, tag: null, priority: null, onHold: false }
@@ -672,7 +674,7 @@ describe('useDartBoardModel', () => {
       act(() => hook.result.current.checkMore?.())
       expect(readSpy).toHaveBeenLastCalledWith(
         held.slice(1, 21).map((task) => task.id),
-        { publicationId: currentPublicationId() }
+        { publicationId: currentPublicationId(), scope: activeScope() }
       )
 
       act(() =>
@@ -685,7 +687,7 @@ describe('useDartBoardModel', () => {
       act(() => hook.result.current.checkMore?.())
       expect(readSpy).toHaveBeenLastCalledWith(
         held.slice(21).map((task) => task.id),
-        { publicationId: currentPublicationId() }
+        { publicationId: currentPublicationId(), scope: activeScope() }
       )
     })
 
@@ -719,14 +721,14 @@ describe('useDartBoardModel', () => {
         act(() => hook.result.current.checkMore?.())
         expect(readSpy).toHaveBeenLastCalledWith(
           held.slice(0, 20).map((task) => task.id),
-          { publicationId: currentPublicationId() }
+          { publicationId: currentPublicationId(), scope: activeScope() }
         )
         expect(hook.result.current.notChecked).toBe(3 + 8)
 
         act(() => hook.result.current.checkMore?.())
         expect(readSpy).toHaveBeenLastCalledWith(
           [...held.slice(20), ...held.slice(0, 3)].map((task) => task.id),
-          { publicationId: currentPublicationId() }
+          { publicationId: currentPublicationId(), scope: activeScope() }
         )
       })
 
@@ -738,7 +740,7 @@ describe('useDartBoardModel', () => {
 
         expect(readSpy).toHaveBeenLastCalledWith(
           [...held.slice(20), ...held.slice(0, 13)].map((task) => task.id),
-          { publicationId: currentPublicationId() }
+          { publicationId: currentPublicationId(), scope: activeScope() }
         )
         expect(hook.result.current.notChecked).toBe(22)
       })

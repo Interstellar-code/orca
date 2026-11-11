@@ -4,6 +4,7 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DartTask } from '../../../../../shared/dart/dart-types'
 import type { TaskSourceContext } from '../../../../../shared/task-source-context'
+import { getEnvironmentRuntimeContextKey } from '@/lib/provider-runtime-context'
 import { useAppStore } from '@/store'
 import { relationshipsFixture } from '@/store/slices/dart/dart-fake-relationships.test-support'
 import {
@@ -11,7 +12,6 @@ import {
   installFakeDartRuntime,
   type FakeDartHost
 } from '@/store/slices/dart/dart-fake-runtime.test-support'
-import { getDartReadScope } from '@/store/slices/dart/dart-read-coordination'
 import { dartTaskIdentityKey } from '@/store/slices/dart/dart-task-identity'
 import { useDartTaskRelationships } from './use-dart-task-relationships'
 
@@ -75,7 +75,12 @@ function seedHost(
 function mountHook(initial: DartTask | null, sourceContext: TaskSourceContext | null = null) {
   return renderHook(
     (props: { task: DartTask | null }) =>
-      useDartTaskRelationships({ task: props.task, sourceContext, config: null }),
+      useDartTaskRelationships({
+        task: props.task,
+        sourceContext,
+        pageContextKey: getEnvironmentRuntimeContextKey(null),
+        config: null
+      }),
     { initialProps: { task: initial } }
   )
 }
@@ -103,7 +108,7 @@ beforeEach(() => {
     dartMountedScopeKey: null,
     dartStatus: { connected: true, viewer: VIEWER },
     dartStatusChecked: true,
-    dartStatusContextKey: getDartReadScope(settings).contextKey
+    dartStatusContextKey: getEnvironmentRuntimeContextKey(null)
   })
 })
 
@@ -155,9 +160,9 @@ describe('useDartTaskRelationships', () => {
       [id.parent, id.blocker, id.subtask, id.other]
     )
     useAppStore.setState({
-      dartMountedScopeKey: 'mounted-scope',
+      dartMountedScopeKey: `${getEnvironmentRuntimeContextKey(null)}::list::scope::mounted`,
       dartScopeMetaCache: {
-        'mounted-scope': {
+        [`${getEnvironmentRuntimeContextKey(null)}::list::scope::mounted`]: {
           openTotal: 1,
           doneTotal: 0,
           doneOffset: 0,

@@ -1,11 +1,6 @@
 import type { DartRelationshipCacheEntry } from '@/components/task-page/dart/dart-board-contracts'
 import type { DartSlice, DartSliceGet, DartSliceSet } from './dart-slice-contract'
-import {
-  currentDartConnectionGeneration,
-  getDartReadScope,
-  isCurrentDartRuntimeContext,
-  isDartAuthLostFailure
-} from './dart-read-coordination'
+import { currentDartConnectionGeneration, isDartAuthLostFailure } from './dart-read-coordination'
 import {
   dartScopeViewerId,
   dartTaskIdentity,
@@ -41,14 +36,12 @@ export function createDartOnHoldRelationshipActions(
       }),
     readDartOnHoldRelationships: async (taskIds, options) => {
       const stamp =
-        options?.publicationId === undefined ? {} : { publicationId: options.publicationId }
-      const scope = getDartReadScope(get().settings)
+        options.publicationId === undefined ? {} : { publicationId: options.publicationId }
+      const { scope } = options
       const viewerId = dartScopeViewerId(get(), scope)
       registerDartCacheAlias(scope, viewerId)
       const connectionGeneration = currentDartConnectionGeneration()
-      const isCurrent = (): boolean =>
-        connectionGeneration === currentDartConnectionGeneration() &&
-        isCurrentDartRuntimeContext(scope.contextKey, get().settings)
+      const isCurrent = (): boolean => connectionGeneration === currentDartConnectionGeneration()
       const keyOf = (taskId: string): string =>
         dartTaskIdentityKey(dartTaskIdentity(scope, taskId, viewerId))
       const unique = [...new Set(taskIds)]

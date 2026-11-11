@@ -12,12 +12,19 @@ import {
   type DartClientFailure,
   type DartClientResult
 } from '@/runtime/runtime-dart-client'
-import type { DartReadOptions, DartSlice, DartSliceGet, DartSliceSet } from './dart-slice-contract'
+import type {
+  DartOwnedScopeOptions,
+  DartReadOptions,
+  DartSlice,
+  DartSliceGet,
+  DartSliceSet
+} from './dart-slice-contract'
 import {
   canWriteDartReadResult,
   currentDartMutationGeneration,
   evictDartListCache,
   evictStaleDartCacheEntries,
+  dartExplicitScope,
   getDartReadScope,
   isDartAuthLostFailure,
   isFreshDartCacheEntry,
@@ -110,6 +117,13 @@ function listCacheKey(args: unknown): string {
   return `list::${JSON.stringify(args ?? {})}`
 }
 
+function ownedDartReadScope(options: DartOwnedScopeOptions): DartReadScope {
+  if (options.scope) {
+    return options.scope
+  }
+  return dartExplicitScope(options.sourceContext)
+}
+
 export function createDartReadActions(set: DartSliceSet, get: DartSliceGet): DartReadActions {
   // Shared by the scope-keyed lists and the per-parent children entries: one cache, one patch and invalidation path.
   const readCachedList = async (
@@ -179,8 +193,8 @@ export function createDartReadActions(set: DartSliceSet, get: DartSliceGet): Dar
     },
 
     readDartSubtasks: async (parentId, options) => {
-      const scope = options?.scope ?? getDartReadScope(get().settings, options?.sourceContext)
-      registerDartCacheAlias(scope, dartScopeViewerId(get(), scope, options?.sourceContext))
+      const scope = ownedDartReadScope(options)
+      registerDartCacheAlias(scope, dartScopeViewerId(get(), scope, options.sourceContext))
       const result = await readCachedList(
         scope,
         scopedDartCacheKey(scope, `list::children::${parentId}`),
@@ -191,7 +205,7 @@ export function createDartReadActions(set: DartSliceSet, get: DartSliceGet): Dar
     },
 
     readDartTasksByIds: async (ids, options) => {
-      const scope = options?.scope ?? getDartReadScope(get().settings, options?.sourceContext)
+      const scope = ownedDartReadScope(options)
       const unique = [...new Set(ids)]
       const readable = unique.slice(0, DART_IDS_PER_READ * DART_MAX_IDS_READS)
       const complete = readable.length === unique.length
@@ -204,7 +218,7 @@ export function createDartReadActions(set: DartSliceSet, get: DartSliceGet): Dar
         scope,
         inflightReads: inflightIdsReads,
         flightKey: `${scope.contextKey}::ids::${unique.join(',')}`,
-        force: options?.force,
+        force: options.force,
         read: async () => {
           const tasks: DartTask[] = []
           for (let start = 0; start < readable.length; start += DART_IDS_PER_READ) {
@@ -225,7 +239,7 @@ export function createDartReadActions(set: DartSliceSet, get: DartSliceGet): Dar
     },
 
     searchDartTasks: async (text, options) => {
-      const scope = getDartReadScope(get().settings, options.sourceContext)
+      const scope = ownedDartReadScope(options)
       return runDartRead({
         set,
         get,

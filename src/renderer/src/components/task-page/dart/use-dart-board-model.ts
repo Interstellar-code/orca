@@ -101,8 +101,9 @@ export function useDartBoardModel(args: {
   const publicationId = storedMeta?.publicationId
   // Check stamps its entries with the publication it was clicked in, so they count as read there.
   const readOnHoldForPublication = useCallback(
-    (taskIds: string[]) => readDartOnHoldRelationships(taskIds, { publicationId }),
-    [readDartOnHoldRelationships, publicationId]
+    (taskIds: string[]) =>
+      readDartOnHoldRelationships(taskIds, { publicationId, scope: pageScope }),
+    [readDartOnHoldRelationships, publicationId, pageScope]
   )
 
   const childrenKeyPrefix = scopedDartCacheKey(pageScope, CHILDREN_ENTRY_PREFIX)

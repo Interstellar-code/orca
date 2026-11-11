@@ -47,7 +47,7 @@ describe('dart subtask reads', () => {
     host.addTask(dartTaskFixture(taskId(1), { parentId: PARENT_ID, status: 'To-do' }))
     host.addTask(dartTaskFixture(taskId(2), { parentId: 'other0000001' }))
 
-    const result = await store.getState().readDartSubtasks(PARENT_ID)
+    const result = await store.getState().readDartSubtasks(PARENT_ID, { scope })
 
     expect(result).toMatchObject({ ok: true, total: 1, tasks: [{ id: taskId(1) }] })
     const childrenKey = scopedDartCacheKey(scope, `list::children::${PARENT_ID}`)
@@ -62,9 +62,9 @@ describe('dart subtask reads', () => {
   })
 
   it('reads nothing from a host without relationships', async () => {
-    const { host, store } = openStore({ relationships: false })
+    const { host, store, scope } = openStore({ relationships: false })
 
-    const result = await store.getState().readDartSubtasks(PARENT_ID)
+    const result = await store.getState().readDartSubtasks(PARENT_ID, { scope })
 
     expect(result.ok).toBe(false)
     expect(host.count('dart.listTasks')).toBe(0)
@@ -74,11 +74,11 @@ describe('dart subtask reads', () => {
 
 describe('dart reads by id', () => {
   it('sends 3 requests of at most 100 ids for 250 ids', async () => {
-    const { host, store } = openStore()
+    const { host, store, scope } = openStore()
     host.addTask(dartTaskFixture(taskId(0), { title: 'First' }))
     const ids = Array.from({ length: 250 }, (_, index) => taskId(index))
 
-    const result = await store.getState().readDartTasksByIds(ids)
+    const result = await store.getState().readDartTasksByIds(ids, { scope })
 
     expect(result).toMatchObject({
       ok: true,
@@ -91,10 +91,10 @@ describe('dart reads by id', () => {
   })
 
   it('stops at 3 requests for 350 ids and reports it is incomplete', async () => {
-    const { host, store } = openStore()
+    const { host, store, scope } = openStore()
     const ids = Array.from({ length: 350 }, (_, index) => taskId(index))
 
-    const result = await store.getState().readDartTasksByIds(ids)
+    const result = await store.getState().readDartTasksByIds(ids, { scope })
 
     expect(result).toMatchObject({ ok: true, total: 350, complete: false })
     expect(host.count('dart.listTasks')).toBe(3)
@@ -102,12 +102,12 @@ describe('dart reads by id', () => {
   })
 
   it('keeps total and complete apart for concurrent reads that share their first 300 ids', async () => {
-    const { store } = openStore()
+    const { store, scope } = openStore()
     const ids = Array.from({ length: 350 }, (_, index) => taskId(index))
 
     const [exact, over] = await Promise.all([
-      store.getState().readDartTasksByIds(ids.slice(0, 300)),
-      store.getState().readDartTasksByIds(ids)
+      store.getState().readDartTasksByIds(ids.slice(0, 300), { scope }),
+      store.getState().readDartTasksByIds(ids, { scope })
     ])
 
     expect(exact).toMatchObject({ ok: true, total: 300, complete: true })
@@ -117,14 +117,14 @@ describe('dart reads by id', () => {
 
 describe('dart blocker search', () => {
   it('sends title, open tasks and 25 rows, adds the dartboard only when given, and caches nothing', async () => {
-    const { host, store } = openStore()
+    const { host, store, scope } = openStore()
     host.addTask(dartTaskFixture(taskId(1), { title: 'Fix login' }))
 
-    await expect(store.getState().searchDartTasks('login', {})).resolves.toMatchObject({
+    await expect(store.getState().searchDartTasks('login', { scope })).resolves.toMatchObject({
       ok: true,
       tasks: [{ id: taskId(1) }]
     })
-    await store.getState().searchDartTasks('login', { dartboard: 'Team/Board' })
+    await store.getState().searchDartTasks('login', { scope, dartboard: 'Team/Board' })
 
     expect(host.requestsOf('dart.listTasks')).toEqual([
       { title: 'login', isCompleted: false, limit: 25 },
@@ -151,7 +151,7 @@ describe('dart on-hold relationship reads', () => {
     const ids = addOnHoldTasks(host, 25)
     host.addTask(dartTaskFixture('bystander001', { relationships: blocked }))
 
-    await store.getState().readDartOnHoldRelationships(ids)
+    await store.getState().readDartOnHoldRelationships(ids, { scope })
 
     expect(host.requestsOf('dart.getTask').map((params) => params.taskId)).toEqual(ids.slice(0, 20))
     const cache = store.getState().dartRelationshipCache
@@ -170,8 +170,8 @@ describe('dart on-hold relationship reads', () => {
     host.addTask(dartTaskFixture('nolinks00001', { status: 'On hold' }))
     const ids = [first, 'nolinks00001', 'missing00001']
 
-    await store.getState().readDartOnHoldRelationships(ids)
-    await store.getState().readDartOnHoldRelationships(ids)
+    await store.getState().readDartOnHoldRelationships(ids, { scope })
+    await store.getState().readDartOnHoldRelationships(ids, { scope })
 
     expect(host.count('dart.getTask')).toBe(6)
     const entryOf = (id: string) =>
@@ -191,10 +191,10 @@ describe('dart on-hold relationship reads', () => {
         dartTaskIdentityKey(dartTaskIdentity(scope, id, viewer.id))
       ]
 
-    await store.getState().readDartOnHoldRelationships(ids)
+    await store.getState().readDartOnHoldRelationships(ids, { scope })
     expect(ids.map((id) => entryOf(id)?.publicationId)).toEqual([undefined, undefined, undefined])
 
-    await store.getState().readDartOnHoldRelationships(ids, { publicationId: 7 })
+    await store.getState().readDartOnHoldRelationships(ids, { scope, publicationId: 7 })
     expect(entryOf(ids[0])).toMatchObject({ state: 'known', publicationId: 7 })
     expect(entryOf(ids[2])).toMatchObject({ state: 'error', publicationId: 7 })
   })
@@ -217,15 +217,15 @@ describe('dart on-hold relationship reads', () => {
   })
 
   it('is emptied by connect and by disconnect', async () => {
-    const { host, store } = openStore()
+    const { host, store, scope } = openStore()
     const ids = addOnHoldTasks(host, 2)
 
-    await store.getState().readDartOnHoldRelationships(ids)
+    await store.getState().readDartOnHoldRelationships(ids, { scope })
     expect(Object.keys(store.getState().dartRelationshipCache)).toHaveLength(2)
     await store.getState().connectDart({ apiToken: 'dsa_FAKE' })
     expect(store.getState().dartRelationshipCache).toEqual({})
 
-    await store.getState().readDartOnHoldRelationships(ids)
+    await store.getState().readDartOnHoldRelationships(ids, { scope })
     expect(Object.keys(store.getState().dartRelationshipCache)).toHaveLength(2)
     await store.getState().disconnectDart()
     expect(store.getState().dartRelationshipCache).toEqual({})
@@ -245,13 +245,13 @@ describe('dart on-hold relationship reads', () => {
     }
 
     it('keeps a newer read when an overtaken one replies late', async () => {
-      const { host, store, ids, entryOf } = setup(1)
+      const { host, store, scope, ids, entryOf } = setup(1)
       const release = host.hold('dart.getTask')
-      const overtaken = store.getState().readDartOnHoldRelationships(ids)
+      const overtaken = store.getState().readDartOnHoldRelationships(ids, { scope })
       await vi.waitFor(() => expect(host.count('dart.getTask')).toBe(1))
       host.addTask(dartTaskFixture(ids[0], { status: 'On hold', relationships: cleared }))
 
-      await store.getState().readDartOnHoldRelationships(ids)
+      await store.getState().readDartOnHoldRelationships(ids, { scope })
       release()
       await overtaken
 
@@ -261,7 +261,7 @@ describe('dart on-hold relationship reads', () => {
     it('keeps an entry written to the cache after the read started', async () => {
       const { host, store, scope, ids, entryOf } = setup(1)
       const release = host.hold('dart.getTask')
-      const read = store.getState().readDartOnHoldRelationships(ids)
+      const read = store.getState().readDartOnHoldRelationships(ids, { scope })
       await vi.waitFor(() => expect(host.count('dart.getTask')).toBe(1))
       const written = { state: 'known', relationships: cleared, fetchedAt: 1, error: null } as const
       const key = dartTaskIdentityKey(dartTaskIdentity(scope, ids[0], viewer.id))
@@ -275,13 +275,11 @@ describe('dart on-hold relationship reads', () => {
       expect(entryOf(ids[0])).toBe(written)
     })
 
-    it('puts unread targets back to what they were when the host changes', async () => {
-      const { host, store, ids, entryOf } = setup(3)
-      await store.getState().readDartOnHoldRelationships(ids.slice(0, 1))
-      const known = entryOf(ids[0])
+    it('finishes under its own scope when the active server changes mid-read', async () => {
+      const { host, store, scope, ids, entryOf } = setup(2)
       const release = host.hold('dart.getTask')
-      const read = store.getState().readDartOnHoldRelationships(ids)
-      await vi.waitFor(() => expect(host.count('dart.getTask')).toBe(2))
+      const read = store.getState().readDartOnHoldRelationships(ids, { scope })
+      await vi.waitFor(() => expect(host.count('dart.getTask')).toBe(1))
       store.setState({
         settings: { ...store.getState().settings!, activeRuntimeEnvironmentId: 'other-host' }
       })
@@ -290,13 +288,12 @@ describe('dart on-hold relationship reads', () => {
       await read
 
       expect(host.count('dart.getTask')).toBe(2)
-      expect(entryOf(ids[0])).toBe(known)
-      expect(entryOf(ids[1])).toMatchObject({ state: 'notChecked', relationships: null })
-      expect(entryOf(ids[2])).toMatchObject({ state: 'notChecked', relationships: null })
+      expect(entryOf(ids[0])).toMatchObject({ state: 'known' })
+      expect(entryOf(ids[1])).toMatchObject({ state: 'known' })
     })
 
     it('puts unread targets back to not checked when Dart refuses the token', async () => {
-      const { store, ids, entryOf } = setup(3)
+      const { store, scope, ids, entryOf } = setup(3)
       store.setState({
         fetchDartTask: async () => ({
           ok: false,
@@ -305,7 +302,7 @@ describe('dart on-hold relationship reads', () => {
         })
       })
 
-      await store.getState().readDartOnHoldRelationships(ids)
+      await store.getState().readDartOnHoldRelationships(ids, { scope })
 
       expect(entryOf(ids[0])).toMatchObject({ state: 'error', error: 'Dart token rejected.' })
       expect(entryOf(ids[1])).toMatchObject({ state: 'notChecked', relationships: null })
@@ -313,9 +310,9 @@ describe('dart on-hold relationship reads', () => {
     })
 
     it('leaves the emptied cache empty when a disconnect interrupts the read', async () => {
-      const { host, store, ids } = setup(2)
+      const { host, store, scope, ids } = setup(2)
       const release = host.hold('dart.getTask')
-      const read = store.getState().readDartOnHoldRelationships(ids)
+      const read = store.getState().readDartOnHoldRelationships(ids, { scope })
       await vi.waitFor(() => expect(host.count('dart.getTask')).toBe(1))
       await store.getState().disconnectDart()
 

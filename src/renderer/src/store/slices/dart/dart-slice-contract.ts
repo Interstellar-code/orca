@@ -36,6 +36,13 @@ export type DartReadOptions = {
   force?: boolean
 }
 
+/** A read of a resource that already has an owner: the caller's scope or its source row, never the default host. */
+export type DartOwnedScopeOptions =
+  | { scope: DartReadScope; sourceContext?: TaskSourceContext | null }
+  | { scope?: undefined; sourceContext: TaskSourceContext }
+
+export type DartOwnedReadOptions = Pick<DartReadOptions, 'force'> & DartOwnedScopeOptions
+
 export type DartWriteOptions = {
   sourceContext?: TaskSourceContext | null
   /** A scope the caller resolved earlier (its alias is already registered), so the call never re-resolves the host from settings. */
@@ -101,22 +108,22 @@ export type DartSlice = DartScopeReadSlice & {
   /** Stores the children entry under `list::children::<parentId>` (D13.4); up to 250 rows. */
   readDartSubtasks: (
     parentId: string,
-    options?: DartReadOptions
+    options: DartOwnedReadOptions
   ) => Promise<DartClientResult<{ tasks: DartTask[]; total: number }>>
   /** 100 ids per read, at most 3 reads, not cached; `complete` is false when ids were left unread. */
   readDartTasksByIds: (
     ids: readonly string[],
-    options?: DartReadOptions
+    options: DartOwnedReadOptions
   ) => Promise<DartClientResult<{ tasks: DartTask[]; total: number; complete: boolean }>>
   /** Not cached: title search over open tasks, 25 rows, optionally one dartboard. */
   searchDartTasks: (
     text: string,
-    options: { sourceContext?: TaskSourceContext | null; dartboard?: string }
+    options: DartOwnedScopeOptions & { dartboard?: string }
   ) => Promise<DartClientResult<{ tasks: DartTask[] }>>
-  /** Default scope; reads `getTask` one after another for the first 20 ids, outside the epoch window. */
+  /** Reads under the caller's scope; reads `getTask` one after another for the first 20 ids, outside the epoch window. */
   readDartOnHoldRelationships: (
     taskIds: readonly string[],
-    options?: { publicationId?: number }
+    options: { scope: DartReadScope; publicationId?: number }
   ) => Promise<void>
   /** Records on the scope's meta that its publication's first on-hold reads started; ignored once another publication replaced it. */
   markDartOnHoldReadPublication: (scopeKey: string, publicationId: number) => void

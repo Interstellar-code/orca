@@ -4,7 +4,10 @@ import { translate } from '@/i18n/i18n'
 import { taskProviderErrorMessage, taskProviderErrorText } from '@/lib/task-provider-error-copy'
 import type { DartWriteFailure } from '@/runtime/runtime-dart-write-client'
 import { useAppStore } from '@/store'
-import { getDartReadScope } from '@/store/slices/dart/dart-read-coordination'
+import {
+  dartExplicitScope,
+  dartPageScopeFromContextKey
+} from '@/store/slices/dart/dart-read-coordination'
 import {
   captureDartEpoch,
   dartAccountIdentity,
@@ -50,11 +53,18 @@ function missingLinksFailure(): DartWriteFailure {
   }
 }
 
-export const useDartTaskRelationships: UseDartTaskRelationships = ({ task, sourceContext }) => {
-  const activeEnvironmentId = useAppStore((s) => s.settings?.activeRuntimeEnvironmentId ?? null)
+export const useDartTaskRelationships: UseDartTaskRelationships = ({
+  task,
+  sourceContext,
+  pageContextKey
+}) => {
+  // The owner's host: the task's source row, else the page the detail was opened from.
   const scope = useMemo(
-    () => getDartReadScope({ activeRuntimeEnvironmentId: activeEnvironmentId }, sourceContext),
-    [activeEnvironmentId, sourceContext]
+    () =>
+      sourceContext
+        ? dartExplicitScope(sourceContext)
+        : dartPageScopeFromContextKey(pageContextKey),
+    [sourceContext, pageContextKey]
   )
   const viewerId = useAppStore((s) => dartScopeViewerId(s, scope, sourceContext))
   const { hostKey, accountKey } = dartAccountIdentity(scope, viewerId)
@@ -241,11 +251,12 @@ export const useDartTaskRelationships: UseDartTaskRelationships = ({ task, sourc
         }
       }
       return searchDartTasks(text, {
+        scope,
         sourceContext,
         ...(options?.thisDartboardOnly && dartboard ? { dartboard } : {})
       })
     },
-    [searchDartTasks, sourceContext, dartboard]
+    [searchDartTasks, scope, sourceContext, dartboard]
   )
 
   return useMemo<DartRelationshipsApi | undefined>(

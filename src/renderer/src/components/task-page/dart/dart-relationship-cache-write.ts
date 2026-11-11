@@ -1,6 +1,6 @@
 import type { DartTaskRelationships } from '../../../../../shared/dart/dart-types'
 import { useAppStore } from '@/store'
-import { getDartReadScope } from '@/store/slices/dart/dart-read-coordination'
+import { dartPageScopeFromContextKey } from '@/store/slices/dart/dart-read-coordination'
 import {
   dartScopeHostKey,
   dartTaskIdentityKey,
@@ -12,7 +12,11 @@ import type { DartRelationshipCacheEntry } from './dart-board-contracts'
 function currentPublicationId(hostKey: string): number | undefined {
   const state = useAppStore.getState()
   const mountedKey = state.dartMountedScopeKey
-  if (!mountedKey || dartScopeHostKey(getDartReadScope(state.settings)) !== hostKey) {
+  // A mounted key leads with its context key, which names the host the board reads.
+  const mountedHostKey = mountedKey
+    ? dartScopeHostKey(dartPageScopeFromContextKey(mountedKey.split('::')[0]))
+    : null
+  if (!mountedKey || mountedHostKey !== hostKey) {
     return undefined
   }
   return state.dartScopeMetaCache[mountedKey]?.publicationId

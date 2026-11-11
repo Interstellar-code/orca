@@ -15,7 +15,7 @@ export function useDartOnHoldRelationshipReads(args: {
   pageScope: DartReadScope
   viewerId: string | null
 }): void {
-  const { active, scopeKey, scopeEntryTasks, scopeMeta } = args
+  const { active, scopeKey, scopeEntryTasks, scopeMeta, pageScope } = args
   const readDartOnHoldRelationships = useAppStore((s) => s.readDartOnHoldRelationships)
   const markDartOnHoldReadPublication = useAppStore((s) => s.markDartOnHoldReadPublication)
   const publicationId = scopeMeta?.publicationId ?? 0
@@ -45,7 +45,7 @@ export function useDartOnHoldRelationshipReads(args: {
     }
     markDartOnHoldReadPublication(scopeKey, publicationId)
     if (targets.length > 0) {
-      void readDartOnHoldRelationships(targets, { publicationId })
+      void readDartOnHoldRelationships(targets, { publicationId, scope: pageScope })
     }
   }, [
     active,
@@ -53,6 +53,7 @@ export function useDartOnHoldRelationshipReads(args: {
     scopeEntryTasks,
     scopeMeta,
     publicationId,
+    pageScope,
     readDartOnHoldRelationships,
     markDartOnHoldReadPublication
   ])
