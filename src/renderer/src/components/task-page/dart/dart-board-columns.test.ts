@@ -8,6 +8,7 @@ import {
   applyDartBoardFilters,
   buildDartBoardColumns,
   buildDartCardInfo,
+  dartRelationshipEntryFor,
   hasDartOnHoldOption,
   isDartTaskFinished,
   isDartTaskOnHold
@@ -485,5 +486,49 @@ describe('applyDartBoardFilters blockedOnHold', () => {
     expect(
       applyDartBoardFilters(all, { ...noFilters, blockedOnHold: false }, relationships)
     ).toEqual(all)
+  })
+})
+
+describe('dartRelationshipEntryFor', () => {
+  const held = task('held', { status: 'On hold' })
+  const synthetic = { state: 'notChecked', relationships: null, fetchedAt: 0, error: null }
+
+  it('gives a missing on-hold task on a relationships host a notChecked entry', () => {
+    const entry = dartRelationshipEntryFor(held, new Map(), true)
+    expect(entry).toEqual(synthetic)
+    const info = buildDartCardInfo(held, entry)
+    expect([info.relationshipState, info.blockedBy, info.blocking]).toEqual([
+      'notChecked',
+      null,
+      null
+    ])
+    const map = new Map<string, DartRelationshipCacheEntry>()
+    const other = task('other', { status: 'Doing' })
+    for (const t of [held, other]) {
+      const e = dartRelationshipEntryFor(t, undefined, true)
+      if (e) {
+        map.set(t.id, e)
+      }
+    }
+    const kept = applyDartBoardFilters([held, other], { ...noFilters, blockedOnHold: true }, map)
+    expect(kept.map((t) => t.id)).toEqual(['held'])
+  })
+
+  it('returns undefined for a task not on hold, keeping the release A card', () => {
+    const active = task('active', { status: 'Doing' })
+    const entry = dartRelationshipEntryFor(active, new Map(), true)
+    expect(entry).toBeUndefined()
+    expect(buildDartCardInfo(active, entry)).toStrictEqual({ task: active, onHold: false })
+  })
+
+  it('returns undefined on a non-relationships host even when on hold', () => {
+    expect(dartRelationshipEntryFor(held, new Map(), false)).toBeUndefined()
+    expect(dartRelationshipEntryFor(held, undefined, false)).toBeUndefined()
+  })
+
+  it('returns a cached entry as-is so known stays known', () => {
+    const known = relationshipEntry('known', { blockerIds: ['x'] })
+    expect(dartRelationshipEntryFor(held, new Map([['held', known]]), true)).toBe(known)
+    expect(dartRelationshipEntryFor(held, new Map([['held', known]]), false)).toBe(known)
   })
 })

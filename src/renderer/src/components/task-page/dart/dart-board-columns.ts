@@ -110,6 +110,21 @@ export function buildDartBoardColumns(
   return columns
 }
 
+// D14.3: a missing entry on a relationships host is "not checked", never "not blocked".
+export function dartRelationshipEntryFor(
+  task: DartTask,
+  cache: ReadonlyMap<string, DartRelationshipCacheEntry> | undefined,
+  relationshipsHost: boolean
+): DartRelationshipCacheEntry | undefined {
+  const cached = cache?.get(task.id)
+  if (cached) {
+    return cached
+  }
+  return relationshipsHost && isDartTaskOnHold(task)
+    ? { state: 'notChecked', relationships: null, fetchedAt: 0, error: null }
+    : undefined
+}
+
 export function buildDartCardInfo(
   task: DartTask,
   relationships?: DartRelationshipCacheEntry,

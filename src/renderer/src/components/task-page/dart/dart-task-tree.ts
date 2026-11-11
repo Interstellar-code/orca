@@ -22,29 +22,40 @@ export const buildDartTaskTree: BuildDartTaskTree = (tasks, children, opts) => {
     }
   }
 
-  const scope = new Map<string, DartTask>()
-  for (const task of tasks) {
-    putNewest(scope, task)
-  }
-
-  const childrenByParent = new Map<string, Map<string, DartTask>>()
-  const addChild = (parentId: string, child: DartTask): void => {
-    const siblings = childrenByParent.get(parentId) ?? new Map<string, DartTask>()
-    putNewest(siblings, child)
-    childrenByParent.set(parentId, siblings)
-  }
-  for (const task of scope.values()) {
-    if (task.parentId) {
-      addChild(task.parentId, task)
+  const scopeIds = new Set(tasks.map((task) => task.id))
+  // Dedupe by id across scope and children map first so a stale copy never decides placement.
+  const newest = new Map<string, DartTask>()
+  const parentOf = new Map<string, string | null>()
+  const consider = (task: DartTask, fallbackParent: string | null): void => {
+    const before = newest.get(task.id)
+    putNewest(newest, task)
+    if (newest.get(task.id) !== before) {
+      parentOf.set(task.id, task.parentId || fallbackParent)
     }
+  }
+  for (const task of tasks) {
+    consider(task, null)
   }
   for (const [parentId, list] of children) {
     for (const child of list) {
-      addChild(parentId, child)
+      consider(child, parentId)
     }
   }
 
-  const topLevel = [...scope.values()].filter((task) => !task.parentId)
+  const childrenByParent = new Map<string, DartTask[]>()
+  for (const [id, task] of newest) {
+    const parentId = parentOf.get(id)
+    if (parentId) {
+      const siblings = childrenByParent.get(parentId) ?? []
+      siblings.push(task)
+      childrenByParent.set(parentId, siblings)
+    }
+  }
+
+  const topLevel = [...scopeIds].flatMap((id) => {
+    const task = newest.get(id)
+    return task && !parentOf.get(id) ? [task] : []
+  })
   const emitted = new Set(topLevel.map((task) => task.id))
   const rows: DartNestedListRow[] = []
 
@@ -52,7 +63,7 @@ export const buildDartTaskTree: BuildDartTaskTree = (tasks, children, opts) => {
     rows.push({ task: root, depth: 0, parentId: null })
     const queue = [root.id]
     for (let index = 0; index < queue.length; index += 1) {
-      for (const child of childrenByParent.get(queue[index])?.values() ?? []) {
+      for (const child of childrenByParent.get(queue[index]) ?? []) {
         if (emitted.has(child.id)) {
           continue
         }
@@ -65,7 +76,7 @@ export const buildDartTaskTree: BuildDartTaskTree = (tasks, children, opts) => {
 
   // Unloaded parents and parentId cycles never reach a top-level ancestor, so they count as hidden.
   let hiddenSubtasks = 0
-  for (const id of scope.keys()) {
+  for (const id of scopeIds) {
     if (!emitted.has(id)) {
       hiddenSubtasks += 1
     }

@@ -82,6 +82,58 @@ describe('buildDartTaskTree', () => {
     ])
   })
 
+  it('does not let a stale parentless scope copy stay a root over a newer child copy', () => {
+    const fetched = new Map([
+      ['p', [task('kid', { parentId: 'p', updatedAt: '2026-02-01T00:00:00Z' })]]
+    ])
+    const tasks = [task('kid', { updatedAt: '2026-01-01T00:00:00Z' }), task('p')]
+    expect(shape(tasks, fetched)).toEqual({
+      rows: [
+        ['p', 0, null],
+        ['kid', 1, 'p']
+      ],
+      hiddenSubtasks: 0
+    })
+  })
+
+  it('places a task once under the parent of its newer children-map copy', () => {
+    const fetched = new Map([
+      ['b', [task('kid', { parentId: 'b', updatedAt: '2026-02-01T00:00:00Z' })]]
+    ])
+    const tasks = [
+      task('a'),
+      task('b'),
+      task('kid', { parentId: 'a', updatedAt: '2026-01-01T00:00:00Z' })
+    ]
+    expect(shape(tasks, fetched)).toEqual({
+      rows: [
+        ['a', 0, null],
+        ['b', 0, null],
+        ['kid', 1, 'b']
+      ],
+      hiddenSubtasks: 0
+    })
+  })
+
+  it('places a task once under the parent of its newer scope copy', () => {
+    const fetched = new Map([
+      ['a', [task('kid', { parentId: 'a', updatedAt: '2026-01-01T00:00:00Z' })]]
+    ])
+    const tasks = [
+      task('a'),
+      task('b'),
+      task('kid', { parentId: 'b', updatedAt: '2026-02-01T00:00:00Z' })
+    ]
+    expect(shape(tasks, fetched)).toEqual({
+      rows: [
+        ['a', 0, null],
+        ['b', 0, null],
+        ['kid', 1, 'b']
+      ],
+      hiddenSubtasks: 0
+    })
+  })
+
   it('keeps the first copy on a tie or unparseable timestamps', () => {
     const { rows } = buildDartTaskTree(
       [task('a', { title: 'first', updatedAt: 'nope' }), task('a', { title: 'second' })],
