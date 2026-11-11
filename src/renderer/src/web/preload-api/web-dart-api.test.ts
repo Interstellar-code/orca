@@ -55,6 +55,17 @@ describe('web dart supportsWritesV2', () => {
 })
 
 describe('web dart supportedDartFeatures', () => {
+  it('derives both flags from one probe so hosts are never mixed', async () => {
+    mocks.getRemoteRuntimeStatus
+      .mockResolvedValueOnce({ capabilities: ['dart.board.v1'] })
+      .mockResolvedValueOnce({ capabilities: ['dart.relationships.v1'] })
+    await expect(createWebDartApi().supportedDartFeatures()).resolves.toEqual({
+      board: true,
+      relationships: false
+    })
+    expect(mocks.getRemoteRuntimeStatus).toHaveBeenCalledTimes(1)
+  })
+
   it('reports board when the host advertises dart.board.v1', async () => {
     mocks.getRemoteRuntimeStatus.mockResolvedValue({ capabilities: ['dart.board.v1'] })
     await expect(createWebDartApi().supportedDartFeatures()).resolves.toEqual({

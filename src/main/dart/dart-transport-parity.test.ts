@@ -22,6 +22,18 @@ vi.mock('../network/proxy-settings', () => ({
   ensureElectronProxyFromEnvironment: vi.fn().mockResolvedValue(undefined)
 }))
 
+const webTransport = vi.hoisted(() => ({
+  call: (_method: string, _params: unknown): Promise<unknown> => Promise.resolve(null)
+}))
+vi.mock('../../renderer/src/web/preload-api/web-runtime-calls', () => ({
+  callRuntimeEnvelope: (method: string, params: unknown) => webTransport.call(method, params),
+  getRemoteRuntimeStatus: () => Promise.resolve({ capabilities: ['dart.provider.v1'] })
+}))
+vi.mock('../../renderer/src/web/preload-api/web-runtime-session', () => ({
+  requireActiveEnvironment: () => ({ id: 'env-1' }),
+  assertActiveEnvironment: vi.fn()
+}))
+
 let host: DartHost | null = null
 
 /** IPC handlers and the RPC dispatcher over the same freshly loaded `src/main/dart` module state. */
@@ -54,13 +66,18 @@ async function transports() {
     runtime: runtime as unknown as ConstructorParameters<typeof RpcDispatcher>[0]['runtime'],
     methods: DART_METHODS
   })
+  const envelope = (method: string, params?: unknown) =>
+    dispatcher.dispatch({ id: 'req', authToken: 'tok', method, params })
+  webTransport.call = envelope
+  const { createWebDartApi } = await import('../../renderer/src/web/preload-api/web-dart-api')
   return {
     host,
     ipc: (channel: string, args?: unknown) => ipcHandlers.get(channel)?.({}, args),
     rpc: async (method: string, params?: unknown) => {
-      const response = await dispatcher.dispatch({ id: 'req', authToken: 'tok', method, params })
+      const response = await envelope(method, params)
       return response.ok ? response.result : response
-    }
+    },
+    web: createWebDartApi()
   }
 }
 
@@ -440,7 +457,7 @@ describe('dart blocker replies over both transports', () => {
   }
 
   it('sends the same body and returns the same task', async () => {
-    const { host, ipc, rpc } = await connectedPair()
+    const { host, ipc, rpc, web } = await connectedPair()
     host.route('PUT', `/tasks/${TASK_ID}`, () => jsonResponse(200, { item: RAW_TASK }))
 
     const overIpc = await ipc('dart:updateTaskBlockers', params)
@@ -453,6 +470,8 @@ describe('dart blocker replies over both transports', () => {
 
     expect(overIpc).toMatchObject({ ok: true, task: { id: TASK_ID } })
     expect(overRpc).toEqual(overIpc)
+    expect(await web.updateTaskBlockers(params)).toEqual(overIpc)
+    expect(host.lastBody()).toEqual(body)
   })
 
   it('gives the same unknown outcome when the write response is lost', async () => {
@@ -465,9 +484,18 @@ describe('dart blocker replies over both transports', () => {
     expect(await rpc('dart.updateTaskBlockers', params)).toEqual(overIpc)
   })
 
-  it('refuses a self-blocking task as notApplied over IPC and invalid_argument over RPC', async () => {
-    const { host, ipc, rpc } = await connectedPair()
-    const bad = { taskId: TASK_ID, blockerIds: [TASK_ID] }
+  it.each([
+    ['a self-blocking task', { taskId: TASK_ID, blockerIds: [TASK_ID] }],
+    [
+      'more than 100 blockers',
+      {
+        taskId: TASK_ID,
+        blockerIds: Array.from({ length: 101 }, (_, i) => `blk${String(i).padStart(9, '0')}`)
+      }
+    ]
+  ])('refuses %s as notApplied without any request', async (_name, bad) => {
+    const { host, ipc, rpc, web } = await connectedPair()
+    const sent = host.fetch.mock.calls.length
 
     await expect(ipc('dart:updateTaskBlockers', bad)).resolves.toMatchObject({
       errorCode: 'dart.badRequest',
@@ -477,7 +505,11 @@ describe('dart blocker replies over both transports', () => {
       ok: false,
       error: { code: 'invalid_argument' }
     })
-    expect(host.fetch.mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(false)
+    await expect(web.updateTaskBlockers(bad)).resolves.toMatchObject({
+      errorCode: 'dart.badRequest',
+      outcome: 'notApplied'
+    })
+    expect(host.fetch.mock.calls).toHaveLength(sent)
   })
 })
 

@@ -479,6 +479,32 @@ describe('dart relationships', () => {
     expect(results[3]).not.toHaveProperty('relationships')
   })
 
+  it('maps taskRelationships on list items: present, null, and absent', async () => {
+    const { host, tasks } = await connected()
+    const results = [
+      { id: 'cccccccccccc', taskRelationships: { blockerIds: [BLOCKER_A, 'bad'] } },
+      { id: 'dddddddddddd', taskRelationships: null },
+      { id: 'eeeeeeeeeeee' }
+    ].map((patch) => ({ ...RAW_TASK, ...patch }))
+    host.route('GET', '/tasks/list', () => jsonResponse(200, { count: 3, results }))
+
+    const reply = await tasks.listTasks(undefined)
+
+    if (!reply.ok) {
+      throw new Error('listTasks failed')
+    }
+    const empty = {
+      subtaskIds: [],
+      blockerIds: [],
+      blockingIds: [],
+      duplicateIds: [],
+      relatedIds: []
+    }
+    expect(reply.tasks[0].relationships).toEqual({ ...empty, blockerIds: [BLOCKER_A] })
+    expect(reply.tasks[1].relationships).toEqual(empty)
+    expect(reply.tasks[2]).not.toHaveProperty('relationships')
+  })
+
   describe('updateTaskBlockers', () => {
     const args = { taskId: TASK_ID, blockerIds: [BLOCKER_A] }
 
@@ -495,7 +521,8 @@ describe('dart relationships', () => {
         blockerIds: [BLOCKER_B],
         subtaskIds: ['not-an-id', BLOCKER_B],
         relatedIds: [],
-        blockingIds: null
+        blockingIds: null,
+        duplicateIds: ['bad-dup', BLOCKER_A]
       })
 
       await expect(tasks.updateTaskBlockers(args)).resolves.toMatchObject({ ok: true })
@@ -507,7 +534,8 @@ describe('dart relationships', () => {
             blockerIds: [BLOCKER_A],
             subtaskIds: ['not-an-id', BLOCKER_B],
             relatedIds: [],
-            blockingIds: null
+            blockingIds: null,
+            duplicateIds: ['bad-dup', BLOCKER_A]
           }
         }
       })
