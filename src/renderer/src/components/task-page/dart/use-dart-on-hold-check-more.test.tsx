@@ -8,7 +8,7 @@ function ids(count: number): string[] {
   return Array.from({ length: count }, (_, index) => `held${String(index).padStart(2, '0')}`)
 }
 
-function mountCheckMore(unchecked: string[], errored: string[], publication = 'scope:1') {
+function mountCheckMore(unchecked: string[], errored: string[], publication: string | number = 1) {
   const read = vi.fn<(taskIds: string[]) => Promise<void>>(() => Promise.resolve())
   const erroredSet = new Set(errored)
   const hook = renderHook(() =>
@@ -48,13 +48,13 @@ describe('useDartOnHoldCheckMore', () => {
     const read = vi.fn<(taskIds: string[]) => Promise<void>>(() => Promise.resolve())
     const errored = new Set(all)
     const hook = renderHook(
-      (props: { publication: string }) =>
+      (props: { publication: number }) =>
         useDartOnHoldCheckMore({ unchecked: all, errored, publication: props.publication, read }),
-      { initialProps: { publication: 'scope:1' } }
+      { initialProps: { publication: 1 } }
     )
     hook.result.current?.()
 
-    hook.rerender({ publication: 'scope:2' })
+    hook.rerender({ publication: 2 })
     hook.result.current?.()
 
     expect(read).toHaveBeenNthCalledWith(2, all.slice(0, 20))

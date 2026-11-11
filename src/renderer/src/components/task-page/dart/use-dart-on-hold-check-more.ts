@@ -1,15 +1,25 @@
 import { useMemo, useRef } from 'react'
 import { DART_ON_HOLD_READ_CAP } from '@/store/slices/dart/dart-on-hold-relationship-actions'
 
+type RetryAttempts = {
+  publication: string | number | undefined
+  sequence: number
+  lastById: Map<string, number>
+}
+
 /** Reads the next batch of unchecked tasks: untried first, then retries least-recently-attempted first, so failures cycle instead of starving the rest. */
 export function useDartOnHoldCheckMore(args: {
   unchecked: readonly string[] | undefined
   errored: ReadonlySet<string> | undefined
-  publication: string
+  publication: string | number | undefined
   read(taskIds: string[]): Promise<void>
 }): (() => void) | undefined {
   const { unchecked, errored, publication, read } = args
-  const attempts = useRef({ publication: '', sequence: 0, lastById: new Map<string, number>() })
+  const attempts = useRef<RetryAttempts>({
+    publication: undefined,
+    sequence: 0,
+    lastById: new Map()
+  })
   return useMemo(
     () =>
       unchecked && errored

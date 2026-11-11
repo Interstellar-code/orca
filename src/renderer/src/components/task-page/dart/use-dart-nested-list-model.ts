@@ -11,11 +11,12 @@ import type {
   DartRelationshipCacheEntry,
   DartTaskPage
 } from './dart-board-contracts'
-import { dartLoadedChildren } from './dart-loaded-children'
-import { buildDartTaskTree } from './dart-task-tree'
+import { collectDartChildrenEntries, reconcileDartTasks } from './dart-loaded-children'
+import { buildDartNestedRows, buildDartTaskTree } from './dart-task-tree'
 
 const SPINNER_DELAY_MS = 200
 const NO_IDS: ReadonlySet<string> = new Set()
+const NO_CHILDREN: ReadonlyMap<string, readonly DartTask[]> = new Map()
 const NO_READS: Readonly<Record<string, ChildRead>> = {}
 
 type ChildRead = { phase: 'running' | 'slow' } | { phase: 'error'; error: string }
@@ -26,8 +27,12 @@ type NestedListState = {
   readonly reads: Readonly<Record<string, ChildRead>>
 }
 
+function scopeChildrenPrefix(scope: DartReadScope): string {
+  return scopedDartCacheKey(scope, 'list::children::')
+}
+
 function childrenCacheKey(scope: DartReadScope, parentId: string): string {
-  return scopedDartCacheKey(scope, `list::children::${parentId}`)
+  return `${scopeChildrenPrefix(scope)}${parentId}`
 }
 
 export function useDartNestedListModel(args: {
@@ -139,28 +144,22 @@ export function useDartNestedListModel(args: {
     [canReadChildren, expanded, scopeId, readChildren]
   )
 
-  // Entries of every listed parent too, so a newer copy under another parent still wins the dedupe.
-  const childEntries = useMemo(() => {
-    const byParent = new Map<string, readonly DartTask[]>()
-    for (const task of tasks) {
-      const entry = listCache[childrenCacheKey(pageScope, task.id)]?.data
-      if (entry) {
-        byParent.set(task.id, entry.tasks)
-      }
-    }
-    return byParent
-  }, [tasks, listCache, pageScope])
+  // One set over every children entry of the scope, shared with the board (D13).
+  const reconciled = useMemo(
+    () =>
+      reconcileDartTasks(
+        tasks,
+        nested ? collectDartChildrenEntries(listCache, scopeChildrenPrefix(pageScope)) : []
+      ),
+    [tasks, nested, listCache, pageScope]
+  )
 
   const childPage = useCallback(
     (
       parentId: string
     ): { tasks: readonly DartTask[]; total: number; entryRead: boolean; entryKept: number } => {
       const entry = listCache[childrenCacheKey(pageScope, parentId)]?.data
-      const lists = new Map(childEntries)
-      if (entry) {
-        lists.set(parentId, entry.tasks)
-      }
-      const loaded = dartLoadedChildren(parentId, tasks, [...lists.values()])
+      const loaded = reconciled.childrenOf(parentId)
       const entryIds = new Set(entry?.tasks.map((task) => task.id))
       const entryKept = loaded.filter((task) => entryIds.has(task.id)).length
       const movedAway = (entry?.tasks.length ?? 0) - entryKept
@@ -171,7 +170,7 @@ export function useDartNestedListModel(args: {
         entryKept
       }
     },
-    [listCache, pageScope, tasks, childEntries]
+    [listCache, pageScope, reconciled]
   )
 
   const children = useCallback(
@@ -198,18 +197,11 @@ export function useDartNestedListModel(args: {
     [childPage, reads, readChildren]
   )
 
-  const { rows, hiddenSubtasks } = useMemo(() => {
-    const loaded = new Map<string, readonly DartTask[]>()
-    if (nested) {
-      for (const task of tasks) {
-        const entry = listCache[childrenCacheKey(pageScope, task.id)]?.data
-        if (entry) {
-          loaded.set(task.id, entry.tasks)
-        }
-      }
-    }
-    return buildDartTaskTree(tasks, loaded, { nested })
-  }, [tasks, nested, listCache, pageScope])
+  const { rows, hiddenSubtasks } = useMemo(
+    () =>
+      nested ? buildDartNestedRows(reconciled) : buildDartTaskTree(tasks, NO_CHILDREN, { nested }),
+    [nested, reconciled, tasks]
+  )
 
   // The tree builder nests under every parent; only expanded parents show their children.
   const visibleRows = useMemo(
@@ -256,16 +248,17 @@ export function useDartNestedListModel(args: {
 
   const cardInfo = useCallback(
     (taskId: string): DartCardInfo => {
-      const task =
+      const task = reconciled.newestOf(
         tasks.find((candidate) => candidate.id === taskId) ??
-        rows.find((row) => row.task.id === taskId)?.task ??
-        ({ id: taskId, title: '', htmlUrl: '', tags: [] } satisfies DartTask)
+          rows.find((row) => row.task.id === taskId)?.task ??
+          ({ id: taskId, title: '', htmlUrl: '', tags: [] } satisfies DartTask)
+      )
       const relationships = dartRelationshipEntryFor(task, relationshipsByTaskId, relationshipsHost)
       const page = nested ? childPage(taskId) : null
       const loaded = page && (page.entryRead || page.tasks.length > 0) ? page.tasks : undefined
       return buildDartCardInfo(task, relationships, loaded)
     },
-    [tasks, rows, relationshipsByTaskId, relationshipsHost, nested, childPage]
+    [tasks, rows, reconciled, relationshipsByTaskId, relationshipsHost, nested, childPage]
   )
 
   return useMemo(

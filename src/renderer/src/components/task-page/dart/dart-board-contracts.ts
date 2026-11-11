@@ -24,6 +24,8 @@ export type DartScopeMeta = {
   readonly fetchedAt: number
   readonly incomplete: boolean
   readonly partialReason: 'rateLimited' | 'error' | 'changed' | null
+  /** Session-unique, increasing id of the read set last published into this scope; absent = never published. */
+  readonly publicationId?: number
 }
 
 export type DartScopeReadResult = {

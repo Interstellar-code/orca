@@ -18,6 +18,7 @@ import type {
   DartServerFilters
 } from './dart-board-contracts'
 import { useDartBoardModel } from './use-dart-board-model'
+import { useDartNestedListModel } from './use-dart-nested-list-model'
 import type { PinnedDartRow } from './use-dart-list-pinned-rows'
 
 const VIEWER = { id: 'user-a', name: 'Alex Example' }
@@ -515,6 +516,72 @@ describe('useDartBoardModel', () => {
 
       expect(hook.result.current.cardInfo(parentA.id).subtasks?.loaded ?? 0).toBe(0)
       expect(hook.result.current.cardInfo(parentB.id).subtasks?.loaded).toBe(1)
+    })
+
+    it('keeps a scope task out of the cards when its newer copy under an unlisted parent is cached, and agrees with the nested list', async () => {
+      const listed = openTask('listed')
+      const other = openTask('other')
+      const movedCopy = {
+        ...listed,
+        parentId: 'unlisted000001',
+        updatedAt: '2026-11-10T00:00:00.000Z'
+      }
+      const { scopeKey, account, scope } = await openScope([listed, other])
+      useAppStore.setState((state) => ({
+        dartListCache: {
+          ...state.dartListCache,
+          [scopedDartCacheKey(scope, 'list::children::unlisted000001')]: {
+            data: { tasks: [movedCopy], totalCount: 1 },
+            fetchedAt: T0
+          }
+        }
+      }))
+      const board = mountModel(scopeKey, account, {
+        features: RELATIONSHIPS_FEATURES,
+        nested: true
+      })
+      const list = renderHook(() =>
+        useDartNestedListModel({
+          tasks: [listed, other],
+          nested: true,
+          pageScope: scope,
+          hostKey: account.hostKey,
+          accountKey: account.accountKey,
+          viewerId: VIEWER.id,
+          relationshipsHost: true
+        })
+      )
+
+      expect(columnIds(board, 'To-do')).toEqual([other.id])
+      expect(
+        list.result.current.rows.filter((row) => row.depth === 0).map((row) => row.task.id)
+      ).toEqual([other.id])
+    })
+
+    it('counts a scope task a newer cached copy reparented once, under the new parent only', async () => {
+      const oldParent = openTask('oldparent')
+      const newParent = openTask('newparent')
+      const moved = openTask('moved')
+      const newerCopy = {
+        ...moved,
+        parentId: newParent.id,
+        updatedAt: '2026-11-10T00:00:00.000Z'
+      }
+      const { scopeKey, account, scope } = await openScope([oldParent, newParent, moved])
+      useAppStore.setState((state) => ({
+        dartListCache: {
+          ...state.dartListCache,
+          [scopedDartCacheKey(scope, `list::children::${newParent.id}`)]: {
+            data: { tasks: [newerCopy], totalCount: 1 },
+            fetchedAt: T0
+          }
+        }
+      }))
+      const hook = mountModel(scopeKey, account, { features: RELATIONSHIPS_FEATURES, nested: true })
+
+      expect(columnIds(hook, 'To-do')).toEqual([oldParent.id, newParent.id])
+      expect(hook.result.current.cardInfo(oldParent.id).subtasks?.loaded ?? 0).toBe(0)
+      expect(hook.result.current.cardInfo(newParent.id).subtasks?.loaded).toBe(1)
     })
 
     it('checks the next 20 not-checked on-hold tasks in read order', async () => {

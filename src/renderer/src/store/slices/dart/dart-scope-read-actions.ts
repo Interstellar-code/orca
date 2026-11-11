@@ -45,6 +45,8 @@ const inflightScopeReads = new Map<string, InflightDartRead<DartTaskPage>>()
 let scopeReadSequence = 0
 // Bumped when a read set starts, so a "Show 50 more" reply from before it is dropped.
 let scopeReadSetToken = 0
+// Never reset (not by store resets or connection changes), so a republish after eviction still gets a new id.
+let scopePublicationSequence = 0
 
 // Fixed key order, so a full filter object and its three server fields name the same entry.
 export function dartScopeCacheKey(scope: DartReadScope, filters: DartServerFilters): string {
@@ -138,7 +140,8 @@ export function createDartScopeReadActions(
             generation: previous.generation + 1,
             fetchedAt,
             incomplete: result.incomplete,
-            partialReason
+            partialReason,
+            publicationId: (scopePublicationSequence += 1)
           }
         } else {
           meta = { ...previous, partialReason }

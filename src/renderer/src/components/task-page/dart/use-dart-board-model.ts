@@ -24,8 +24,7 @@ import type {
 import { scopedDartCacheKey, type DartReadScope } from '@/store/slices/dart/dart-read-coordination'
 import { dartTaskIdentityKey } from '@/store/slices/dart/dart-task-identity'
 import { useDartOnHoldCheckMore } from './use-dart-on-hold-check-more'
-import { useDartOnHoldPublication } from './use-dart-on-hold-relationship-reads'
-import { dartLoadedChildren } from './dart-loaded-children'
+import { collectDartChildrenEntries, reconcileDartTasks } from './dart-loaded-children'
 import { enqueueDartTaskWrite } from './dart-task-write-queue'
 import { mergeDartPinnedRows, type PinnedDartRow } from './use-dart-list-pinned-rows'
 
@@ -105,12 +104,25 @@ export function useDartBoardModel(args: {
 
   const childrenKeyPrefix = scopedDartCacheKey(pageScope, CHILDREN_ENTRY_PREFIX)
 
+  // One reconciled set (D13) so columns, counts and the nested list agree on each task's newest copy.
+  const reconciled = useMemo(
+    () =>
+      relationshipsHost && nested && listCache
+        ? reconcileDartTasks(
+            mergeDartPinnedRows(rows ?? NO_TASKS, pinnedRows, { hostKey, accountKey }),
+            collectDartChildrenEntries(listCache, childrenKeyPrefix)
+          )
+        : null,
+    [relationshipsHost, nested, listCache, rows, pinnedRows, hostKey, accountKey, childrenKeyPrefix]
+  )
+
   // Unfiltered scope rows with pins, so counts and the blocked filter see every on-hold task.
   const relationshipView = useMemo(() => {
     if (!relationshipsHost) {
       return null
     }
-    const candidates = mergeDartPinnedRows(rows ?? NO_TASKS, pinnedRows, { hostKey, accountKey })
+    const merged = mergeDartPinnedRows(rows ?? NO_TASKS, pinnedRows, { hostKey, accountKey })
+    const candidates = reconciled ? merged.map(reconciled.newestOf) : merged
     const cached = new Map<string, DartRelationshipCacheEntry>()
     const entries = new Map<string, DartRelationshipCacheEntry>()
     const unchecked: string[] = []
@@ -135,41 +147,27 @@ export function useDartBoardModel(args: {
         }
       }
     }
-    return { candidates, entries, unchecked, errored }
-  }, [relationshipsHost, rows, pinnedRows, hostKey, accountKey, relationshipCache])
+    return { entries, unchecked, errored }
+  }, [relationshipsHost, rows, pinnedRows, hostKey, accountKey, relationshipCache, reconciled])
 
   const { columns, cardInfoById } = useMemo(() => {
     const entries = relationshipView?.entries
-    const merged = mergeDartPinnedRows(
-      rows ?? NO_TASKS,
-      pinnedRows,
-      { hostKey, accountKey },
-      (read) => applyDartBoardFilters(read, clientFilters, entries)
+    const readRows = reconciled && rows ? rows.map(reconciled.newestOf) : (rows ?? NO_TASKS)
+    const merged = mergeDartPinnedRows(readRows, pinnedRows, { hostKey, accountKey }, (read) =>
+      applyDartBoardFilters(read, clientFilters, entries)
     )
     const built =
       layout === 'board' && config
         ? buildDartBoardColumns(merged, config, { showEmptyColumns, nested })
         : NO_COLUMNS
-    // Every children entry of the scope, so a child that moved to another parent counts only there (D13.4).
-    const childrenEntries: (readonly DartTask[])[] = []
-    if (relationshipView && nested && listCache) {
-      for (const [key, entry] of Object.entries(listCache)) {
-        if (key.startsWith(childrenKeyPrefix) && entry.data) {
-          childrenEntries.push(entry.data.tasks)
-        }
-      }
-    }
-    const loadedChildrenOf = (taskId: string): readonly DartTask[] | undefined => {
-      if (!relationshipView || !nested) {
-        return undefined
-      }
-      const all = dartLoadedChildren(taskId, relationshipView.candidates, childrenEntries)
-      return all.length > 0 ? all : undefined
-    }
     const info = new Map<string, DartCardInfo>()
     for (const column of built) {
       for (const task of column.tasks) {
-        info.set(task.id, buildDartCardInfo(task, entries?.get(task.id), loadedChildrenOf(task.id)))
+        const loaded = reconciled?.childrenOf(task.id)
+        info.set(
+          task.id,
+          buildDartCardInfo(task, entries?.get(task.id), loaded?.length ? loaded : undefined)
+        )
       }
     }
     return { columns: built, cardInfoById: info }
@@ -184,16 +182,14 @@ export function useDartBoardModel(args: {
     showEmptyColumns,
     nested,
     relationshipView,
-    listCache,
-    childrenKeyPrefix
+    reconciled
   ])
 
   const notChecked = relationshipView?.unchecked.length
-  const publication = useDartOnHoldPublication(relationshipsHost, scopeKey, storedMeta, rows)
   const checkMore = useDartOnHoldCheckMore({
     unchecked: relationshipView?.unchecked,
     errored: relationshipView?.errored,
-    publication,
+    publication: storedMeta?.publicationId ?? 0,
     read: readDartOnHoldRelationships
   })
 
