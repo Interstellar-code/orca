@@ -1,5 +1,8 @@
 import { vi } from 'vitest'
-import { DART_BOARD_RUNTIME_CAPABILITY } from '../../../../../shared/dart/dart-capabilities'
+import {
+  DART_BOARD_RUNTIME_CAPABILITY,
+  DART_RELATIONSHIPS_RUNTIME_CAPABILITY
+} from '../../../../../shared/dart/dart-capabilities'
 import {
   DART_SAVED_VIEWS_RUNTIME_CAPABILITY,
   mutateDartSavedViewState,
@@ -12,6 +15,7 @@ import type {
 } from '../../../../../shared/dart/dart-types'
 import { createCompatibleRuntimeStatusResponse } from '@/runtime/runtime-compatibility-test-fixture'
 import { clearRuntimeCompatibilityCacheForTests } from '@/runtime/runtime-rpc-client'
+import { planBlockerWrite, selectFakeListRows } from './dart-fake-relationships.test-support'
 import type { Failure, RpcParams } from './dart-fake-rpc-params.test-support'
 import { toSavedViewMutation } from './dart-fake-saved-views.test-support'
 import { pageFakeDartTasks } from './dart-fake-task-paging.test-support'
@@ -37,6 +41,10 @@ export class FakeDartHost {
   /** Advertised as `dart.savedViews.v1`; without it the saved view methods do not exist. */
   savedViews = true
   savedViewState: DartSavedViewState = { views: [], activeViewId: null }
+  /** Advertised as `dart.relationships.v1`; off by default so only tests that need links turn it on. */
+  relationships = false
+  /** What `dart.updateTaskBlockers` sent to Dart, in order, as `GET /tasks/<id>` and `PUT /tasks/<id>`. */
+  dartCalls: string[] = []
   /** Rows Dart sends but the host cannot map: dropped from `tasks`, still counted in `raw`. */
   unmappableIds = new Set<string>()
   /** Also drops the last N rows of every page as unmappable. */
@@ -75,12 +83,17 @@ export class FakeDartHost {
   capabilities(): string[] {
     return [
       ...(this.board ? [DART_BOARD_RUNTIME_CAPABILITY] : []),
-      ...(this.savedViews ? [DART_SAVED_VIEWS_RUNTIME_CAPABILITY] : [])
+      ...(this.savedViews ? [DART_SAVED_VIEWS_RUNTIME_CAPABILITY] : []),
+      ...(this.relationships ? [DART_RELATIONSHIPS_RUNTIME_CAPABILITY] : [])
     ]
   }
 
   count(method: string): number {
     return this.requests.filter((request) => request.method === method).length
+  }
+
+  requestsOf(method: string): RpcParams[] {
+    return this.requests.filter((request) => request.method === method).map(({ params }) => params)
   }
 
   private write(apply: () => object): object {
@@ -165,7 +178,11 @@ export class FakeDartHost {
     if (this.failReads) {
       return failure
     }
-    return pageFakeDartTasks(this.tasks.values(), params, {
+    const rows = selectFakeListRows(this.tasks.values(), params)
+    if (!Array.isArray(rows)) {
+      return rows
+    }
+    return pageFakeDartTasks(rows, params, {
       assignee: params.assigneeId ? this.assigneeName(params.assigneeId) : null,
       unmappableIds: this.unmappableIds,
       unmappablePerPage: this.unmappablePerPage,
@@ -177,6 +194,14 @@ export class FakeDartHost {
   private assigneeName(assigneeId: string): string {
     const viewer = this.connection.viewer
     return viewer?.id === assigneeId ? viewer.name : (this.assigneeNames[assigneeId] ?? assigneeId)
+  }
+
+  private updateBlockers(params: RpcParams): object {
+    const plan = planBlockerWrite(params, this.tasks, this.failReads, this.dartCalls)
+    if ('failure' in plan) {
+      return plan.failure
+    }
+    return this.write(() => this.update(params, plan.changes))
   }
 
   private applyWrite(method: string, params: RpcParams): object {
@@ -196,6 +221,11 @@ export class FakeDartHost {
           }
           return { ok: true, comment }
         })
+      case 'dart.updateTaskBlockers':
+        if (!this.relationships) {
+          throw new Error(`fake Dart host has no ${method}`)
+        }
+        return this.updateBlockers(params)
       case 'dart.createTask':
         return this.write(() => {
           const task = {
@@ -255,10 +285,14 @@ export function installFakeDartRuntime(): { host: (environmentId: string | null)
         listTasks: local('dart.listTasks'),
         updateTask: local('dart.updateTask'),
         updateTaskDescription: local('dart.updateTaskDescription'),
+        updateTaskBlockers: local('dart.updateTaskBlockers'),
         addComment: local('dart.addComment'),
         createTask: local('dart.createTask'),
         supportsWritesV2: async () => true,
-        supportedDartFeatures: async () => ({ board: host(null).board })
+        supportedDartFeatures: async () => ({
+          board: host(null).board,
+          relationships: host(null).relationships
+        })
       },
       ui: new Proxy(savedViewBridge, {
         // Other ui methods stay callable no-ops, as they were when `ui` was absent from the fake.
@@ -272,6 +306,7 @@ export function installFakeDartRuntime(): { host: (environmentId: string | null)
             const advertised = (reply.result.capabilities ?? []).filter(
               (capability) =>
                 capability !== DART_BOARD_RUNTIME_CAPABILITY &&
+                capability !== DART_RELATIONSHIPS_RUNTIME_CAPABILITY &&
                 capability !== DART_SAVED_VIEWS_RUNTIME_CAPABILITY
             )
             return {

@@ -16,7 +16,8 @@ export const DartBoardFiltersParam = z.object({
   search: z.string().max(DART_TITLE_MAX_LENGTH),
   tag: FilterText,
   priority: FilterText,
-  onHold: z.boolean()
+  onHold: z.boolean(),
+  blockedOnHold: z.boolean().optional()
 })
 
 export const DartSavedViewParam = z.object({
@@ -24,7 +25,8 @@ export const DartSavedViewParam = z.object({
   name: ViewName,
   filters: DartBoardFiltersParam,
   layout: z.enum(['list', 'board']),
-  showEmptyColumns: z.boolean()
+  showEmptyColumns: z.boolean(),
+  nestSubtasks: z.boolean().optional()
 })
 
 export const DartSavedViewMutationParam = z.discriminatedUnion('kind', [

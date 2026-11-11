@@ -1,6 +1,7 @@
 import {
   dartAddCommentForTarget,
   dartCreateTaskForTarget,
+  dartUpdateTaskBlockersForTarget,
   dartUpdateTaskDescriptionForTarget,
   dartUpdateTaskForTarget,
   type DartWriteResult
@@ -26,7 +27,11 @@ import {
 
 type DartWriteActions = Pick<
   DartSlice,
-  'updateDartTask' | 'updateDartTaskDescription' | 'addDartComment' | 'createDartTask'
+  | 'updateDartTask'
+  | 'updateDartTaskDescription'
+  | 'addDartComment'
+  | 'createDartTask'
+  | 'setDartTaskBlockers'
 >
 
 // Resolves the scope once, so a host switch mid-write cannot redirect it, and flags a lost connection only on the page's host.
@@ -81,6 +86,16 @@ export function createDartWriteActions(set: DartSliceSet, get: DartSliceGet): Da
         sourceContext: options?.sourceContext,
         pinnedScope: options?.scope,
         send: (scope) => dartUpdateTaskForTarget(scope.target, taskId, updates)
+      }),
+
+    setDartTaskBlockers: (taskId, blockerIds, options) =>
+      runDartWrite({
+        set,
+        get,
+        sourceContext: options?.sourceContext,
+        pinnedScope: options?.scope,
+        send: (scope) =>
+          dartUpdateTaskBlockersForTarget(scope.target, { taskId, blockerIds: [...blockerIds] })
       }),
 
     updateDartTaskDescription: (args, options) =>

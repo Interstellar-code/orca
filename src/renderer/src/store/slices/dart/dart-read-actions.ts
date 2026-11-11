@@ -12,7 +12,7 @@ import {
   type DartClientFailure,
   type DartClientResult
 } from '@/runtime/runtime-dart-client'
-import type { DartSlice, DartSliceGet, DartSliceSet } from './dart-slice-contract'
+import type { DartReadOptions, DartSlice, DartSliceGet, DartSliceSet } from './dart-slice-contract'
 import {
   canWriteDartReadResult,
   currentDartMutationGeneration,
@@ -33,8 +33,19 @@ import {
 
 type DartReadActions = Pick<
   DartSlice,
-  'fetchDartTask' | 'listDartTasks' | 'listDartComments' | 'fetchDartConfig'
+  | 'fetchDartTask'
+  | 'listDartTasks'
+  | 'listDartComments'
+  | 'fetchDartConfig'
+  | 'readDartSubtasks'
+  | 'readDartTasksByIds'
+  | 'searchDartTasks'
 >
+
+const DART_SUBTASKS_LIMIT = 250
+const DART_IDS_PER_READ = 100
+const DART_MAX_IDS_READS = 3
+const DART_SEARCH_LIMIT = 25
 
 export type InflightDartRead<T extends object> = {
   promise: Promise<DartClientResult<T>>
@@ -45,6 +56,11 @@ const inflightTaskReads = new Map<string, InflightDartRead<{ task: DartTask }>>(
 const inflightListReads = new Map<string, InflightDartRead<DartTaskPage>>()
 const inflightCommentReads = new Map<string, InflightDartRead<DartCommentPage>>()
 const inflightConfigReads = new Map<string, InflightDartRead<{ config: DartWorkspaceConfig }>>()
+const inflightIdsReads = new Map<
+  string,
+  InflightDartRead<{ tasks: DartTask[]; total: number; complete: boolean }>
+>()
+const inflightSearchReads = new Map<string, InflightDartRead<{ tasks: DartTask[] }>>()
 
 // Transport errors never carry the token; the message is the host's or the client's own text.
 function failureFromThrown(error: unknown): DartClientFailure {
@@ -95,6 +111,38 @@ function listCacheKey(args: unknown): string {
 }
 
 export function createDartReadActions(set: DartSliceSet, get: DartSliceGet): DartReadActions {
+  // Shared by the scope-keyed lists and the per-parent children entries: one cache, one patch and invalidation path.
+  const readCachedList = async (
+    scope: DartReadScope,
+    cacheKey: string,
+    args: Parameters<DartSlice['listDartTasks']>[0],
+    options: DartReadOptions | undefined
+  ): Promise<DartClientResult<DartTaskPage>> => {
+    const cached = get().dartListCache[cacheKey]
+    if (!options?.force && isFreshDartCacheEntry(cached) && cached.data) {
+      return { ok: true, ...cached.data }
+    }
+    return runDartRead({
+      set,
+      get,
+      scope,
+      inflightReads: inflightListReads,
+      flightKey: `${scope.contextKey}::${cacheKey}`,
+      force: options?.force,
+      read: () => dartListTasksForTarget(scope.target, args),
+      store: (result) =>
+        set((state) =>
+          evictDartListCache(state, {
+            ...state.dartListCache,
+            [cacheKey]: {
+              data: { tasks: result.tasks, totalCount: result.totalCount },
+              fetchedAt: Date.now()
+            }
+          })
+        )
+    })
+  }
+
   return {
     fetchDartTask: async (taskId, options) => {
       const scope = options?.scope ?? getDartReadScope(get().settings, options?.sourceContext)
@@ -127,29 +175,74 @@ export function createDartReadActions(set: DartSliceSet, get: DartSliceGet): Dar
     listDartTasks: async (args, options) => {
       const scope = options?.scope ?? getDartReadScope(get().settings, options?.sourceContext)
       registerDartCacheAlias(scope, dartScopeViewerId(get(), scope, options?.sourceContext))
-      const cacheKey = scopedDartCacheKey(scope, listCacheKey(args))
-      const cached = get().dartListCache[cacheKey]
-      if (!options?.force && isFreshDartCacheEntry(cached) && cached.data) {
-        return { ok: true, ...cached.data }
+      return readCachedList(scope, scopedDartCacheKey(scope, listCacheKey(args)), args, options)
+    },
+
+    readDartSubtasks: async (parentId, options) => {
+      const scope = options?.scope ?? getDartReadScope(get().settings, options?.sourceContext)
+      registerDartCacheAlias(scope, dartScopeViewerId(get(), scope, options?.sourceContext))
+      const result = await readCachedList(
+        scope,
+        scopedDartCacheKey(scope, `list::children::${parentId}`),
+        { parentId, limit: DART_SUBTASKS_LIMIT },
+        options
+      )
+      return result.ok ? { ok: true, tasks: result.tasks, total: result.totalCount } : result
+    },
+
+    readDartTasksByIds: async (ids, options) => {
+      const scope = options?.scope ?? getDartReadScope(get().settings, options?.sourceContext)
+      const unique = [...new Set(ids)]
+      const readable = unique.slice(0, DART_IDS_PER_READ * DART_MAX_IDS_READS)
+      const complete = readable.length === unique.length
+      if (unique.length === 0) {
+        return { ok: true, tasks: [], total: 0, complete }
       }
       return runDartRead({
         set,
         get,
         scope,
-        inflightReads: inflightListReads,
-        flightKey: `${scope.contextKey}::${cacheKey}`,
+        inflightReads: inflightIdsReads,
+        flightKey: `${scope.contextKey}::ids::${readable.join(',')}`,
         force: options?.force,
-        read: () => dartListTasksForTarget(scope.target, args),
-        store: (result) =>
-          set((state) =>
-            evictDartListCache(state, {
-              ...state.dartListCache,
-              [cacheKey]: {
-                data: { tasks: result.tasks, totalCount: result.totalCount },
-                fetchedAt: Date.now()
-              }
+        read: async () => {
+          const tasks: DartTask[] = []
+          for (let start = 0; start < readable.length; start += DART_IDS_PER_READ) {
+            const chunk = readable.slice(start, start + DART_IDS_PER_READ)
+            const page = await dartListTasksForTarget(scope.target, {
+              ids: chunk,
+              limit: chunk.length
             })
-          )
+            if (!page.ok) {
+              return page
+            }
+            tasks.push(...page.tasks)
+          }
+          return { ok: true, tasks, total: unique.length, complete }
+        },
+        store: () => {}
+      })
+    },
+
+    searchDartTasks: async (text, options) => {
+      const scope = getDartReadScope(get().settings, options.sourceContext)
+      return runDartRead({
+        set,
+        get,
+        scope,
+        inflightReads: inflightSearchReads,
+        flightKey: JSON.stringify([scope.contextKey, 'search', text, options.dartboard ?? null]),
+        force: false,
+        read: async () => {
+          const page = await dartListTasksForTarget(scope.target, {
+            title: text,
+            isCompleted: false,
+            limit: DART_SEARCH_LIMIT,
+            ...(options.dartboard === undefined ? {} : { dartboard: options.dartboard })
+          })
+          return page.ok ? { ok: true, tasks: page.tasks } : page
+        },
+        store: () => {}
       })
     },
 

@@ -75,17 +75,25 @@ describe('Dart saved-view runtime UI state', () => {
     })
   })
 
-  it('strips unknown keys from a newer client instead of refusing the view', async () => {
+  it('keeps release B fields on a saved view', async () => {
     const { dispatch } = setup()
-    const newer = {
+    const withB = {
       ...view,
       nestSubtasks: false,
       filters: { ...view.filters, blockedOnHold: true }
     }
-    expect(await dispatch('ui.mutateDartSavedViews', { kind: 'save', view: newer })).toMatchObject({
+    expect(await dispatch('ui.mutateDartSavedViews', { kind: 'save', view: withB })).toMatchObject({
       ok: true,
-      result: { views: [view] }
+      result: { views: [withB] }
     })
+  })
+
+  it('saves a view without release B fields and leaves them absent', async () => {
+    const { dispatch, read } = setup()
+    expect(await dispatch('ui.mutateDartSavedViews', { kind: 'save', view })).toMatchObject({
+      ok: true
+    })
+    expect(read().dartSavedViewState?.views).toEqual([view])
   })
 
   it('rejects oversized remote input without changing host UI state', async () => {

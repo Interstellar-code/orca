@@ -29,6 +29,8 @@ type OpenOptions = {
   providerV1?: boolean
   board?: boolean
   savedViews?: boolean
+  /** Opt-in: advertises `dart.relationships.v1`. */
+  relationships?: boolean
 }
 
 export type Transport = {
@@ -94,7 +96,8 @@ function seedPage(environmentId: string | null): void {
     dartTaskCache: {},
     dartListCache: {},
     dartConfigCache: {},
-    dartScopeMetaCache: {}
+    dartScopeMetaCache: {},
+    dartRelationshipCache: {}
   })
   const settings = {
     ...getDefaultSettings('/home/alex'),
@@ -121,6 +124,7 @@ function seedPage(environmentId: string | null): void {
 function applyFlags(host: FakeDartHost, options: OpenOptions): void {
   host.board = options.board !== false
   host.savedViews = options.savedViews !== false
+  host.relationships = options.relationships === true
 }
 
 function capabilitiesOf(options: OpenOptions, host: FakeDartHost): string[] {

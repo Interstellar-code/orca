@@ -123,6 +123,28 @@ describe('normalizeDartSavedViewState', () => {
   })
 })
 
+describe('release B saved-view fields', () => {
+  it('keeps blockedOnHold and nestSubtasks when present', () => {
+    const view = { ...makeView('a'), nestSubtasks: false }
+    view.filters = { ...view.filters, blockedOnHold: true }
+    expect(normalizeDartSavedViewState({ views: [view], activeViewId: 'a' }).views).toEqual([view])
+    expect(mutateDartSavedViewState(null, { kind: 'save', view }).views).toEqual([view])
+  })
+
+  it('leaves both fields absent for a view that omits them', () => {
+    const [kept] = normalizeDartSavedViewState({ views: [makeView('a')], activeViewId: null }).views
+    expect(kept).toBeDefined()
+    expect(kept).not.toHaveProperty('nestSubtasks')
+    expect(kept?.filters).not.toHaveProperty('blockedOnHold')
+  })
+
+  it('drops a view with a non-boolean value for either field', () => {
+    const badNest = { ...makeView('a'), nestSubtasks: 'yes' }
+    const badBlocked = { ...makeView('b'), filters: { ...makeView('b').filters, blockedOnHold: 1 } }
+    expect(normalizeDartSavedViewState({ views: [badNest, badBlocked] }).views).toEqual([])
+  })
+})
+
 describe('mutateDartSavedViewState', () => {
   const base = { views: [makeView('a'), makeView('b')], activeViewId: 'a' }
 

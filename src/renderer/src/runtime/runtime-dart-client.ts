@@ -1,6 +1,7 @@
 import {
   DART_BOARD_RUNTIME_CAPABILITY,
-  DART_PROVIDER_RUNTIME_CAPABILITY
+  DART_PROVIDER_RUNTIME_CAPABILITY,
+  DART_RELATIONSHIPS_RUNTIME_CAPABILITY
 } from '../../../shared/dart/dart-capabilities'
 import { isTrustedDartHtmlUrl } from '../../../shared/dart/dart-issue-url'
 import type {
@@ -38,6 +39,13 @@ export function dartUpdateRequiredMessage(): string {
   return translate(
     'taskProviders.dart.updateRequired',
     'Update the remote Orca server to use Dart.'
+  )
+}
+
+export function dartRelationshipsUpdateRequiredMessage(): string {
+  return translate(
+    'taskProviders.dart.relationshipsUpdateRequired',
+    'Update the remote Orca server to use task links in Dart.'
   )
 }
 
@@ -192,10 +200,34 @@ export async function dartConfigForTarget(
   return callDart(target, 'dart.config', undefined, () => window.api.dart.config())
 }
 
+/** A remote target is probed; a local target asks its bridge (a host probe in the web client). */
+export async function dartSupportsRelationshipsForTarget(
+  target: RuntimeClientTarget
+): Promise<boolean> {
+  try {
+    return target.kind === 'environment'
+      ? await runtimeEnvironmentSupportsCapability(
+          target.environmentId,
+          DART_RELATIONSHIPS_RUNTIME_CAPABILITY,
+          CAPABILITY_PROBE_TIMEOUT_MS
+        )
+      : (await window.api.dart.supportedDartFeatures()).relationships === true
+  } catch {
+    return false
+  }
+}
+
 export async function dartListTasksForTarget(
   target: RuntimeClientTarget,
   args?: DartListTasksArgs
 ): Promise<DartClientResult<DartTaskPage>> {
+  // Why: a host without the capability would drop `parentId`/`ids` and return unfiltered rows, so refuse instead.
+  if (
+    (args?.parentId !== undefined || args?.ids !== undefined) &&
+    !(await dartSupportsRelationshipsForTarget(target))
+  ) {
+    return { ok: false, error: dartRelationshipsUpdateRequiredMessage() }
+  }
   const result = await callDart<DartTaskPage>(target, 'dart.listTasks', args, () =>
     window.api.dart.listTasks(args)
   )
@@ -222,20 +254,23 @@ export async function dartListCommentsForTarget(
   return result.ok ? { ...result, comments: result.comments.map(sanitizeDartComment) } : result
 }
 
-// Never cached: a host can upgrade or switch between calls, and any failure just hides board features.
+// Never cached: a host can upgrade or switch between calls, and any failure just hides board and link features.
 export async function dartBoardFeaturesForTarget(
   target: RuntimeClientTarget
 ): Promise<DartHostFeatures> {
   try {
     if (target.kind === 'environment') {
-      return {
-        board: await runtimeEnvironmentSupportsCapability(
-          target.environmentId,
-          DART_BOARD_RUNTIME_CAPABILITY,
-          CAPABILITY_PROBE_TIMEOUT_MS,
-          { fresh: true }
+      const [board, relationships] = await Promise.all(
+        [DART_BOARD_RUNTIME_CAPABILITY, DART_RELATIONSHIPS_RUNTIME_CAPABILITY].map((capability) =>
+          runtimeEnvironmentSupportsCapability(
+            target.environmentId,
+            capability,
+            CAPABILITY_PROBE_TIMEOUT_MS,
+            { fresh: true }
+          )
         )
-      }
+      )
+      return { board, relationships }
     }
     return await window.api.dart.supportedDartFeatures()
   } catch {
