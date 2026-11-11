@@ -19,6 +19,7 @@ import type {
   DartSliceGet,
   DartSliceSet
 } from './dart-slice-contract'
+import { beginDartListRead } from './dart-list-read-version'
 import {
   canWriteDartReadResult,
   currentDartMutationGeneration,
@@ -142,6 +143,11 @@ export function createDartReadActions(set: DartSliceSet, get: DartSliceGet): Dar
     if (!options?.force && isFreshDartCacheEntry(cached) && cached.data) {
       return { ok: true, ...cached.data }
     }
+    const read = beginDartListRead(
+      `${scope.contextKey}::${cacheKey}`,
+      options?.force,
+      dartAccountIdentity(scope, dartScopeViewerId(get(), scope, options?.sourceContext))
+    )
     return runDartRead({
       set,
       get,
@@ -151,12 +157,14 @@ export function createDartReadActions(set: DartSliceSet, get: DartSliceGet): Dar
       force: options?.force,
       read: () => dartListTasksForTarget(scope.target, args),
       store: (result) =>
+        !read.superseded() &&
         set((state) =>
           evictDartListCache(state, {
             ...state.dartListCache,
             [cacheKey]: {
               data: { tasks: result.tasks, totalCount: result.totalCount },
-              fetchedAt: Date.now()
+              // An invalidation during the read leaves the reply stale so the next read fetches.
+              fetchedAt: read.invalidated() ? 0 : Date.now()
             }
           })
         )

@@ -68,6 +68,7 @@ export function useDartNestedListModel(args: {
   live.current = { scopeId, pageScope }
   const inflight = useRef(new Set<string>())
   const readPublication = useRef(new Map<string, number | undefined>())
+  const erroredEntry = useRef(new Map<string, unknown>())
   const timers = useRef(new Set<ReturnType<typeof setTimeout>>())
   useEffect(() => {
     const pending = timers.current
@@ -116,6 +117,10 @@ export function useDartNestedListModel(args: {
         clearTimeout(timer)
         timers.current.delete(timer)
         inflight.current.delete(flight)
+        erroredEntry.current.set(
+          flight,
+          useAppStore.getState().dartListCache[childrenCacheKey(live.current.pageScope, parentId)]
+        )
         writeReads(readScope, (prev) => {
           delete prev[parentId]
           return result.ok ? prev : { ...prev, [parentId]: { phase: 'error', error: result.error } }
@@ -157,10 +162,14 @@ export function useDartNestedListModel(args: {
     }
     for (const parentId of expanded) {
       const flight = `${scopeId}\n${parentId}`
-      const invalidated = listCache[childrenCacheKey(pageScope, parentId)]?.fetchedAt === 0
+      const entry = listCache[childrenCacheKey(pageScope, parentId)]
+      // An errored parent retries on a new publication or a newly invalidated entry, never in a loop.
+      const errored = reads[parentId]?.phase === 'error'
+      const invalidated =
+        entry?.fetchedAt === 0 && (!errored || entry !== erroredEntry.current.get(flight))
       const newPublication =
         readPublication.current.has(flight) && readPublication.current.get(flight) !== publicationId
-      if ((newPublication || invalidated) && !reads[parentId]) {
+      if ((newPublication || invalidated) && (!reads[parentId] || errored)) {
         readChildren(parentId, newPublication)
       }
     }

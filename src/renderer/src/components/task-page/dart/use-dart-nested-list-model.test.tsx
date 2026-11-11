@@ -161,6 +161,40 @@ describe('useDartNestedListModel', () => {
     expect(hook.result.current.children(PARENT.id).data?.tasks).toEqual([CHILD])
   })
 
+  it('retries an errored parent on a new publication, once per publication', async () => {
+    host.failReads = true
+    const hook = mountModel([PARENT])
+    await act(async () => hook.result.current.toggle(PARENT.id))
+    expect(hook.result.current.children(PARENT.id).state).toBe('error')
+    const reads = listRequests()
+
+    await act(async () => hook.rerender({ tasks: [PARENT], publicationId: 8 }))
+    expect(listRequests()).toBe(reads + 1)
+    expect(hook.result.current.children(PARENT.id).state).toBe('error')
+    await act(async () => hook.rerender({ tasks: [PARENT], publicationId: 8 }))
+    expect(listRequests()).toBe(reads + 1)
+
+    host.failReads = false
+    await act(async () => hook.rerender({ tasks: [PARENT], publicationId: 9 }))
+    expect(hook.result.current.children(PARENT.id).state).toBe('ready')
+  })
+
+  it('retries an errored parent when its entry is invalidated', async () => {
+    const hook = mountModel([PARENT])
+    const scope = getDartReadScope(useAppStore.getState().settings)
+    await act(async () => hook.result.current.toggle(PARENT.id))
+    host.failReads = true
+    await act(async () => hook.rerender({ tasks: [PARENT], publicationId: 8 }))
+    expect(hook.result.current.children(PARENT.id).state).toBe('error')
+    const reads = listRequests()
+
+    host.failReads = false
+    act(() => useAppStore.getState().invalidateDartLists(dartAccountIdentity(scope, VIEWER.id)))
+    await act(async () => {})
+    expect(listRequests()).toBe(reads + 1)
+    expect(hook.result.current.children(PARENT.id).state).toBe('ready')
+  })
+
   it('renders flat rows and reads nothing when nested is off', async () => {
     const tasks = [PARENT, CHILD]
     const hook = mountModel(tasks, { nested: false })

@@ -5,7 +5,7 @@ import { createTestStore } from '../store-test-helpers'
 import { dartTaskFixture, installFakeDartRuntime } from './dart-fake-runtime.test-support'
 import { relationshipsFixture } from './dart-fake-relationships.test-support'
 import { getDartReadScope, scopedDartCacheKey } from './dart-read-coordination'
-import { dartTaskIdentity, dartTaskIdentityKey } from './dart-task-identity'
+import { dartAccountIdentity, dartTaskIdentity, dartTaskIdentityKey } from './dart-task-identity'
 
 const ENV = 'relationship-reads-host'
 const PARENT_ID = 'parent000001'
@@ -59,6 +59,46 @@ describe('dart subtask reads', () => {
       .patchDartTask(dartTaskIdentity(scope, taskId(1), viewer.id), { status: 'Doing' })
 
     expect(store.getState().dartListCache[childrenKey]?.data?.tasks[0]?.status).toBe('Doing')
+  })
+
+  it('keeps an entry invalidated during a children read invalid, so the reread fetches', async () => {
+    const { host, store, scope } = openStore()
+    const childrenKey = scopedDartCacheKey(scope, `list::children::${PARENT_ID}`)
+    host.addTask(dartTaskFixture(taskId(1), { parentId: PARENT_ID, status: 'To-do' }))
+    await store.getState().readDartSubtasks(PARENT_ID, { scope })
+    const release = host.hold('dart.listTasks')
+    const late = store.getState().readDartSubtasks(PARENT_ID, { scope, force: true })
+    await vi.waitFor(() => expect(host.count('dart.listTasks')).toBe(2))
+
+    store.getState().invalidateDartLists(dartAccountIdentity(scope, viewer.id))
+    expect(store.getState().dartListCache[childrenKey]?.fetchedAt).toBe(0)
+    release()
+    await late
+
+    expect(store.getState().dartListCache[childrenKey]?.fetchedAt).toBe(0)
+    await store.getState().readDartSubtasks(PARENT_ID, { scope })
+    expect(host.count('dart.listTasks')).toBe(3)
+    expect(store.getState().dartListCache[childrenKey]?.fetchedAt).toBeGreaterThan(0)
+  })
+
+  it('keeps a forced read installed when an earlier read replies after it', async () => {
+    const { host, store, scope } = openStore()
+    const childrenKey = scopedDartCacheKey(scope, `list::children::${PARENT_ID}`)
+    host.addTask(dartTaskFixture(taskId(1), { parentId: PARENT_ID }))
+    const releaseOlder = host.hold('dart.listTasks')
+    const older = store.getState().readDartSubtasks(PARENT_ID, { scope })
+    await vi.waitFor(() => expect(host.count('dart.listTasks')).toBe(1))
+    host.addTask(dartTaskFixture(taskId(2), { parentId: PARENT_ID }))
+    const releaseForced = host.hold('dart.listTasks')
+    const forced = store.getState().readDartSubtasks(PARENT_ID, { scope, force: true })
+    await vi.waitFor(() => expect(host.count('dart.listTasks')).toBe(2))
+
+    releaseForced()
+    await forced
+    releaseOlder()
+    await older
+
+    expect(store.getState().dartListCache[childrenKey]?.data?.tasks).toHaveLength(2)
   })
 
   describe('across an account change on the same host', () => {
@@ -322,6 +362,22 @@ describe('dart on-hold relationship reads', () => {
       expect(host.count('dart.getTask')).toBe(2)
       expect(entryOf(ids[0])).toMatchObject({ state: 'known' })
       expect(entryOf(ids[1])).toMatchObject({ state: 'known' })
+    })
+
+    it('installs nothing and reads no further when the account switches mid-read', async () => {
+      const { host, store, scope, ids, entryOf } = setup(3)
+      const release = host.hold('dart.getTask')
+      const read = store.getState().readDartOnHoldRelationships(ids, { scope })
+      await vi.waitFor(() => expect(host.count('dart.getTask')).toBe(1))
+      store.setState({ dartStatus: { connected: true, viewer: { id: 'user-b', name: 'Bo' } } })
+
+      release()
+      await read
+
+      expect(host.count('dart.getTask')).toBe(1)
+      for (const id of ids) {
+        expect(entryOf(id)).toMatchObject({ state: 'notChecked', relationships: null })
+      }
     })
 
     it('puts unread targets back to not checked when Dart refuses the token', async () => {

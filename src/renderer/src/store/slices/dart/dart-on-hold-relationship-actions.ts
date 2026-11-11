@@ -41,7 +41,9 @@ export function createDartOnHoldRelationshipActions(
       const viewerId = dartScopeViewerId(get(), scope)
       registerDartCacheAlias(scope, viewerId)
       const connectionGeneration = currentDartConnectionGeneration()
-      const isCurrent = (): boolean => connectionGeneration === currentDartConnectionGeneration()
+      const isCurrent = (): boolean =>
+        connectionGeneration === currentDartConnectionGeneration() &&
+        (scope.explicitSource || viewerId === dartScopeViewerId(get(), scope))
       const keyOf = (taskId: string): string =>
         dartTaskIdentityKey(dartTaskIdentity(scope, taskId, viewerId))
       const unique = [...new Set(taskIds)]
