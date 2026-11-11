@@ -16,6 +16,10 @@ vi.mock('./web-runtime-session', () => ({
   assertActiveEnvironment: mocks.assertActiveEnvironment
 }))
 
+import {
+  BLOCKER_PARAMS,
+  BLOCKER_REPLY
+} from '../../../../shared/dart/dart-blocker-reply.test-support'
 import { clearDartProviderVerdictCacheForTests, createWebDartApi } from './web-dart-api'
 
 beforeEach(() => {
@@ -257,10 +261,15 @@ describe('web dart writes', () => {
   })
 
   it('sends the blocker write with the write timeout', async () => {
-    mocks.callRuntimeEnvelope.mockResolvedValue({ ok: true, result: { ok: true } })
-    const args = { taskId: 'abcDEF123456', blockerIds: ['zyxWVU654321'] }
-    await createWebDartApi().updateTaskBlockers(args)
-    expect(mocks.callRuntimeEnvelope).toHaveBeenCalledWith('dart.updateTaskBlockers', args, 100_000)
+    mocks.callRuntimeEnvelope.mockResolvedValue({ ok: true, result: BLOCKER_REPLY })
+    await expect(createWebDartApi().updateTaskBlockers(BLOCKER_PARAMS)).resolves.toEqual(
+      BLOCKER_REPLY
+    )
+    expect(mocks.callRuntimeEnvelope).toHaveBeenCalledWith(
+      'dart.updateTaskBlockers',
+      BLOCKER_PARAMS,
+      100_000
+    )
   })
 
   it('reports host-refused write params as notApplied but leaves reads alone', async () => {
