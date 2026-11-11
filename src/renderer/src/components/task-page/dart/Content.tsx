@@ -210,13 +210,7 @@ export function TaskPageDartContent({
             <>
               {' · '}
               {notCheckedText}{' '}
-              <Button
-                type="button"
-                variant="link"
-                size="chip"
-                className="text-2xs"
-                onClick={checkMore}
-              >
+              <Button type="button" variant="link" size="chip" onClick={checkMore}>
                 {translate('auto.components.task.page.dart.Content.checkMore', 'Check')}
               </Button>
             </>
