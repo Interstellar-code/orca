@@ -24,6 +24,7 @@ import type {
 import { scopedDartCacheKey, type DartReadScope } from '@/store/slices/dart/dart-read-coordination'
 import { dartTaskIdentityKey } from '@/store/slices/dart/dart-task-identity'
 import { useDartOnHoldCheckMore } from './use-dart-on-hold-check-more'
+import { dartLoadedChildren } from './dart-loaded-children'
 import { enqueueDartTaskWrite } from './dart-task-write-queue'
 import { mergeDartPinnedRows, type PinnedDartRow } from './use-dart-list-pinned-rows'
 
@@ -148,23 +149,13 @@ export function useDartBoardModel(args: {
       layout === 'board' && config
         ? buildDartBoardColumns(merged, config, { showEmptyColumns, nested })
         : NO_COLUMNS
-    const scopeChildren = new Map<string, DartTask[]>()
-    if (relationshipView && nested) {
-      for (const task of relationshipView.candidates) {
-        if (task.parentId) {
-          scopeChildren.set(task.parentId, [...(scopeChildren.get(task.parentId) ?? []), task])
-        }
-      }
-    }
-    // Scope rows and the parent's children entry, deduped by id (D13.4).
+    // Scope rows and the parent's children entry, deduped by id with the newest copy winning (D13.4).
     const loadedChildrenOf = (taskId: string): readonly DartTask[] | undefined => {
       if (!relationshipView || !nested) {
         return undefined
       }
-      const children = scopeChildren.get(taskId) ?? []
-      const seen = new Set(children.map((child) => child.id))
       const stored = listCache?.[`${childrenKeyPrefix}${taskId}`]?.data?.tasks ?? NO_TASKS
-      const all = [...children, ...stored.filter((child) => !seen.has(child.id))]
+      const all = dartLoadedChildren(taskId, relationshipView.candidates, [stored])
       return all.length > 0 ? all : undefined
     }
     const info = new Map<string, DartCardInfo>()

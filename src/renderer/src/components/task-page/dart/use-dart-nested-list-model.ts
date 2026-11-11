@@ -3,7 +3,6 @@ import type { DartTask } from '../../../../../shared/dart/dart-types'
 import { useAppStore } from '@/store'
 import { scopedDartCacheKey, type DartReadScope } from '@/store/slices/dart/dart-read-coordination'
 import { dartTaskIdentity, dartTaskIdentityKey } from '@/store/slices/dart/dart-task-identity'
-import { mergeDartScopeTasks } from '@/store/slices/dart/dart-scope-paging'
 import { buildDartCardInfo, dartRelationshipEntryFor } from './dart-board-columns'
 import type {
   DartCardInfo,
@@ -12,6 +11,7 @@ import type {
   DartRelationshipCacheEntry,
   DartTaskPage
 } from './dart-board-contracts'
+import { dartLoadedChildren } from './dart-loaded-children'
 import { buildDartTaskTree } from './dart-task-tree'
 
 const SPINNER_DELAY_MS = 200
@@ -139,31 +139,51 @@ export function useDartNestedListModel(args: {
     [canReadChildren, expanded, scopeId, readChildren]
   )
 
+  // Entries of every listed parent too, so a newer copy under another parent still wins the dedupe.
+  const childEntries = useMemo(() => {
+    const byParent = new Map<string, readonly DartTask[]>()
+    for (const task of tasks) {
+      const entry = listCache[childrenCacheKey(pageScope, task.id)]?.data
+      if (entry) {
+        byParent.set(task.id, entry.tasks)
+      }
+    }
+    return byParent
+  }, [tasks, listCache, pageScope])
+
   const childPage = useCallback(
-    (parentId: string): { tasks: readonly DartTask[]; total: number; entryRead: boolean } => {
+    (
+      parentId: string
+    ): { tasks: readonly DartTask[]; total: number; entryRead: boolean; entryKept: number } => {
       const entry = listCache[childrenCacheKey(pageScope, parentId)]?.data
-      const inScope = tasks.filter((task) => task.parentId === parentId)
-      const merged = entry ? mergeDartScopeTasks(inScope, entry.tasks).tasks : inScope
+      const lists = new Map(childEntries)
+      if (entry) {
+        lists.set(parentId, entry.tasks)
+      }
+      const loaded = dartLoadedChildren(parentId, tasks, [...lists.values()])
+      const entryIds = new Set(entry?.tasks.map((task) => task.id))
+      const entryKept = loaded.filter((task) => entryIds.has(task.id)).length
+      const movedAway = (entry?.tasks.length ?? 0) - entryKept
       return {
-        tasks: merged,
-        total: Math.max(entry?.totalCount ?? 0, merged.length),
-        entryRead: Boolean(entry)
+        tasks: loaded,
+        total: Math.max((entry?.totalCount ?? 0) - movedAway, loaded.length),
+        entryRead: Boolean(entry),
+        entryKept
       }
     },
-    [listCache, pageScope, tasks]
+    [listCache, pageScope, tasks, childEntries]
   )
 
   const children = useCallback(
     (taskId: string): DartLoad<DartTaskPage> => {
       const page = childPage(taskId)
       const read = reads[taskId]
-      const entryTotal = listCache[childrenCacheKey(pageScope, taskId)]?.data?.tasks.length ?? 0
       const data: DartTaskPage | null =
         page.entryRead || page.tasks.length > 0
           ? {
               tasks: page.tasks,
               total: page.total,
-              complete: page.entryRead && page.total <= entryTotal
+              complete: page.entryRead && page.total <= page.entryKept
             }
           : null
       const retry = (): void => readChildren(taskId, true)
@@ -175,7 +195,7 @@ export function useDartNestedListModel(args: {
       }
       return { state: page.entryRead ? 'ready' : 'idle', data, error: null, retry }
     },
-    [childPage, reads, listCache, pageScope, readChildren]
+    [childPage, reads, readChildren]
   )
 
   const { rows, hiddenSubtasks } = useMemo(() => {
@@ -219,14 +239,17 @@ export function useDartNestedListModel(args: {
       if (!canReadChildren || task.parentId) {
         return false
       }
+      const page = childPage(task.id)
+      if (page.tasks.length > 0) {
+        return true
+      }
       const known =
         relationshipsByTaskId.get(task.id)?.relationships?.subtaskIds ??
         task.relationships?.subtaskIds
       if (known) {
         return known.length > 0
       }
-      const page = childPage(task.id)
-      return page.entryRead ? page.tasks.length > 0 : true
+      return !page.entryRead
     },
     [canReadChildren, relationshipsByTaskId, childPage]
   )

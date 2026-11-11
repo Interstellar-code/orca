@@ -461,6 +461,29 @@ describe('useDartBoardModel', () => {
       expect(hook.result.current.cardInfo(parent.id).subtasks).toEqual({ loaded: 2, total: null })
     })
 
+    it('counts a cached child under the parent a newer scope row moved it to', async () => {
+      const oldParent = openTask('oldparent')
+      const newParent = openTask('newparent')
+      const moved = {
+        ...openTask('moved'),
+        parentId: newParent.id,
+        updatedAt: '2026-11-10T00:00:00.000Z'
+      }
+      const cachedCopy = { ...moved, parentId: oldParent.id, updatedAt: '2026-11-01T00:00:00.000Z' }
+      const { scopeKey, account, scope } = await openScope([oldParent, newParent, moved])
+      const childrenKey = scopedDartCacheKey(scope, `list::children::${oldParent.id}`)
+      useAppStore.setState((state) => ({
+        dartListCache: {
+          ...state.dartListCache,
+          [childrenKey]: { data: { tasks: [cachedCopy], totalCount: 1 }, fetchedAt: T0 }
+        }
+      }))
+      const hook = mountModel(scopeKey, account, { features: RELATIONSHIPS_FEATURES, nested: true })
+
+      expect(hook.result.current.cardInfo(oldParent.id).subtasks?.loaded ?? 0).toBe(0)
+      expect(hook.result.current.cardInfo(newParent.id).subtasks?.loaded).toBe(1)
+    })
+
     it('checks the next 20 not-checked on-hold tasks in read order', async () => {
       const held = Array.from({ length: 25 }, (_, index) =>
         openTask(`held${String(index).padStart(2, '0')}-`, 'On Hold')

@@ -32,16 +32,18 @@ function listRequests(): number {
 function mountModel(tasks: readonly DartTask[], overrides: { nested?: boolean } = {}) {
   const scope = getDartReadScope(useAppStore.getState().settings)
   const account = dartAccountIdentity(scope, VIEWER.id)
-  return renderHook(() =>
-    useDartNestedListModel({
-      tasks,
-      nested: overrides.nested ?? true,
-      pageScope: scope,
-      hostKey: account.hostKey,
-      accountKey: account.accountKey,
-      viewerId: VIEWER.id,
-      relationshipsHost: true
-    })
+  return renderHook(
+    (props: { tasks: readonly DartTask[] }) =>
+      useDartNestedListModel({
+        tasks: props.tasks,
+        nested: overrides.nested ?? true,
+        pageScope: scope,
+        hostKey: account.hostKey,
+        accountKey: account.accountKey,
+        viewerId: VIEWER.id,
+        relationshipsHost: true
+      }),
+    { initialProps: { tasks } }
   )
 }
 
@@ -164,5 +166,46 @@ describe('useDartNestedListModel', () => {
     await act(async () => hook.result.current.toggle(PARENT.id))
     expect(listRequests()).toBe(0)
     expect(hook.result.current.canExpand(PARENT)).toBe(false)
+  })
+
+  it('expands a parent with a known empty subtaskIds when a loaded row names it as parent', () => {
+    const empty = {
+      subtaskIds: [],
+      blockerIds: [],
+      blockingIds: [],
+      duplicateIds: [],
+      relatedIds: []
+    }
+    const withLoadedChild = { ...PARENT, relationships: empty }
+    const lonely = dartTaskFixture('lonely000001', { relationships: empty })
+    const hook = mountModel([withLoadedChild, lonely, CHILD])
+
+    expect(hook.result.current.canExpand(withLoadedChild)).toBe(true)
+    expect(hook.result.current.canExpand(lonely)).toBe(false)
+  })
+
+  it('moves a cached child to its newer parent in children, rows and card counts', async () => {
+    const other = dartTaskFixture('other0000001', { title: 'Other', status: 'To-do' })
+    const hook = mountModel([PARENT, other])
+    await act(async () => hook.result.current.toggle(PARENT.id))
+    await act(async () => hook.result.current.toggle(other.id))
+    expect(hook.result.current.children(PARENT.id).data?.tasks).toEqual([CHILD])
+
+    const moved = { ...CHILD, parentId: other.id, updatedAt: '2026-01-01T00:00:00.000Z' }
+    hook.rerender({ tasks: [PARENT, other, moved] })
+
+    expect(hook.result.current.children(PARENT.id).data).toEqual({
+      tasks: [],
+      total: 0,
+      complete: true
+    })
+    expect(hook.result.current.children(other.id).data?.tasks).toEqual([moved])
+    expect(hook.result.current.rows).toEqual([
+      expect.objectContaining({ task: PARENT, depth: 0 }),
+      expect.objectContaining({ task: other, depth: 0 }),
+      { task: moved, depth: 1, parentId: other.id }
+    ])
+    expect(hook.result.current.cardInfo(PARENT.id).subtasks?.loaded).toBe(0)
+    expect(hook.result.current.cardInfo(other.id).subtasks?.loaded).toBe(1)
   })
 })

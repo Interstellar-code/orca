@@ -9,12 +9,17 @@ import {
   installFakeDartRuntime
 } from '@/store/slices/dart/dart-fake-runtime.test-support'
 import { getDartReadScope } from '@/store/slices/dart/dart-read-coordination'
-import { dartAccountIdentity, dartTaskIdentityKey } from '@/store/slices/dart/dart-task-identity'
+import {
+  dartAccountIdentity,
+  dartTaskIdentity,
+  dartTaskIdentityKey
+} from '@/store/slices/dart/dart-task-identity'
 import type { DartRelationshipCacheEntry, DartScopeMeta } from './dart-board-contracts'
 import { useDartOnHoldRelationshipReads } from './use-dart-on-hold-relationship-reads'
 
 const VIEWER_ID = 'user-a'
-const SCOPE_KEY = 'scope-a'
+let scopeKeyCounter = 0
+let SCOPE_KEY = 'scope-a'
 const realWindow = window
 
 function meta(generation: number, fetchedAt: number): DartScopeMeta {
@@ -83,11 +88,29 @@ function mountReads(initial: HookProps) {
 let readSpy: ReturnType<typeof vi.fn<(taskIds: readonly string[]) => Promise<void>>>
 
 beforeEach(() => {
+  // The attempted record is module-level, so each test needs its own scope.
+  scopeKeyCounter += 1
+  SCOPE_KEY = `scope-${scopeKeyCounter}`
   installFakeDartRuntime()
   const api = window.api
   vi.stubGlobal('window', realWindow)
   Object.assign(realWindow, { api })
-  readSpy = vi.fn(() => Promise.resolve())
+  // Like the store, a read marks its tasks as loading before it returns.
+  readSpy = vi.fn((taskIds: readonly string[]) => {
+    const pageScope = getDartReadScope(useAppStore.getState().settings)
+    useAppStore.setState((state) => ({
+      dartRelationshipCache: {
+        ...state.dartRelationshipCache,
+        ...Object.fromEntries(
+          taskIds.map((id) => [
+            dartTaskIdentityKey(dartTaskIdentity(pageScope, id, VIEWER_ID)),
+            { state: 'loading' as const, relationships: null, fetchedAt: 0, error: null }
+          ])
+        )
+      }
+    }))
+    return Promise.resolve()
+  })
   useAppStore.setState({ dartRelationshipCache: {}, readDartOnHoldRelationships: readSpy })
 })
 
@@ -116,7 +139,7 @@ describe('useDartOnHoldRelationshipReads', () => {
     expect(readSpy).toHaveBeenCalledWith(tasks.map((task) => task.id))
   })
 
-  it('reads only the tasks without a known entry in this scope, up to 20', () => {
+  it('reads the first 20 on-hold tasks of the read set even when some are already known', () => {
     const tasks = heldTasks(25)
     const pageScope = getDartReadScope(useAppStore.getState().settings)
     const own = dartAccountIdentity(pageScope, VIEWER_ID)
@@ -125,7 +148,7 @@ describe('useDartOnHoldRelationshipReads', () => {
     mountReads({ tasks, scopeMeta: meta(1, 1000) })
 
     expect(readSpy).toHaveBeenCalledTimes(1)
-    expect(readSpy).toHaveBeenCalledWith(tasks.slice(2, 22).map((task) => task.id))
+    expect(readSpy).toHaveBeenCalledWith(tasks.slice(0, 20).map((task) => task.id))
   })
 
   it('reads again for a second publication with the same fetchedAt', () => {
@@ -149,7 +172,7 @@ describe('useDartOnHoldRelationshipReads', () => {
     expect(readSpy).toHaveBeenCalledTimes(1)
   })
 
-  it('does not re-read tasks that are already known when the hook mounts on a fresh entry', () => {
+  it('reads known entries again for a partial publication whose fetchedAt is 0', () => {
     const tasks = heldTasks(3)
     const pageScope = getDartReadScope(useAppStore.getState().settings)
     const own = dartAccountIdentity(pageScope, VIEWER_ID)
@@ -159,23 +182,74 @@ describe('useDartOnHoldRelationshipReads', () => {
       tasks.map((task) => task.id)
     )
 
-    mountReads({ tasks, scopeMeta: meta(3, 1000) })
+    mountReads({ tasks, scopeMeta: meta(3, 0) })
 
-    expect(readSpy).not.toHaveBeenCalled()
+    expect(readSpy).toHaveBeenCalledTimes(1)
+    expect(readSpy).toHaveBeenCalledWith(tasks.map((task) => task.id))
   })
 
-  it('re-reads a known entry that was read before the publication', () => {
-    const tasks = heldTasks(2)
+  it('issues each overlapping publication its own first-20 reads while the first is in flight', () => {
+    readSpy.mockImplementation(() => new Promise<void>(() => {}))
+    const all = heldTasks(30)
+    const first = all.slice(0, 25)
+    const second = all.slice(5, 30)
     const pageScope = getDartReadScope(useAppStore.getState().settings)
     const own = dartAccountIdentity(pageScope, VIEWER_ID)
     cacheKnown(
       own.hostKey,
       own.accountKey,
-      tasks.map((task) => task.id)
+      all.map((task) => task.id)
     )
 
-    mountReads({ tasks, scopeMeta: meta(4, 9000) })
+    const hook = mountReads({ tasks: first, scopeMeta: meta(1, 0) })
+    hook.rerender({ tasks: second, scopeMeta: meta(2, 0) })
 
-    expect(readSpy).toHaveBeenCalledWith(tasks.map((task) => task.id))
+    expect(readSpy).toHaveBeenCalledTimes(2)
+    expect(readSpy).toHaveBeenNthCalledWith(
+      1,
+      first.slice(0, 20).map((task) => task.id)
+    )
+    expect(readSpy).toHaveBeenNthCalledWith(
+      2,
+      second.slice(0, 20).map((task) => task.id)
+    )
+  })
+
+  it('does not read the rest of the on-hold tasks when the same publication is re-selected', () => {
+    const tasks = heldTasks(45)
+    const hook = mountReads({ tasks, scopeMeta: meta(1, 1000) })
+
+    hook.rerender({ tasks: [...tasks], scopeMeta: meta(1, 1000) })
+
+    expect(readSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not re-read an attempted publication after the hook remounts', () => {
+    const tasks = heldTasks(3)
+    mountReads({ tasks, scopeMeta: meta(1, 1000) }).unmount()
+
+    mountReads({ tasks, scopeMeta: meta(1, 1000) })
+
+    expect(readSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('reads a newer publication of the same scope after a remount', () => {
+    const tasks = heldTasks(3)
+    mountReads({ tasks, scopeMeta: meta(1, 1000) }).unmount()
+
+    mountReads({ tasks, scopeMeta: meta(2, 1000) })
+
+    expect(readSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it('reads again when the store was emptied and restarts at the same generation', () => {
+    const tasks = heldTasks(2)
+    const hook = mountReads({ tasks, scopeMeta: meta(1, 1000) })
+    expect(readSpy).toHaveBeenCalledTimes(1)
+
+    useAppStore.setState({ dartRelationshipCache: {} })
+    hook.rerender({ tasks: [...tasks], scopeMeta: meta(1, 2000) })
+
+    expect(readSpy).toHaveBeenCalledTimes(2)
   })
 })

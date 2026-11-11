@@ -12,6 +12,7 @@ import { dartUpdateRequiredMessage } from '@/runtime/runtime-dart-client'
 import type { TaskPageComposerActionsModel } from '../use-task-page-composer-actions'
 import { isDartTaskFinished } from './dart-board-columns'
 import { DartBoard } from './DartBoard'
+import { effectiveDartClientFilters } from './use-dart-effective-client-filters'
 import { TaskPageDartTaskList } from './TaskList'
 import { TaskPageDartTaskDetail } from './TaskDetail'
 import { TaskPageDartCreateDialog } from './TaskCreateDialog'
@@ -58,6 +59,7 @@ export function TaskPageDartContent({
     dartBoardModel,
     dartNestedList,
     dartFilters,
+    dartRelationshipsHost,
     setDartRefreshNonce,
     getDartTaskWorkspaces,
     selectedDartTask,
@@ -153,7 +155,9 @@ export function TaskPageDartContent({
 
   const truncated =
     !dartBoardPath && !dartHasWorkspace && isDartListTruncated(dartTasks.length, dartTotalCount)
-  const clientFilterActive = hasDartClientFilter(splitDartBoardFilters(dartFilters).client)
+  const clientFilterActive = hasDartClientFilter(
+    effectiveDartClientFilters(splitDartBoardFilters(dartFilters).client, dartRelationshipsHost)
+  )
   const countLine =
     dartBoardPath && dartScopeMeta
       ? buildDartCountLine({

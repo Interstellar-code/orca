@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react'
 import { DART_ON_HOLD_READ_CAP } from '@/store/slices/dart/dart-on-hold-relationship-actions'
 
-/** Reads the next batch of unchecked tasks; ones already tried in this publication or errored go behind untried ones, so failures cannot starve the rest. */
+/** Reads the next batch of unchecked tasks: untried first, then retries least-recently-attempted first, so failures cycle instead of starving the rest. */
 export function useDartOnHoldCheckMore(args: {
   unchecked: readonly string[] | undefined
   errored: ReadonlySet<string> | undefined
@@ -9,22 +9,27 @@ export function useDartOnHoldCheckMore(args: {
   read(taskIds: string[]): Promise<void>
 }): (() => void) | undefined {
   const { unchecked, errored, publication, read } = args
-  const attempted = useRef({ publication: '', ids: new Set<string>() })
+  const attempts = useRef({ publication: '', sequence: 0, lastById: new Map<string, number>() })
   return useMemo(
     () =>
       unchecked && errored
         ? (): void => {
-            if (attempted.current.publication !== publication) {
-              attempted.current = { publication, ids: new Set() }
+            if (attempts.current.publication !== publication) {
+              attempts.current = { publication, sequence: 0, lastById: new Map() }
             }
-            const { ids } = attempted.current
-            const isRetry = (id: string): boolean => ids.has(id) || errored.has(id)
-            const batch = [
-              ...unchecked.filter((id) => !isRetry(id)),
-              ...unchecked.filter(isRetry)
-            ].slice(0, DART_ON_HOLD_READ_CAP)
+            const { lastById } = attempts.current
+            const isRetry = (id: string): boolean => lastById.has(id) || errored.has(id)
+            // Array.sort is stable, so never-attempted retries (errored by the automatic read) keep read order.
+            const retries = unchecked
+              .filter(isRetry)
+              .sort((a, b) => (lastById.get(a) ?? -1) - (lastById.get(b) ?? -1))
+            const batch = [...unchecked.filter((id) => !isRetry(id)), ...retries].slice(
+              0,
+              DART_ON_HOLD_READ_CAP
+            )
             for (const id of batch) {
-              ids.add(id)
+              attempts.current.sequence += 1
+              lastById.set(id, attempts.current.sequence)
             }
             void read(batch)
           }
