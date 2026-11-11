@@ -5,6 +5,7 @@ import type { TaskSourceContext } from '../../../../../shared/task-source-contex
 import type { Worktree } from '../../../../../shared/worktree/types'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { translate } from '@/i18n/i18n'
+import type { DartOpenTask } from './dart-board-contracts'
 import { DartTaskDetailView } from './TaskDetailView'
 import { useDartTaskDetailData } from './use-dart-task-detail-data'
 
@@ -24,6 +25,7 @@ export function TaskPageDartTaskDetail({
   onUse: (task: DartTask) => void
   onClose: () => void
   onOpenWorkspace: (workspace: Worktree) => void
+  onOpenTask?: DartOpenTask
 }): React.JSX.Element {
   const data = useDartTaskDetailData(task, sourceContext, providerRuntimeContextKey)
   const { runCloseGuards } = data

@@ -9,11 +9,12 @@ import {
   installFakeDartRuntime,
   type FakeDartHost
 } from '@/store/slices/dart/dart-fake-runtime.test-support'
-import { getDartReadScope } from '@/store/slices/dart/dart-read-coordination'
-import { dartAccountIdentity } from '@/store/slices/dart/dart-task-identity'
+import { getDartReadScope, scopedDartCacheKey } from '@/store/slices/dart/dart-read-coordination'
+import { dartAccountIdentity, dartTaskIdentityKey } from '@/store/slices/dart/dart-task-identity'
 import type {
   DartBoardFeatures,
   DartClientFilters,
+  DartRelationshipCacheEntry,
   DartServerFilters
 } from './dart-board-contracts'
 import { useDartBoardModel } from './use-dart-board-model'
@@ -23,6 +24,7 @@ const VIEWER = { id: 'user-a', name: 'Alex Example' }
 const SERVER_FILTERS: DartServerFilters = { mine: false, dartboard: null, search: '' }
 const CLIENT_FILTERS: DartClientFilters = { status: null, tag: null, priority: null, onHold: false }
 const FEATURES: DartBoardFeatures = { board: true, savedViews: true }
+const RELATIONSHIPS_FEATURES: DartBoardFeatures = { ...FEATURES, relationships: true }
 const CONFIG: DartWorkspaceConfig = {
   dartboards: ['Board A'],
   statuses: ['To-do', 'Doing', 'Done'],
@@ -79,6 +81,7 @@ async function openScope(tasks: DartTask[]) {
     dartListCache: {},
     dartScopeMetaCache: {},
     dartMountedScopeKey: null,
+    dartRelationshipCache: {},
     dartStatus: { connected: true, viewer: VIEWER },
     dartStatusChecked: true,
     dartStatusContextKey: scope.contextKey
@@ -98,6 +101,8 @@ function mountModel(
     layout?: 'list' | 'board'
     pinnedRows?: ReadonlyMap<string, PinnedDartRow>
     clientFilters?: DartClientFilters
+    features?: DartBoardFeatures
+    nested?: boolean
   } = {}
 ) {
   return renderHook(
@@ -109,8 +114,9 @@ function mountModel(
         serverFilters: SERVER_FILTERS,
         clientFilters: overrides.clientFilters ?? CLIENT_FILTERS,
         showEmptyColumns: false,
+        nested: overrides.nested ?? false,
         config: CONFIG,
-        features: FEATURES,
+        features: overrides.features ?? FEATURES,
         hostKey: account.hostKey,
         accountKey: account.accountKey,
         pinnedRows: props.pinnedRows,
@@ -124,6 +130,35 @@ function columnIds(hook: ReturnType<typeof mountModel>, status: string): string[
   return hook.result.current.columns
     .find((column) => column.status === status)
     ?.tasks.map((task) => task.id)
+}
+
+function relationshipEntry(
+  state: DartRelationshipCacheEntry['state'],
+  blockerIds: string[] = []
+): DartRelationshipCacheEntry {
+  return {
+    state,
+    relationships:
+      state === 'known'
+        ? { subtaskIds: [], blockerIds, blockingIds: [], duplicateIds: [], relatedIds: [] }
+        : null,
+    fetchedAt: T0,
+    error: null
+  }
+}
+
+function cacheRelationships(
+  account: { hostKey: string; accountKey: string },
+  entries: Record<string, DartRelationshipCacheEntry>
+): void {
+  useAppStore.setState({
+    dartRelationshipCache: Object.fromEntries(
+      Object.entries(entries).map(([taskId, entry]) => [
+        dartTaskIdentityKey({ ...account, taskId }),
+        entry
+      ])
+    )
+  })
 }
 
 beforeEach(() => {
@@ -325,6 +360,130 @@ describe('useDartBoardModel', () => {
       act(() => hook.result.current.doneMore.retry())
       await waitFor(() => expect(hook.result.current.doneMore.state).toBe('ready'))
       expect(hook.result.current.hasMoreDone).toBe(false)
+    })
+  })
+
+  describe('relationships', () => {
+    it('marks an on-hold card without data as not checked and counts blockers from a known entry', async () => {
+      const unread = openTask('unread', 'On Hold')
+      const blocked = openTask('blocked', 'On Hold')
+      const plain = openTask('plain')
+      const { scopeKey, account } = await openScope([unread, blocked, plain])
+      cacheRelationships(account, { [blocked.id]: relationshipEntry('known', ['b1', 'b2']) })
+      const hook = mountModel(scopeKey, account, { features: RELATIONSHIPS_FEATURES })
+
+      expect(hook.result.current.cardInfo(unread.id)).toMatchObject({
+        relationshipState: 'notChecked',
+        blockedBy: null
+      })
+      expect(hook.result.current.cardInfo(blocked.id)).toMatchObject({
+        relationshipState: 'known',
+        blockedBy: 2,
+        blocking: 0
+      })
+      expect(hook.result.current.cardInfo(plain.id)).not.toHaveProperty('relationshipState')
+    })
+
+    it('keeps blocked and not-checked on-hold tasks under the blocked-on-hold filter and drops known-unblocked ones', async () => {
+      const blocked = openTask('blocked', 'On Hold')
+      const unblocked = openTask('unblocked', 'On Hold')
+      const unread = openTask('unread', 'On Hold')
+      const plain = openTask('plain')
+      const { scopeKey, account } = await openScope([blocked, unblocked, unread, plain])
+      cacheRelationships(account, {
+        [blocked.id]: relationshipEntry('known', ['b1']),
+        [unblocked.id]: relationshipEntry('known')
+      })
+      const clientFilters = { ...CLIENT_FILTERS, blockedOnHold: true }
+      const hook = mountModel(scopeKey, account, {
+        features: RELATIONSHIPS_FEATURES,
+        clientFilters
+      })
+
+      expect(columnIds(hook, 'On Hold')).toEqual([blocked.id, unread.id])
+      expect(columnIds(hook, 'To-do')).toBeUndefined()
+
+      act(() =>
+        cacheRelationships(account, {
+          [blocked.id]: relationshipEntry('known', ['b1']),
+          [unblocked.id]: relationshipEntry('known'),
+          [unread.id]: relationshipEntry('known')
+        })
+      )
+      expect(columnIds(hook, 'On Hold')).toEqual([blocked.id])
+    })
+
+    it('renders exactly as release A on a host without relationships', async () => {
+      const onHold = openTask('hold', 'On Hold')
+      const { scopeKey, account } = await openScope([onHold])
+      cacheRelationships(account, { [onHold.id]: relationshipEntry('known', ['b1']) })
+      const hook = mountModel(scopeKey, account)
+
+      expect(hook.result.current.cardInfo(onHold.id)).toEqual({ task: onHold, onHold: true })
+      expect(hook.result.current).not.toHaveProperty('notChecked')
+      expect(hook.result.current.checkMore).toBeUndefined()
+    })
+
+    it('leaves subtasks out of the columns when nested and counts the loaded ones on the parent', async () => {
+      const parent = openTask('parent')
+      const child = { ...openTask('child'), parentId: parent.id }
+      const { scopeKey, account } = await openScope([parent, child])
+      const nested = mountModel(scopeKey, account, {
+        features: RELATIONSHIPS_FEATURES,
+        nested: true
+      })
+
+      expect(columnIds(nested, 'To-do')).toEqual([parent.id])
+      expect(nested.result.current.cardInfo(parent.id).subtasks).toEqual({
+        loaded: 1,
+        total: null
+      })
+
+      const flat = mountModel(scopeKey, account, { features: RELATIONSHIPS_FEATURES })
+      expect(columnIds(flat, 'To-do')).toEqual([parent.id, child.id])
+      expect(flat.result.current.cardInfo(parent.id).subtasks).toBeUndefined()
+    })
+
+    it('adds a stored children entry to the parent count without double counting scope rows', async () => {
+      const parent = openTask('parent')
+      const inScope = { ...openTask('inscope'), parentId: parent.id }
+      const onlyStored = { ...openTask('stored'), parentId: parent.id }
+      const { scopeKey, account, scope } = await openScope([parent, inScope])
+      const childrenKey = scopedDartCacheKey(scope, `list::children::${parent.id}`)
+      useAppStore.setState((state) => ({
+        dartListCache: {
+          ...state.dartListCache,
+          [childrenKey]: { data: { tasks: [inScope, onlyStored], totalCount: 2 }, fetchedAt: T0 }
+        }
+      }))
+      const hook = mountModel(scopeKey, account, { features: RELATIONSHIPS_FEATURES, nested: true })
+
+      expect(hook.result.current.cardInfo(parent.id).subtasks).toEqual({ loaded: 2, total: null })
+    })
+
+    it('checks the next 20 not-checked on-hold tasks in read order', async () => {
+      const held = Array.from({ length: 25 }, (_, index) =>
+        openTask(`held${String(index).padStart(2, '0')}-`, 'On Hold')
+      )
+      const { scopeKey, account } = await openScope([openTask('plain'), ...held])
+      cacheRelationships(account, { [held[0].id]: relationshipEntry('known') })
+      const readSpy = vi.fn(() => Promise.resolve())
+      useAppStore.setState({ readDartOnHoldRelationships: readSpy })
+      const hook = mountModel(scopeKey, account, { features: RELATIONSHIPS_FEATURES })
+
+      expect(hook.result.current.notChecked).toBe(24)
+      act(() => hook.result.current.checkMore?.())
+      expect(readSpy).toHaveBeenLastCalledWith(held.slice(1, 21).map((task) => task.id))
+
+      act(() =>
+        cacheRelationships(
+          account,
+          Object.fromEntries(held.slice(0, 21).map((task) => [task.id, relationshipEntry('known')]))
+        )
+      )
+      expect(hook.result.current.notChecked).toBe(4)
+      act(() => hook.result.current.checkMore?.())
+      expect(readSpy).toHaveBeenLastCalledWith(held.slice(21).map((task) => task.id))
     })
   })
 })
