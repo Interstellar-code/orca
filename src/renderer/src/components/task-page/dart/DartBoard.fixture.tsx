@@ -4,8 +4,12 @@ import { dartTaskIdentityKey } from '@/store/slices/dart/dart-task-identity'
 import { defineFixture } from '../../../component-fixtures/component-fixture'
 import { DartBoard } from './DartBoard'
 import { buildDartBoardColumns, buildDartCardInfo } from './dart-board-columns'
-import type { DartBoardModel, DartScopeMeta } from './dart-board-contracts'
-import { fixtureBoardConfig, fixtureBoardTasks } from './dart-task.mock'
+import type {
+  DartBoardModel,
+  DartRelationshipCacheEntry,
+  DartScopeMeta
+} from './dart-board-contracts'
+import { fixtureBlockedOnHold, fixtureBoardConfig, fixtureBoardTasks } from './dart-task.mock'
 import { writes } from './dart-task-write-state'
 
 const HOST_KEY = 'local'
@@ -213,4 +217,69 @@ export const large = defineFixture({
   )
 })
 
-export { emptyColumns as 'empty-columns', unknownOutcome as 'unknown-outcome' }
+function relationshipModel(
+  tasks: readonly DartTask[],
+  entryFor: (task: DartTask) => DartRelationshipCacheEntry | undefined
+): DartBoardModel {
+  return {
+    ...buildModel(tasks, fixtureBoardConfig),
+    cardInfo: (taskId) => {
+      const task = tasks.find((candidate) => candidate.id === taskId) ?? tasks[0]
+      return buildDartCardInfo(task, entryFor(task))
+    }
+  }
+}
+
+const blockedTask: DartTask = {
+  ...fixtureBlockedOnHold,
+  relationships: {
+    subtaskIds: [],
+    blockerIds: ['aaaaaaaaaaaa', 'bbbbbbbbbbbb'],
+    blockingIds: ['cccccccccccc'],
+    duplicateIds: [],
+    relatedIds: []
+  }
+}
+
+export const blockers = defineFixture({
+  width: 1100,
+  render: () => (
+    <div className="bg-background p-5 text-foreground">
+      <DartBoard
+        model={relationshipModel([blockedTask, ...fixtureBoardTasks.slice(0, 2)], (task) =>
+          task.id === blockedTask.id
+            ? {
+                state: 'known',
+                relationships: task.relationships ?? null,
+                fetchedAt: 1,
+                error: null
+              }
+            : undefined
+        )}
+        selectedTaskId={null}
+      />
+    </div>
+  )
+})
+
+const notChecked = defineFixture({
+  width: 1100,
+  render: () => (
+    <div className="bg-background p-5 text-foreground">
+      <DartBoard
+        model={relationshipModel(fixtureBoardTasks, (task) =>
+          task.status === 'On hold' || task.tags.includes('on-hold')
+            ? { state: 'notChecked', relationships: null, fetchedAt: 0, error: null }
+            : undefined
+        )}
+        selectedTaskId={null}
+      />
+    </div>
+  )
+})
+
+export {
+  notChecked as 'not-checked',
+  emptyColumns as 'empty-columns',
+  unknownOutcome as 'unknown-outcome'
+}

@@ -18922,7 +18922,11 @@
             },
             "DartBoardCard": {
               "moveTo": "Move “{{title}}” to…",
-              "moreTags": "+{{count}}"
+              "moreTags": "+{{count}}",
+              "subtasks": "Subtasks {{count}}",
+              "blockedBy": "Blocked by {{count}}",
+              "blocking": "Blocking {{count}}",
+              "blockersNotChecked": "Blockers not checked"
             },
             "DartBoardColumn": {
               "noStatus": "No status",

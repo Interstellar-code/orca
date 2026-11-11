@@ -8,8 +8,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DartTask } from '../../../../../shared/dart/dart-types'
 import { DART_BOARD_DRAG_TASK_MIME } from '@/lib/dart-board-drag-payload'
 import { buildDartBoardColumns, buildDartCardInfo } from './dart-board-columns'
-import type { DartBoardModel } from './dart-board-contracts'
-import { fixtureBoardConfig, fixtureBoardTasks } from './dart-task.mock'
+import type { DartBoardModel, DartRelationshipCacheEntry } from './dart-board-contracts'
+import { fixtureBlockedOnHold, fixtureBoardConfig, fixtureBoardTasks } from './dart-task.mock'
 import { writes } from './dart-task-write-state'
 import { enqueueDartTaskWrite } from './dart-task-write-queue'
 import { DartBoard } from './DartBoard'
@@ -297,5 +297,102 @@ describe('DartBoard more finished', () => {
 
     expect(screen.getByText('No tasks match these filters.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Show 50 more finished' })).toBeInTheDocument()
+  })
+})
+
+describe('DartBoard card markers', () => {
+  const onHold = fixtureBlockedOnHold
+  const plain = TASKS.find((task) => task.status === 'Done') ?? TASKS[0]
+
+  function modelWith(
+    tasks: readonly DartTask[],
+    entries: ReadonlyMap<string, DartRelationshipCacheEntry>
+  ): DartBoardModel {
+    return {
+      ...makeModel(tasks, vi.fn()),
+      cardInfo: (id) => {
+        const task = tasks.find((candidate) => candidate.id === id) ?? tasks[0]
+        return buildDartCardInfo(task, entries.get(id))
+      }
+    }
+  }
+
+  const known = (task: DartTask): DartRelationshipCacheEntry => ({
+    state: 'known',
+    relationships: task.relationships ?? null,
+    fetchedAt: 1,
+    error: null
+  })
+
+  it('labels a blocked card "Blocked by N"', () => {
+    const entries = new Map([[onHold.id, known(onHold)]])
+    render(<DartBoard model={modelWith([onHold], entries)} selectedTaskId={null} />)
+
+    expect(screen.getByRole('img', { name: 'Blocked by 1' })).toBeInTheDocument()
+    expect(screen.queryByText('Blockers not checked')).not.toBeInTheDocument()
+  })
+
+  it('shows both counts on a card that blocks and is blocked', () => {
+    const both: DartTask = {
+      ...onHold,
+      relationships: {
+        subtaskIds: [],
+        blockerIds: ['a', 'b'],
+        blockingIds: ['c'],
+        duplicateIds: [],
+        relatedIds: []
+      }
+    }
+    render(
+      <DartBoard
+        model={modelWith([both], new Map([[both.id, known(both)]]))}
+        selectedTaskId={null}
+      />
+    )
+
+    expect(screen.getByRole('img', { name: 'Blocked by 2' })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Blocking 1' })).toBeInTheDocument()
+  })
+
+  it('shows the subtask count from the loaded children', () => {
+    const model = {
+      ...makeModel([plain], vi.fn()),
+      cardInfo: () => ({
+        ...buildDartCardInfo(plain),
+        subtasks: { loaded: 2, total: 3 }
+      })
+    }
+    render(<DartBoard model={model} selectedTaskId={null} />)
+
+    expect(screen.getByLabelText('Subtasks 3')).toBeInTheDocument()
+  })
+
+  it('says "Blockers not checked" on an on-hold card only', () => {
+    const entries = new Map<string, DartRelationshipCacheEntry>([
+      [onHold.id, { state: 'notChecked', relationships: null, fetchedAt: 0, error: null }]
+    ])
+    render(<DartBoard model={modelWith([onHold, plain], entries)} selectedTaskId={null} />)
+
+    expect(screen.getAllByText('Blockers not checked')).toHaveLength(1)
+    const doneCard = screen.getByText(plain.title).closest('[data-dart-card-id]') as HTMLElement
+    expect(within(doneCard).queryByText('Blockers not checked')).not.toBeInTheDocument()
+  })
+
+  it('says "Blockers not checked" on an on-hold card whose relationship fetch errored', () => {
+    const entries = new Map<string, DartRelationshipCacheEntry>([
+      [onHold.id, { state: 'error', relationships: null, fetchedAt: 0, error: 'boom' }],
+      [plain.id, { state: 'error', relationships: null, fetchedAt: 0, error: 'boom' }]
+    ])
+    render(<DartBoard model={modelWith([onHold, plain], entries)} selectedTaskId={null} />)
+
+    expect(screen.getAllByText('Blockers not checked')).toHaveLength(1)
+  })
+
+  it('renders no markers on a host without relationships', () => {
+    render(<DartBoard model={modelWith([onHold, plain], new Map())} selectedTaskId={null} />)
+
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+    expect(screen.queryByText('Blockers not checked')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^Subtasks/)).not.toBeInTheDocument()
   })
 })

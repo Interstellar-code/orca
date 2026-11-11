@@ -13,6 +13,7 @@ import type { TaskPageComposerActionsModel } from '../use-task-page-composer-act
 import { isDartTaskFinished } from './dart-board-columns'
 import { DartBoard } from './DartBoard'
 import { effectiveDartClientFilters } from './use-dart-effective-client-filters'
+import { DartCardMarkers } from './DartCardMarkers'
 import { TaskPageDartTaskList } from './TaskList'
 import { TaskPageDartTaskDetail } from './TaskDetail'
 import { TaskPageDartCreateDialog } from './TaskCreateDialog'
@@ -209,13 +210,7 @@ export function TaskPageDartContent({
             <>
               {' · '}
               {notCheckedText}{' '}
-              <Button
-                type="button"
-                variant="link"
-                size="chip"
-                className="text-2xs"
-                onClick={checkMore}
-              >
+              <Button type="button" variant="link" size="chip" onClick={checkMore}>
                 {translate('auto.components.task.page.dart.Content.checkMore', 'Check')}
               </Button>
             </>
@@ -332,6 +327,11 @@ export function TaskPageDartContent({
           <TaskPageDartTaskList
             tasks={dartTasks}
             nested={dartNestedList.nested ? dartNestedList : undefined}
+            rowMarkers={
+              dartRelationshipsHost
+                ? (task) => <DartCardMarkers info={dartNestedList.cardInfo(task.id)} />
+                : undefined
+            }
             selectedTaskId={selectedDartTask?.id ?? null}
             getTaskWorkspaces={getDartTaskWorkspaces}
             onOpenTask={openDartDetailPage}
