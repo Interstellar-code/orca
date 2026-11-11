@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { DartTask, DartWorkspaceConfig } from '../../../../../shared/dart/dart-types'
+import type {
+  DartTask,
+  DartTaskRelationships,
+  DartWorkspaceConfig
+} from '../../../../../shared/dart/dart-types'
 import {
   applyDartBoardFilters,
   buildDartBoardColumns,
@@ -8,7 +12,7 @@ import {
   isDartTaskFinished,
   isDartTaskOnHold
 } from './dart-board-columns'
-import type { DartClientFilters } from './dart-board-contracts'
+import type { DartClientFilters, DartRelationshipCacheEntry } from './dart-board-contracts'
 
 function task(id: string, overrides: Partial<DartTask> = {}): DartTask {
   return {
@@ -323,5 +327,163 @@ describe('applyDartBoardFilters', () => {
     applyDartBoardFilters(input, { ...noFilters, status: 'Doing' })
     expect(input).toEqual(tasks)
     expect(input).toHaveLength(4)
+  })
+})
+
+describe('nested board columns', () => {
+  const cfg = config({ statuses: ['Doing'] })
+  const tasks = [
+    task('p', { status: 'Doing' }),
+    task('c1', { status: 'Doing', parentId: 'p' }),
+    task('c2', { status: 'Doing', parentId: 'p' })
+  ]
+
+  it('keeps every task a card when nested is false or absent', () => {
+    for (const opts of [hidden, { ...hidden, nested: false }]) {
+      expect(buildDartBoardColumns(tasks, cfg, opts)[0].tasks.map((t) => t.id)).toEqual([
+        'p',
+        'c1',
+        'c2'
+      ])
+    }
+  })
+
+  it('leaves out every task with a parentId when nested is true', () => {
+    const columns = buildDartBoardColumns(tasks, cfg, { ...hidden, nested: true })
+    expect(columns[0].tasks.map((t) => t.id)).toEqual(['p'])
+    expect(columns[0].count).toBe(1)
+  })
+
+  it('counts the loaded subtasks on the parent card', () => {
+    expect(buildDartCardInfo(tasks[0], undefined, tasks.slice(1)).subtasks).toEqual({
+      loaded: 2,
+      total: null
+    })
+  })
+})
+
+function relationshipEntry(
+  state: DartRelationshipCacheEntry['state'],
+  overrides: Partial<DartTaskRelationships> | null = {}
+): DartRelationshipCacheEntry {
+  return {
+    state,
+    relationships: overrides
+      ? {
+          subtaskIds: [],
+          blockerIds: [],
+          blockingIds: [],
+          duplicateIds: [],
+          relatedIds: [],
+          ...overrides
+        }
+      : null,
+    fetchedAt: 1,
+    error: state === 'error' ? 'boom' : null
+  }
+}
+
+describe('buildDartCardInfo relationships', () => {
+  const held = task('h', { status: 'On hold' })
+
+  it('returns exactly the release A card without relationships or children', () => {
+    expect(buildDartCardInfo(held)).toStrictEqual({ task: held, onHold: true })
+  })
+
+  it('counts blockers and blocking for a known on-hold task', () => {
+    const blocked = buildDartCardInfo(held, relationshipEntry('known', { blockerIds: ['x', 'y'] }))
+    expect([blocked.relationshipState, blocked.blockedBy, blocked.blocking]).toEqual([
+      'known',
+      2,
+      0
+    ])
+    const blocking = buildDartCardInfo(held, relationshipEntry('known', { blockingIds: ['z'] }))
+    expect([blocking.blockedBy, blocking.blocking]).toEqual([0, 1])
+    const both = buildDartCardInfo(
+      held,
+      relationshipEntry('known', { blockerIds: ['x'], blockingIds: ['y', 'z'] })
+    )
+    expect([both.blockedBy, both.blocking]).toEqual([1, 2])
+  })
+
+  it('reports null counts, never 0, when not known', () => {
+    for (const state of ['notChecked', 'loading', 'error'] as const) {
+      const info = buildDartCardInfo(held, relationshipEntry(state, null))
+      expect([info.relationshipState, info.blockedBy, info.blocking]).toEqual([state, null, null])
+    }
+  })
+
+  it('ignores the relationships entry on a task that is not on hold', () => {
+    const info = buildDartCardInfo(
+      task('n', { status: 'Doing' }),
+      relationshipEntry('known', { blockerIds: ['x'] })
+    )
+    expect(info).toStrictEqual({
+      task: info.task,
+      onHold: false,
+      subtasks: { loaded: 0, total: 0 }
+    })
+  })
+
+  it('takes the subtask total from subtaskIds when known', () => {
+    const child = task('c', { parentId: 'h' })
+    const info = buildDartCardInfo(
+      held,
+      relationshipEntry('known', { subtaskIds: ['c', 'd', 'e'] }),
+      [child]
+    )
+    expect(info.subtasks).toEqual({ loaded: 1, total: 3 })
+  })
+})
+
+describe('applyDartBoardFilters blockedOnHold', () => {
+  const blockedFilter: DartClientFilters = { ...noFilters, blockedOnHold: true }
+  const blocked = task('blocked', { status: 'On hold' })
+  const unblocked = task('unblocked', { status: 'On hold' })
+  const missing = task('missing', { status: 'On hold' })
+  const notChecked = task('notChecked', { tags: ['on-hold'] })
+  const loading = task('loading', { tags: ['on-hold'] })
+  const failed = task('failed', { tags: ['on-hold'] })
+  const knownNull = task('knownNull', { tags: ['on-hold'] })
+  const active = task('active', { status: 'Doing' })
+  const activeBlocked = task('activeBlocked', { status: 'Doing' })
+  const relationships = new Map<string, DartRelationshipCacheEntry>([
+    ['blocked', relationshipEntry('known', { blockerIds: ['x'] })],
+    ['unblocked', relationshipEntry('known', { blockingIds: ['x'] })],
+    ['notChecked', relationshipEntry('notChecked', null)],
+    ['loading', relationshipEntry('loading', null)],
+    ['failed', relationshipEntry('error', null)],
+    ['knownNull', relationshipEntry('known', null)],
+    ['activeBlocked', relationshipEntry('known', { blockerIds: ['x'] })]
+  ])
+
+  it('keeps blocked and not-checked on-hold tasks, drops known-unblocked and non-on-hold', () => {
+    const all = [
+      blocked,
+      unblocked,
+      missing,
+      notChecked,
+      loading,
+      failed,
+      knownNull,
+      active,
+      activeBlocked
+    ]
+    expect(applyDartBoardFilters(all, blockedFilter, relationships).map((t) => t.id)).toEqual([
+      'blocked',
+      'missing',
+      'notChecked',
+      'loading',
+      'failed',
+      'knownNull'
+    ])
+  })
+
+  it('has no effect when blockedOnHold is absent or false', () => {
+    const all = [unblocked, active]
+    expect(applyDartBoardFilters(all, noFilters, relationships)).toEqual(all)
+    expect(
+      applyDartBoardFilters(all, { ...noFilters, blockedOnHold: false }, relationships)
+    ).toEqual(all)
   })
 })

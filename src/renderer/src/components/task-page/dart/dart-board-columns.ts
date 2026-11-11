@@ -1,5 +1,10 @@
 import type { DartTask, DartWorkspaceConfig } from '../../../../../shared/dart/dart-types'
-import type { DartBoardColumn, DartCardInfo, DartClientFilters } from './dart-board-contracts'
+import type {
+  DartBoardColumn,
+  DartCardInfo,
+  DartClientFilters,
+  DartRelationshipCacheEntry
+} from './dart-board-contracts'
 
 const ON_HOLD_STATUS = 'on hold'
 const ON_HOLD_TAG = 'on-hold'
@@ -43,7 +48,7 @@ function orderColumnTasks(tasks: readonly DartTask[]): DartTask[] {
 export function buildDartBoardColumns(
   tasks: readonly DartTask[],
   config: DartWorkspaceConfig,
-  opts: { showEmptyColumns: boolean }
+  opts: { showEmptyColumns: boolean; nested?: boolean }
 ): DartBoardColumn[] {
   const configStatuses = new Map<string, string>()
   for (const status of config.statuses) {
@@ -59,6 +64,9 @@ export function buildDartBoardColumns(
   const extras: string[] = []
   const noStatus: DartTask[] = []
   for (const task of tasks) {
+    if (opts.nested && task.parentId) {
+      continue
+    }
     if (!task.status) {
       noStatus.push(task)
       continue
@@ -102,13 +110,53 @@ export function buildDartBoardColumns(
   return columns
 }
 
-export function buildDartCardInfo(task: DartTask): DartCardInfo {
-  return { task, onHold: isDartTaskOnHold(task) }
+export function buildDartCardInfo(
+  task: DartTask,
+  relationships?: DartRelationshipCacheEntry,
+  loadedChildren?: readonly DartTask[]
+): DartCardInfo {
+  const onHold = isDartTaskOnHold(task)
+  if (!relationships && !loadedChildren) {
+    return { task, onHold }
+  }
+  const known = relationships?.state === 'known' ? relationships.relationships : null
+  // Markers are on-hold only (D14); a blocker count is never 0 unless it was actually read.
+  const markers =
+    onHold && relationships
+      ? {
+          relationshipState: relationships.state,
+          blockedBy: known ? known.blockerIds.length : null,
+          blocking: known ? known.blockingIds.length : null
+        }
+      : {}
+  // Totals come from subtaskIds when known (D13.5), else only the loaded count is shown.
+  const subtasks = known
+    ? { loaded: loadedChildren?.length ?? 0, total: known.subtaskIds.length }
+    : loadedChildren
+      ? { loaded: loadedChildren.length, total: null }
+      : undefined
+  return { task, onHold, ...markers, ...(subtasks ? { subtasks } : {}) }
+}
+
+// On-hold with no read result stays visible: it may be blocked.
+function isOnHoldBlockedOrUnchecked(
+  task: DartTask,
+  relationships: ReadonlyMap<string, DartRelationshipCacheEntry> | undefined
+): boolean {
+  if (!isDartTaskOnHold(task)) {
+    return false
+  }
+  const entry = relationships?.get(task.id)
+  if (entry?.state !== 'known' || !entry.relationships) {
+    return true
+  }
+  return entry.relationships.blockerIds.length > 0
 }
 
 export function applyDartBoardFilters(
   tasks: readonly DartTask[],
-  filters: DartClientFilters
+  filters: DartClientFilters,
+  relationships?: ReadonlyMap<string, DartRelationshipCacheEntry>
 ): DartTask[] {
   const status = filters.status === null ? null : fold(filters.status)
   const tag = filters.tag === null ? null : fold(filters.tag)
@@ -118,6 +166,7 @@ export function applyDartBoardFilters(
       (status === null || fold(task.status) === status) &&
       (tag === null || task.tags.some((value) => fold(value) === tag)) &&
       (priority === null || fold(task.priority) === priority) &&
-      (!filters.onHold || isDartTaskOnHold(task))
+      (!filters.onHold || isDartTaskOnHold(task)) &&
+      (!filters.blockedOnHold || isOnHoldBlockedOrUnchecked(task, relationships))
   )
 }
