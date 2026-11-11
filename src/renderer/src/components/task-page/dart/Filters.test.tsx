@@ -1,12 +1,17 @@
 // @vitest-environment happy-dom
 import '@testing-library/jest-dom/vitest'
 
-import { cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DartWorkspaceConfig } from '../../../../../shared/dart/dart-types'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { TaskPageDartFiltersView, type TaskPageDartFiltersProps } from './Filters'
+import type { DartSavedViewsModel } from './dart-board-contracts'
+import {
+  TaskPageDartFiltersView,
+  type DartFiltersBoardControls,
+  type TaskPageDartFiltersProps
+} from './Filters'
 
 const config: DartWorkspaceConfig = {
   dartboards: ['Example/Platform'],
@@ -18,7 +23,10 @@ const config: DartWorkspaceConfig = {
   assignees: []
 }
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
+})
 
 /** The real filters row, so the New task button is the one the page renders. */
 function renderFilters(overrides: Partial<TaskPageDartFiltersProps> = {}): void {
@@ -60,5 +68,146 @@ describe('Dart filters new task button', () => {
     renderFilters({ newTaskDisabled: true })
 
     expect(screen.getByRole('button', { name: 'New task' })).toHaveProperty('disabled', true)
+  })
+})
+
+const boardConfig: DartWorkspaceConfig = {
+  ...config,
+  statuses: ['To-do', 'On hold'],
+  tags: ['backend'],
+  priorities: ['high']
+}
+
+const savedViews: DartSavedViewsModel = {
+  views: [],
+  activeViewId: null,
+  modified: false,
+  load: { state: 'ready', data: null, error: null, retry: () => {} },
+  pending: false,
+  supported: true,
+  apply: async () => true,
+  saveCurrent: async () => true,
+  saveAsNew: async () => true,
+  rename: async () => true,
+  remove: async () => true
+}
+
+function boardControls(
+  overrides: Partial<DartFiltersBoardControls> = {}
+): DartFiltersBoardControls {
+  return {
+    layout: 'list',
+    onLayoutChange: () => {},
+    listOnly: false,
+    switchDisabledReason: null,
+    showEmptyColumns: false,
+    onShowEmptyColumnsChange: () => {},
+    relationshipsHost: true,
+    nestSubtasks: true,
+    onNestSubtasksChange: () => {},
+    fetchedAt: null,
+    savedViews,
+    ...overrides
+  }
+}
+
+describe('Dart filters board controls', () => {
+  it('switches layout and keeps the filter row', async () => {
+    const user = userEvent.setup()
+    const onLayoutChange = vi.fn()
+    renderFilters({ config: boardConfig, board: boardControls({ onLayoutChange }) })
+
+    await user.click(screen.getByRole('radio', { name: 'Board' }))
+
+    expect(onLayoutChange).toHaveBeenCalledWith('board')
+    expect(screen.getByRole('combobox', { name: 'Tag' })).toBeTruthy()
+    expect(screen.getByRole('combobox', { name: 'Priority' })).toBeTruthy()
+  })
+
+  it.each([
+    ['linked', 'Turn off linked tasks to use the board'],
+    ['oldHost', 'Update the remote Orca server to use the board']
+  ] as const)('disables the switch with its tooltip when %s', async (reason, tooltip) => {
+    const user = userEvent.setup()
+    const onLayoutChange = vi.fn()
+    renderFilters({
+      config: boardConfig,
+      board: boardControls({ switchDisabledReason: reason, listOnly: true, onLayoutChange })
+    })
+
+    // The tooltip trigger is the wrapper span: a disabled group never receives pointer events.
+    act(() => screen.getByRole('radiogroup', { name: 'Dart layout' }).parentElement?.focus())
+    expect((await screen.findAllByText(tooltip)).length).toBeGreaterThan(0)
+    await user.click(screen.getByRole('radio', { name: 'Board' }))
+
+    expect(onLayoutChange).not.toHaveBeenCalled()
+    expect(screen.queryByRole('combobox', { name: 'Tag' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'On hold' })).toBeNull()
+  })
+
+  it('offers the On hold chip only when /config has the status or the tag', async () => {
+    const user = userEvent.setup()
+    const onFilterChange = vi.fn()
+    cleanup()
+    renderFilters({ board: boardControls() })
+    expect(screen.queryByRole('button', { name: 'On hold' })).toBeNull()
+    cleanup()
+    renderFilters({ config: boardConfig, onFilterChange, board: boardControls() })
+
+    await user.click(screen.getByRole('button', { name: 'On hold' }))
+
+    expect(onFilterChange).toHaveBeenCalledWith('onHold', true)
+  })
+
+  it('shows "Show empty columns" only in the board layout and the data age beside refresh', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    renderFilters({
+      config: boardConfig,
+      board: boardControls({ layout: 'board', fetchedAt: Date.now() - 5 * 60_000 })
+    })
+
+    expect(screen.getByRole('switch', { name: 'Show empty columns' })).toBeTruthy()
+    expect(screen.getByText(/^Updated .*ago$/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Has Workspace' })).toBeNull()
+    cleanup()
+    renderFilters({ config: boardConfig, board: boardControls({ layout: 'list' }) })
+    expect(screen.queryByRole('switch', { name: 'Show empty columns' })).toBeNull()
+  })
+})
+
+describe('Dart filters relationship controls', () => {
+  it('toggles the Blocked (on hold) chip as a client filter next to On hold', async () => {
+    const user = userEvent.setup()
+    const onFilterChange = vi.fn()
+    const onRefresh = vi.fn()
+    renderFilters({ config: boardConfig, onFilterChange, onRefresh, board: boardControls() })
+
+    await user.click(screen.getByRole('button', { name: 'Blocked (on hold)' }))
+
+    expect(onFilterChange).toHaveBeenCalledExactlyOnceWith('blockedOnHold', true)
+    expect(onRefresh).not.toHaveBeenCalled()
+  })
+
+  it('calls onNestSubtasksChange from the nesting switch', async () => {
+    const user = userEvent.setup()
+    const onNestSubtasksChange = vi.fn()
+    renderFilters({
+      config: boardConfig,
+      board: boardControls({ nestSubtasks: true, onNestSubtasksChange })
+    })
+
+    await user.click(screen.getByRole('switch', { name: 'Show subtasks nested' }))
+
+    expect(onNestSubtasksChange).toHaveBeenCalledWith(false)
+  })
+
+  it.each([
+    ['a host without relationships', { relationshipsHost: false }],
+    ['a list-only tab', { listOnly: true }]
+  ] as const)('renders neither control for %s', (_name, overrides) => {
+    renderFilters({ config: boardConfig, board: boardControls(overrides) })
+
+    expect(screen.queryByRole('button', { name: 'Blocked (on hold)' })).toBeNull()
+    expect(screen.queryByRole('switch', { name: 'Show subtasks nested' })).toBeNull()
   })
 })

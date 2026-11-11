@@ -1,5 +1,11 @@
-import { isTrustedDartHtmlUrl } from '../../shared/dart/dart-issue-url'
-import type { DartComment, DartTask, DartWorkspaceConfig } from '../../shared/dart/dart-types'
+import { DART_TASK_ID_PATTERN, isTrustedDartHtmlUrl } from '../../shared/dart/dart-issue-url'
+import { DartApiError } from './dart-request'
+import type {
+  DartComment,
+  DartTask,
+  DartTaskRelationships,
+  DartWorkspaceConfig
+} from '../../shared/dart/dart-types'
 
 type RawRecord = Record<string, unknown>
 
@@ -35,6 +41,23 @@ function trustedUrl(value: unknown): string {
   return isTrustedDartHtmlUrl(value) ? value : ''
 }
 
+function idList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((id): id is string => typeof id === 'string' && DART_TASK_ID_PATTERN.test(id))
+    : []
+}
+
+function mapRelationships(value: unknown): DartTaskRelationships {
+  const links = isRecord(value) ? value : {}
+  return {
+    subtaskIds: idList(links.subtaskIds),
+    blockerIds: idList(links.blockerIds),
+    blockingIds: idList(links.blockingIds),
+    duplicateIds: idList(links.duplicateIds),
+    relatedIds: idList(links.relatedIds)
+  }
+}
+
 export function mapDartTask(raw: unknown): DartTask | null {
   if (!isRecord(raw) || typeof raw.id !== 'string' || typeof raw.title !== 'string') {
     return null
@@ -59,8 +82,30 @@ export function mapDartTask(raw: unknown): DartTask | null {
     updatedBy: optionalString(raw.updatedBy),
     ...(typeof raw.createdAt === 'string' ? { createdAt: raw.createdAt } : {}),
     ...(typeof raw.updatedAt === 'string' ? { updatedAt: raw.updatedAt } : {}),
-    completedAt: optionalString(raw.completedAt)
+    completedAt: optionalString(raw.completedAt),
+    ...(raw.taskRelationships !== undefined
+      ? { relationships: mapRelationships(raw.taskRelationships) }
+      : {})
   }
+}
+
+const OTHER_LINK_LISTS = ['subtaskIds', 'blockingIds', 'duplicateIds', 'relatedIds'] as const
+
+/** The non-blocker lists exactly as Dart returned them; throws when the task carries no readable links. */
+export function readOtherLinkLists(rawTask: unknown): Record<string, unknown> {
+  if (!isRecord(rawTask)) {
+    throw new DartApiError('Dart returned an unreadable task.', 'invalidResponse')
+  }
+  const links = rawTask.taskRelationships
+  if (links === null) {
+    return {}
+  }
+  if (!isRecord(links)) {
+    throw new DartApiError("Dart did not return this task's links", 'invalidResponse')
+  }
+  return Object.fromEntries(
+    OTHER_LINK_LISTS.filter((key) => key in links).map((key) => [key, links[key]])
+  )
 }
 
 export function mapDartComment(raw: unknown): DartComment | null {

@@ -88,6 +88,7 @@ export const DART_METHOD_NAMES = [
   'dart.createTask',
   'dart.updateTask',
   'dart.updateTaskDescription',
+  'dart.updateTaskBlockers',
   'dart.addComment'
 ] as const
 
@@ -106,6 +107,7 @@ export const DART_METHOD_PERMISSIONS = {
   'dart.createTask': 'workspace',
   'dart.updateTask': 'workspace',
   'dart.updateTaskDescription': 'workspace',
+  'dart.updateTaskBlockers': 'workspace',
   'dart.addComment': 'workspace'
 } as const satisfies Record<DartMethodName, 'workspace' | 'accounts-admin'>
 
@@ -113,6 +115,7 @@ export const DART_UNVERIFIED_WRITE_METHODS: readonly DartMethodName[] = [
   'dart.createTask',
   'dart.updateTask',
   'dart.updateTaskDescription',
+  'dart.updateTaskBlockers',
   'dart.addComment'
 ]
 
@@ -126,13 +129,25 @@ export const DART_TASK_LIST_QUERY_PARAMS = {
   priority: 'priority',
   isCompleted: 'is_completed',
   title: 'title',
-  description: 'description'
+  description: 'description',
+  order: 'o',
+  parentId: 'parent_id',
+  ids: 'ids'
 } as const
+
+const DART_BLOCKER_IDS_MAX = 100
 
 const DartTaskId = z
   .string()
   .trim()
   .regex(DART_TASK_ID_PATTERN, 'Expected a 12-character Dart task id')
+
+const TaskOrder = z
+  .enum(['order', 'dartboard__order', 'updated_at', 'created_at', 'title', 'completed_at'])
+  .or(
+    z.enum(['-order', '-dartboard__order', '-updated_at', '-created_at', '-title', '-completed_at'])
+  )
+  .optional()
 
 const PageLimit = z.number().int().min(1).max(DART_LIST_PAGE_MAX).optional()
 const PageOffset = z.number().int().min(0).optional()
@@ -159,6 +174,11 @@ export const ListTasks = z
     isCompleted: z.boolean().optional(),
     title: OptionalString,
     description: OptionalString,
+    /** Dart's `o` sort key; a leading `-` reverses it. */
+    order: TaskOrder,
+    parentId: DartTaskId.optional(),
+    /** Sent comma-joined. */
+    ids: z.array(DartTaskId).min(1).max(DART_BLOCKER_IDS_MAX).optional(),
     limit: PageLimit,
     offset: PageOffset
   })
@@ -271,6 +291,19 @@ const DescriptionUpdate = z
     }
   })
 
+export const UpdateTaskBlockers = z
+  .object({
+    taskId: DartTaskId,
+    blockerIds: z
+      .array(DartTaskId)
+      .max(DART_BLOCKER_IDS_MAX)
+      .refine((ids) => new Set(ids).size === ids.length, 'Blocker ids must be unique')
+  })
+  .refine((params) => !params.blockerIds.includes(params.taskId), {
+    message: 'A task cannot block itself',
+    path: ['blockerIds']
+  })
+
 export const UpdateTaskDescription = z.object({
   taskId: DartTaskId,
   updates: z
@@ -316,6 +349,7 @@ export type DartListCommentsArgs = z.input<typeof ListComments>
 export type DartCreateTaskArgs = z.input<typeof CreateTask>
 export type DartUpdateTaskArgs = z.input<typeof UpdateTask>
 export type DartUpdateTaskDescriptionArgs = z.input<typeof UpdateTaskDescription>
+export type DartUpdateTaskBlockersArgs = z.input<typeof UpdateTaskBlockers>
 export type DartAddCommentArgs = z.input<typeof AddComment>
 
 /** Params and reply per method; Lane A registers each with `DART_METHOD_PERMISSIONS[name]`. */
@@ -332,6 +366,10 @@ export type DartMethodContract = {
   'dart.updateTask': { params: DartUpdateTaskArgs; reply: DartResult<{ task: DartTask }> }
   'dart.updateTaskDescription': {
     params: DartUpdateTaskDescriptionArgs
+    reply: DartResult<{ task: DartTask }>
+  }
+  'dart.updateTaskBlockers': {
+    params: DartUpdateTaskBlockersArgs
     reply: DartResult<{ task: DartTask }>
   }
   'dart.addComment': { params: DartAddCommentArgs; reply: DartResult<{ comment: DartComment }> }

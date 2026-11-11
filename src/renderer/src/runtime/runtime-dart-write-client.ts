@@ -9,6 +9,7 @@ import type {
   DartCreateTaskArgs,
   DartMethodName,
   DartUpdateTaskArgs,
+  DartUpdateTaskBlockersArgs,
   DartUpdateTaskDescriptionArgs
 } from '../../../shared/rpc-contract/dart-params'
 import type { RuntimeClientTarget } from '../../../shared/runtime-client-target'
@@ -17,6 +18,8 @@ import { isRemoteRuntimeRequestTooLargeMessage } from '../../../shared/remote-ru
 import { translate } from '@/i18n/i18n'
 import {
   CAPABILITY_PROBE_TIMEOUT_MS,
+  dartRelationshipsUpdateRequiredMessage,
+  dartSupportsRelationshipsForTarget,
   dartUpdateRequiredMessage,
   isFailureShape,
   isRecord,
@@ -261,6 +264,20 @@ export async function dartUpdateTaskDescriptionForTarget(
   return sanitizeTaskReply(
     await callDartWrite<{ task: DartTask }>(target, 'dart.updateTaskDescription', args, () =>
       window.api.dart.updateTaskDescription(args)
+    )
+  )
+}
+
+export async function dartUpdateTaskBlockersForTarget(
+  target: RuntimeClientTarget,
+  args: DartUpdateTaskBlockersArgs
+): Promise<DartWriteResult<{ task: DartTask }>> {
+  if (!(await dartSupportsRelationshipsForTarget(target))) {
+    return notApplied(dartRelationshipsUpdateRequiredMessage())
+  }
+  return sanitizeTaskReply(
+    await callDartWrite<{ task: DartTask }>(target, 'dart.updateTaskBlockers', args, () =>
+      window.api.dart.updateTaskBlockers(args)
     )
   )
 }

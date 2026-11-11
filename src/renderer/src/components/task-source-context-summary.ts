@@ -67,6 +67,7 @@ export function getTaskSourceContextSummary(
         accountHostId?: ExecutionHostScope | null
         linearWorkspaceName?: string | null
         jiraSiteName?: string | null
+        dartAccountName?: string | null
       }
 ): TaskSourceContextSummary {
   switch (args.provider) {
@@ -87,10 +88,9 @@ export function getTaskSourceContextSummary(
         hostLabelById: args.hostLabelById,
         hostAvailability: args.hostAvailability
       })
-    // Lane B passes the signed-in Dart user's name as the account label.
     case 'dart':
       return getAccountBackedTaskSourceSummary(args.providerLabel, {
-        accountLabel: null,
+        accountLabel: args.dartAccountName,
         accountHostId: args.accountHostId,
         hostLabelById: args.hostLabelById,
         hostAvailability: args.hostAvailability

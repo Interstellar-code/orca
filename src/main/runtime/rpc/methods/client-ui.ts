@@ -6,6 +6,11 @@ import {
 } from '../../../../shared/jira/jira-saved-filters'
 import { JiraSavedFilterMutationParam } from '../../../../shared/rpc-contract/jira-saved-filter-params'
 import {
+  normalizeDartSavedViewState,
+  mutateDartSavedViewState
+} from '../../../../shared/dart/dart-saved-views'
+import { DartSavedViewMutationParam } from '../../../../shared/rpc-contract/dart-saved-view-params'
+import {
   omitPairingLocalUiFields,
   type PairedUiState
 } from '../../../../shared/pairing-local-ui-fields'
@@ -74,6 +79,23 @@ export const CLIENT_UI_METHODS = [
     handler: (params, { runtime }) => {
       const state = mutateJiraSavedFilterState(runtime.getUIState().jiraSavedFilterState, params)
       runtime.updateUIState({ jiraSavedFilterState: state })
+      return state
+    }
+  }),
+  defineMethod({
+    name: 'ui.getDartSavedViews',
+    permission: 'workspace',
+    params: null,
+    handler: (_params, { runtime }) =>
+      normalizeDartSavedViewState(runtime.getUIState().dartSavedViewState)
+  }),
+  defineMethod({
+    name: 'ui.mutateDartSavedViews',
+    permission: 'workspace',
+    params: DartSavedViewMutationParam,
+    handler: (params, { runtime }) => {
+      const state = mutateDartSavedViewState(runtime.getUIState().dartSavedViewState, params)
+      runtime.updateUIState({ dartSavedViewState: state })
       return state
     }
   }),

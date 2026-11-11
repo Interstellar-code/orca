@@ -43,6 +43,15 @@ export type DartWorkspaceConfig = {
   assignees: string[]
 }
 
+/** Dart task ids; `dart.getTask` and relationship-aware list items carry them. */
+export type DartTaskRelationships = {
+  subtaskIds: string[]
+  blockerIds: string[]
+  blockingIds: string[]
+  duplicateIds: string[]
+  relatedIds: string[]
+}
+
 /** Names, not ids: Dart returns display names for people and full-path titles for dartboards. */
 export type DartTask = {
   /** 12-character Dart task id. */
@@ -68,6 +77,8 @@ export type DartTask = {
   createdAt?: string
   updatedAt?: string
   completedAt?: string | null
+  /** Absent means Dart returned no links data for this task. */
+  relationships?: DartTaskRelationships
 }
 
 export type DartComment = {
@@ -86,6 +97,14 @@ export type DartTaskPage = {
   tasks: DartTask[]
   /** Server total from `count`; an offset past the end returns no tasks with the same total. */
   totalCount: number
+  /** Rows and `count` as Dart sent them, before unmappable rows were dropped; board cursors advance by `rowCount`. */
+  raw?: { rowCount: number; totalCount: number }
+}
+
+export type DartHostFeatures = {
+  board: boolean
+  /** Absent means `false`. */
+  relationships?: boolean
 }
 
 export type DartCommentPage = {

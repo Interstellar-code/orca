@@ -1,6 +1,7 @@
 import {
   dartAddCommentForTarget,
   dartCreateTaskForTarget,
+  dartUpdateTaskBlockersForTarget,
   dartUpdateTaskDescriptionForTarget,
   dartUpdateTaskForTarget,
   type DartWriteResult
@@ -26,7 +27,11 @@ import {
 
 type DartWriteActions = Pick<
   DartSlice,
-  'updateDartTask' | 'updateDartTaskDescription' | 'addDartComment' | 'createDartTask'
+  | 'updateDartTask'
+  | 'updateDartTaskDescription'
+  | 'addDartComment'
+  | 'createDartTask'
+  | 'setDartTaskBlockers'
 >
 
 // Resolves the scope once, so a host switch mid-write cannot redirect it, and flags a lost connection only on the page's host.
@@ -34,12 +39,16 @@ async function runDartWrite<T extends object>(args: {
   set: DartSliceSet
   get: DartSliceGet
   sourceContext: TaskSourceContext | null | undefined
+  pinnedScope?: DartReadScope
   send: (scope: DartReadScope, viewerId: string | null) => Promise<DartWriteResult<T>>
 }): Promise<DartWriteResult<T>> {
-  const { set, get, sourceContext, send } = args
-  const scope = getDartReadScope(get().settings, sourceContext)
+  const { set, get, sourceContext, pinnedScope, send } = args
+  const scope = pinnedScope ?? getDartReadScope(get().settings, sourceContext)
   const viewerId = dartScopeViewerId(get(), scope, sourceContext)
-  registerDartCacheAlias(scope, viewerId)
+  // A pinned scope's viewer may no longer be the shown status, and its alias is already registered.
+  if (!pinnedScope) {
+    registerDartCacheAlias(scope, viewerId)
+  }
   const connectionGeneration = currentDartConnectionGeneration()
   let result: DartWriteResult<T>
   try {
@@ -75,7 +84,18 @@ export function createDartWriteActions(set: DartSliceSet, get: DartSliceGet): Da
         set,
         get,
         sourceContext: options?.sourceContext,
+        pinnedScope: options?.scope,
         send: (scope) => dartUpdateTaskForTarget(scope.target, taskId, updates)
+      }),
+
+    setDartTaskBlockers: (taskId, blockerIds, options) =>
+      runDartWrite({
+        set,
+        get,
+        sourceContext: options?.sourceContext,
+        pinnedScope: options?.scope,
+        send: (scope) =>
+          dartUpdateTaskBlockersForTarget(scope.target, { taskId, blockerIds: [...blockerIds] })
       }),
 
     updateDartTaskDescription: (args, options) =>
@@ -83,6 +103,7 @@ export function createDartWriteActions(set: DartSliceSet, get: DartSliceGet): Da
         set,
         get,
         sourceContext: options?.sourceContext,
+        pinnedScope: options?.scope,
         send: (scope) => dartUpdateTaskDescriptionForTarget(scope.target, args)
       }),
 
@@ -91,6 +112,7 @@ export function createDartWriteActions(set: DartSliceSet, get: DartSliceGet): Da
         set,
         get,
         sourceContext: options?.sourceContext,
+        pinnedScope: options?.scope,
         send: async (scope, viewerId) => {
           const identity = dartTaskIdentity(scope, args.taskId, viewerId)
           bumpDartEpochs(identity)
@@ -107,6 +129,7 @@ export function createDartWriteActions(set: DartSliceSet, get: DartSliceGet): Da
         set,
         get,
         sourceContext: options?.sourceContext,
+        pinnedScope: options?.scope,
         send: async (scope, viewerId) => {
           beginDartMutation()
           // A throw or an unknown create may have landed, so a page cached before it can no longer be trusted.

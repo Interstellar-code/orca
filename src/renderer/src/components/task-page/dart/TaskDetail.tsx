@@ -5,8 +5,10 @@ import type { TaskSourceContext } from '../../../../../shared/task-source-contex
 import type { Worktree } from '../../../../../shared/worktree/types'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { translate } from '@/i18n/i18n'
+import type { DartOpenTask } from './dart-board-contracts'
 import { DartTaskDetailView } from './TaskDetailView'
 import { useDartTaskDetailData } from './use-dart-task-detail-data'
+import { useDartTaskRelationships } from './use-dart-task-relationships'
 
 export function TaskPageDartTaskDetail({
   task,
@@ -15,7 +17,8 @@ export function TaskPageDartTaskDetail({
   workspaces,
   onUse,
   onClose,
-  onOpenWorkspace
+  onOpenWorkspace,
+  onOpenTask
 }: {
   task: DartTask | null
   sourceContext: TaskSourceContext | null
@@ -24,18 +27,25 @@ export function TaskPageDartTaskDetail({
   onUse: (task: DartTask) => void
   onClose: () => void
   onOpenWorkspace: (workspace: Worktree) => void
+  onOpenTask?: DartOpenTask
 }): React.JSX.Element {
   const data = useDartTaskDetailData(task, sourceContext, providerRuntimeContextKey)
   const { runCloseGuards } = data
   const displayed = data.task
+  const relationships = useDartTaskRelationships({
+    task: displayed,
+    sourceContext,
+    pageContextKey: providerRuntimeContextKey,
+    config: data.config
+  })
   const openTaskIdRef = useRef(task?.id ?? null)
   const closePendingRef = useRef(false)
   useEffect(() => {
     openTaskIdRef.current = task?.id ?? null
     closePendingRef.current = false
   }, [task?.id])
-  // A guard that refuses or throws leaves the sheet open; a second close waits for the first, and a result for another task is dropped.
-  const requestClose = async (): Promise<void> => {
+  // A guard that refuses or throws keeps the task open; a second request waits for the first, and a result for another task is dropped.
+  const runGuarded = async (proceed: () => void): Promise<void> => {
     if (closePendingRef.current) {
       return
     }
@@ -44,12 +54,15 @@ export function TaskPageDartTaskDetail({
     try {
       const allowed = await runCloseGuards().catch(() => false)
       if (allowed && openTaskIdRef.current === openedFor) {
-        onClose()
+        proceed()
       }
     } finally {
       closePendingRef.current = false
     }
   }
+  const requestClose = (): Promise<void> => runGuarded(onClose)
+  const requestOpenRelated = (related: DartTask): Promise<void> =>
+    runGuarded(() => onOpenTask?.(related, sourceContext))
   const notice = {
     notice: data.notice,
     dismissNotice: data.dismissNotice,
@@ -120,6 +133,8 @@ export function TaskPageDartTaskDetail({
               draftKey: data.descriptionDraftKey
             }}
             notice={notice}
+            relationships={relationships}
+            onOpenRelatedTask={(related) => void requestOpenRelated(related)}
             workspaces={workspaces}
             onUse={onUse}
             onClose={() => void requestClose()}

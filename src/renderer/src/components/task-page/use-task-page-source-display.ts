@@ -26,6 +26,8 @@ export function useTaskPageSourceDisplay<Model extends TaskPageSourceDisplayInpu
     hostLabelById,
     selectedLinearWorkspace,
     selectedJiraSite,
+    dartStatus,
+    dartStatusCurrent,
     activeGithubTaskKind
   } = model
   // Why strict kind: Issues and PRs resolve independently; the other kind's repo is not this list's source.
@@ -39,6 +41,8 @@ export function useTaskPageSourceDisplay<Model extends TaskPageSourceDisplayInpu
   const linearWorkspaceName =
     selectedLinearWorkspace?.organizationName ?? selectedLinearWorkspace?.id ?? null
   const jiraSiteName = selectedJiraSite?.displayName ?? selectedJiraSite?.siteUrl ?? null
+  // Why the current check: a status read for another host must not name this page's account.
+  const dartAccountName = (dartStatusCurrent && dartStatus.viewer?.name?.trim()) || null
   // Why the catalog dep: it changes with the language, and the summary's own copy is translated too.
   const taskSourceContextSummary = useMemo(() => {
     const providerLabel =
@@ -59,7 +63,8 @@ export function useTaskPageSourceDisplay<Model extends TaskPageSourceDisplayInpu
         accountHostId: accountBackedTaskSourceHostId,
         hostLabelById,
         linearWorkspaceName,
-        jiraSiteName
+        jiraSiteName,
+        dartAccountName
       })
     }
     return getTaskSourceContextSummary({
@@ -80,6 +85,7 @@ export function useTaskPageSourceDisplay<Model extends TaskPageSourceDisplayInpu
   }, [
     accountBackedTaskSourceHostAvailability,
     accountBackedTaskSourceHostId,
+    dartAccountName,
     githubActiveSources,
     githubMode,
     hostLabelById,

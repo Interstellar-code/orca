@@ -8,6 +8,7 @@ import {
   ListTasks,
   TaskId,
   UpdateTask,
+  UpdateTaskBlockers,
   UpdateTaskDescription
 } from '../../../../shared/rpc-contract/dart-params'
 
@@ -78,6 +79,12 @@ export const DART_METHODS = [
     permission: DART_METHOD_PERMISSIONS['dart.updateTaskDescription'],
     params: UpdateTaskDescription,
     handler: async (params, { runtime }) => runtime.dartUpdateTaskDescription(params)
+  }),
+  defineMethod({
+    name: 'dart.updateTaskBlockers',
+    permission: DART_METHOD_PERMISSIONS['dart.updateTaskBlockers'],
+    params: UpdateTaskBlockers,
+    handler: async (params, { runtime }) => runtime.dartUpdateTaskBlockers(params)
   }),
   defineMethod({
     name: 'dart.addComment',

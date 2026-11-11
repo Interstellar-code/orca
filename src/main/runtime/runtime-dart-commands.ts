@@ -7,6 +7,7 @@ import type {
   ListTasks,
   TaskId,
   UpdateTask,
+  UpdateTaskBlockers,
   UpdateTaskDescription
 } from '../../shared/rpc-contract/dart-params'
 import { connect, disconnect, getConfig, getStatus, testConnection } from '../dart/client'
@@ -17,6 +18,7 @@ import {
   listComments,
   listTasks,
   updateTask,
+  updateTaskBlockers,
   updateTaskDescription
 } from '../dart/dart-tasks'
 import { _resetPreflightCache } from '../preflight/agent-detection'
@@ -73,6 +75,12 @@ export class RuntimeDartCommands {
     args: z.output<typeof UpdateTaskDescription>
   ): ReturnType<typeof updateTaskDescription> {
     return updateTaskDescription(args)
+  }
+
+  dartUpdateTaskBlockers(
+    args: z.output<typeof UpdateTaskBlockers>
+  ): ReturnType<typeof updateTaskBlockers> {
+    return updateTaskBlockers(args)
   }
 
   dartAddComment(args: z.output<typeof AddComment>): ReturnType<typeof addComment> {

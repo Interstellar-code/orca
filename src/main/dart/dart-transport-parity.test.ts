@@ -8,6 +8,12 @@ import {
   routeSignedIn,
   type DartHost
 } from './dart-host.test-fixture'
+import {
+  BLOCKER_OTHER_ID,
+  BLOCKER_PARAMS,
+  BLOCKER_RAW_TASK,
+  BLOCKER_REPLY
+} from '../../shared/dart/dart-blocker-reply.test-support'
 import { DART_TITLE_MAX_LENGTH } from '../../shared/dart/dart-text-limits'
 
 const ipcHandlers = vi.hoisted(() => new Map<string, (event: unknown, args?: unknown) => unknown>())
@@ -40,10 +46,13 @@ async function transports() {
     dartStatus: () => dart.dartStatus(),
     dartConnect: (args: { apiToken: string }) => dart.dartConnect(args),
     dartDisconnect: () => dart.dartDisconnect(),
+    dartListTasks: (args: Parameters<typeof dart.dartListTasks>[0]) => dart.dartListTasks(args),
     dartCreateTask: (args: Parameters<typeof dart.dartCreateTask>[0]) => dart.dartCreateTask(args),
     dartUpdateTask: (args: Parameters<typeof dart.dartUpdateTask>[0]) => dart.dartUpdateTask(args),
     dartUpdateTaskDescription: (args: Parameters<typeof dart.dartUpdateTaskDescription>[0]) =>
       dart.dartUpdateTaskDescription(args),
+    dartUpdateTaskBlockers: (args: Parameters<typeof dart.dartUpdateTaskBlockers>[0]) =>
+      dart.dartUpdateTaskBlockers(args),
     dartAddComment: (args: Parameters<typeof dart.dartAddComment>[0]) => dart.dartAddComment(args)
   }
   const dispatcher = new RpcDispatcher({
@@ -415,6 +424,75 @@ describe('dart description patch replies over both transports', () => {
   })
 })
 
+describe('dart blocker replies over both transports', () => {
+  const OTHER_ID = BLOCKER_OTHER_ID
+  const params = BLOCKER_PARAMS
+  const RAW_TASK = BLOCKER_RAW_TASK
+
+  async function connectedPair() {
+    const pair = await transports()
+    routeSignedIn(pair.host, CONFIG)
+    await pair.ipc('dart:connect', { apiToken: FIXTURE_TOKEN })
+    pair.host.route('GET', `/tasks/${TASK_ID}`, () =>
+      jsonResponse(200, { item: { ...RAW_TASK, taskRelationships: { subtaskIds: [] } } })
+    )
+    return pair
+  }
+
+  it('sends the same body and returns the same task', async () => {
+    const { host, ipc, rpc } = await connectedPair()
+    host.route('PUT', `/tasks/${TASK_ID}`, () => jsonResponse(200, { item: RAW_TASK }))
+
+    const overIpc = await ipc('dart:updateTaskBlockers', params)
+    const body = {
+      item: { id: TASK_ID, taskRelationships: { blockerIds: [OTHER_ID], subtaskIds: [] } }
+    }
+    expect(host.lastBody()).toEqual(body)
+    const overRpc = await rpc('dart.updateTaskBlockers', params)
+    expect(host.lastBody()).toEqual(body)
+
+    expect(overIpc).toEqual(BLOCKER_REPLY)
+    expect(overRpc).toEqual(BLOCKER_REPLY)
+  })
+
+  it('gives the same unknown outcome when the write response is lost', async () => {
+    const { host, ipc, rpc } = await connectedPair()
+    host.route('PUT', `/tasks/${TASK_ID}`, () => new Response('<html>', { status: 200 }))
+
+    const overIpc = await ipc('dart:updateTaskBlockers', params)
+
+    expect(overIpc).toMatchObject({ ok: false, outcome: 'unknown' })
+    expect(await rpc('dart.updateTaskBlockers', params)).toEqual(overIpc)
+  })
+
+  it.each([
+    ['a self-blocking task', { taskId: TASK_ID, blockerIds: [TASK_ID] }],
+    [
+      'more than 100 blockers',
+      {
+        taskId: TASK_ID,
+        blockerIds: Array.from({ length: 101 }, (_, i) => `blk${String(i).padStart(9, '0')}`)
+      }
+    ]
+  ])(
+    'refuses %s as notApplied over IPC and invalid_argument over RPC without any request',
+    async (_name, bad) => {
+      const { host, ipc, rpc } = await connectedPair()
+      const sent = host.fetch.mock.calls.length
+
+      await expect(ipc('dart:updateTaskBlockers', bad)).resolves.toMatchObject({
+        errorCode: 'dart.badRequest',
+        outcome: 'notApplied'
+      })
+      await expect(rpc('dart.updateTaskBlockers', bad)).resolves.toMatchObject({
+        ok: false,
+        error: { code: 'invalid_argument' }
+      })
+      expect(host.fetch.mock.calls).toHaveLength(sent)
+    }
+  )
+})
+
 describe('dart comment replies over both transports', () => {
   const comment = WRITES[2]
   const RAW_COMMENT = { id: 'cmt000000001', taskId: TASK_ID, text: 'hi', author: 'Ada' }
@@ -462,5 +540,186 @@ describe('dart comment replies over both transports', () => {
     expect(overIpc).toMatchObject({ errorCode: 'dart.rateLimited', outcome: 'notApplied' })
     expect(overRpc).toEqual(overIpc)
     expect(host.fetch.mock.calls.length - callsBefore).toBe(2)
+  })
+})
+
+describe('dart list replies over both transports', () => {
+  it('carries the same raw counts and order key, with one unmappable row dropped', async () => {
+    const { host, ipc, rpc } = await transports()
+    routeSignedIn(host, CONFIG)
+    await ipc('dart:connect', { apiToken: FIXTURE_TOKEN })
+    const rows = Array.from({ length: 3 }, (_, i) => ({
+      id: `abcDEF12345${i}`,
+      htmlUrl: `https://app.dartai.com/t/abcDEF12345${i}-t`,
+      title: `Task ${i}`,
+      status: 'Doing'
+    }))
+    host.route('GET', '/tasks/list', () =>
+      jsonResponse(200, { count: 40, results: [...rows, { title: 'no id' }] })
+    )
+    const params = { order: 'order', offset: 20 } as const
+
+    const overIpc = await ipc('dart:listTasks', params)
+    const overRpc = await rpc('dart.listTasks', params)
+
+    expect(overIpc).toMatchObject({ ok: true, raw: { rowCount: 4, totalCount: 40 } })
+    expect(overRpc).toEqual(overIpc)
+    const last = host.fetch.mock.calls.at(-1)?.[0]
+    expect(String(last)).toContain('o=order')
+  })
+})
+
+describe('dart board page over both transports', () => {
+  it.each([
+    ['order', 500],
+    ['-completed_at', 500]
+  ] as const)(
+    'sends o=%s offset=%i identically and returns the same 249 tasks with raw counts',
+    async (order, offset) => {
+      const { host, ipc, rpc } = await transports()
+      routeSignedIn(host, CONFIG)
+      await ipc('dart:connect', { apiToken: FIXTURE_TOKEN })
+      const rows = Array.from({ length: 249 }, (_, i) => ({
+        id: `id${String(i).padStart(10, '0')}`,
+        htmlUrl: `https://app.dartai.com/t/id${String(i).padStart(10, '0')}-t`,
+        title: `Task ${i}`,
+        status: 'Doing'
+      }))
+      host.route('GET', '/tasks/list', () =>
+        jsonResponse(200, { count: 900, results: [...rows, { title: 'no id' }] })
+      )
+      const params = { order, offset }
+      const listUrls = () =>
+        host.fetch.mock.calls
+          .map(([url]) => new URL(url))
+          .filter((url) => url.pathname.endsWith('/tasks/list'))
+
+      const overIpc = await ipc('dart:listTasks', params)
+      const overRpc = await rpc('dart.listTasks', params)
+
+      const [ipcQuery, rpcQuery] = listUrls().map((url) => Object.fromEntries(url.searchParams))
+      expect(ipcQuery).toMatchObject({ o: order, offset: String(offset) })
+      expect(rpcQuery).toEqual(ipcQuery)
+      expect(overIpc).toMatchObject({ ok: true, raw: { rowCount: 250, totalCount: 900 } })
+      expect(overIpc).toHaveProperty('tasks.length', 249)
+      expect(overRpc).toEqual(overIpc)
+    }
+  )
+
+  it('refuses an unknown order the same way on both transports, with no Dart request', async () => {
+    const { host, ipc, rpc } = await transports()
+    routeSignedIn(host, CONFIG)
+    await ipc('dart:connect', { apiToken: FIXTURE_TOKEN })
+    host.route('GET', '/tasks/list', () => jsonResponse(200, { count: 0, results: [] }))
+    const before = host.fetch.mock.calls.length
+
+    await expect(ipc('dart:listTasks', { order: 'priority' })).resolves.toMatchObject({
+      ok: false,
+      errorCode: 'dart.badRequest'
+    })
+    await expect(rpc('dart.listTasks', { order: 'priority' })).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'invalid_argument' }
+    })
+    expect(host.fetch.mock.calls).toHaveLength(before)
+  })
+
+  it('advertises the board and saved-view capabilities the host now serves', async () => {
+    await transports()
+    const { RUNTIME_CAPABILITIES } = await import('../../shared/protocol-version')
+    const { DART_METHODS } = await import('../runtime/rpc/methods/dart')
+
+    expect(RUNTIME_CAPABILITIES).toEqual(
+      expect.arrayContaining(['dart.board.v1', 'dart.savedViews.v1'])
+    )
+    // dart.board.v1 stands for the `order` list key, so the served method must accept it.
+    const listTasks = DART_METHODS.find((method) => method.name === 'dart.listTasks')
+    expect(listTasks?.params?.safeParse({ order: 'order', offset: 500 }).success).toBe(true)
+  })
+})
+
+describe('dart release B on a release A client and across accounts', () => {
+  const OTHER_TOKEN = 'dsa_other-account-token-9876543210'
+  const OTHER_USER = { id: 'usr000000002', name: 'Bo', email: 'bo@example.com' }
+
+  function sentWith(host: DartHost, method: string, pathSuffix: string): string[] {
+    return host.fetch.mock.calls
+      .filter(
+        ([url, init]) =>
+          (init?.method ?? 'GET') === method && new URL(url).pathname.endsWith(pathSuffix)
+      )
+      .map(([, init]) => String(new Headers(init?.headers).get('authorization')))
+  }
+
+  it('sends no parent_id or ids query key for a list read without parentId or ids, on both transports', async () => {
+    const { host, ipc, rpc } = await transports()
+    routeSignedIn(host, CONFIG)
+    await ipc('dart:connect', { apiToken: FIXTURE_TOKEN })
+    host.route('GET', '/tasks/list', () => jsonResponse(200, { count: 0, results: [] }))
+
+    await ipc('dart:listTasks', { order: 'order', offset: 0 })
+    await rpc('dart.listTasks', { order: 'order', offset: 0 })
+
+    const queries = host.fetch.mock.calls
+      .map(([url]) => new URL(url))
+      .filter((url) => url.pathname.endsWith('/tasks/list'))
+      .map((url) => [...url.searchParams.keys()])
+    expect(queries).toHaveLength(2)
+    for (const keys of queries) {
+      expect(keys).not.toContain('parent_id')
+      expect(keys).not.toContain('ids')
+    }
+  })
+
+  it('advertises relationships and accepts the blocker write, so a client without the capability never needs it', async () => {
+    await transports()
+    const { RUNTIME_CAPABILITIES } = await import('../../shared/protocol-version')
+    const { DART_METHODS } = await import('../runtime/rpc/methods/dart')
+
+    expect(RUNTIME_CAPABILITIES).toContain('dart.relationships.v1')
+    const blockers = DART_METHODS.find((method) => method.name === 'dart.updateTaskBlockers')
+    expect(blockers?.params?.safeParse(BLOCKER_PARAMS).success).toBe(true)
+  })
+
+  it('sends each account its own token for a blocker write and none after disconnect', async () => {
+    const { host, ipc, rpc } = await transports()
+    host.route('GET', '/config', () => jsonResponse(200, CONFIG))
+    host.route('GET', '/me', ({ init }) => {
+      const bearer = new Headers(init?.headers).get('authorization')
+      return jsonResponse(200, {
+        isLoggedIn: true,
+        user: bearer === `Bearer ${OTHER_TOKEN}` ? OTHER_USER : FIXTURE_USER
+      })
+    })
+    host.route('GET', `/tasks/${TASK_ID}`, () =>
+      jsonResponse(200, { item: { ...BLOCKER_RAW_TASK, taskRelationships: { subtaskIds: [] } } })
+    )
+    host.route('PUT', `/tasks/${TASK_ID}`, () => jsonResponse(200, { item: BLOCKER_RAW_TASK }))
+
+    await ipc('dart:connect', { apiToken: FIXTURE_TOKEN })
+    await ipc('dart:updateTaskBlockers', BLOCKER_PARAMS)
+    await ipc('dart:disconnect')
+    await expect(rpc('dart.status')).resolves.toMatchObject({ connected: false })
+    const sentBefore = host.fetch.mock.calls.length
+    await expect(rpc('dart.updateTaskBlockers', BLOCKER_PARAMS)).resolves.toMatchObject({
+      ok: false,
+      errorCode: 'dart.notConnected',
+      outcome: 'notApplied'
+    })
+    expect(host.fetch.mock.calls).toHaveLength(sentBefore)
+
+    await rpc('dart.connect', { apiToken: OTHER_TOKEN })
+    await expect(ipc('dart:status')).resolves.toMatchObject({ viewer: { id: OTHER_USER.id } })
+    await rpc('dart.updateTaskBlockers', BLOCKER_PARAMS)
+
+    const bearerOf = (token: string): string => `Bearer ${token}`
+    expect(sentWith(host, 'PUT', `/tasks/${TASK_ID}`)).toEqual([
+      bearerOf(FIXTURE_TOKEN),
+      bearerOf(OTHER_TOKEN)
+    ])
+    expect(sentWith(host, 'GET', `/tasks/${TASK_ID}`)).toEqual([
+      bearerOf(FIXTURE_TOKEN),
+      bearerOf(OTHER_TOKEN)
+    ])
   })
 })

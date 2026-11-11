@@ -6,6 +6,7 @@ import { createBrowserUuid } from '@/lib/browser-uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   DART_PROVIDER_RUNTIME_CAPABILITY,
+  DART_RELATIONSHIPS_RUNTIME_CAPABILITY,
   DART_WRITES_V2_RUNTIME_CAPABILITY
 } from '../../../shared/dart/dart-capabilities'
 import { DART_REQUEST_TEXT_MAX_BYTES } from '../../../shared/dart/dart-text-limits'
@@ -20,6 +21,7 @@ import {
   dartAddCommentForTarget,
   dartCreateTaskForTarget,
   dartSupportsWritesV2ForTarget,
+  dartUpdateTaskBlockersForTarget,
   dartUpdateTaskDescriptionForTarget,
   dartUpdateTaskForTarget
 } from './runtime-dart-write-client'
@@ -32,6 +34,8 @@ const createTaskLocal = vi.fn()
 const addCommentLocal = vi.fn()
 const patchLocal = vi.fn()
 const supportsWritesV2Local = vi.fn()
+const updateTaskBlockersLocal = vi.fn()
+const supportedFeaturesLocal = vi.fn()
 const TASK_ID = 'aB3dE5gH7jK9'
 
 const remote = { kind: 'environment', environmentId: 'remote-dart' } as const
@@ -49,6 +53,7 @@ function task(overrides: Partial<DartTask>): DartTask {
 function mockRemote(options: {
   withDartCapability: boolean
   withWritesV2?: boolean
+  withRelationships?: boolean
   reply?: unknown
   onWrite?: (args: { method: string; params: unknown }) => unknown
 }): void {
@@ -65,7 +70,11 @@ function mockRemote(options: {
       const v2Free = withProvider.filter(
         (capability) => capability !== DART_WRITES_V2_RUNTIME_CAPABILITY
       )
-      status.result.capabilities = options.withWritesV2 === false ? v2Free : withProvider
+      const v2Checked = options.withWritesV2 === false ? v2Free : withProvider
+      status.result.capabilities =
+        options.withRelationships === false
+          ? v2Checked.filter((capability) => capability !== DART_RELATIONSHIPS_RUNTIME_CAPABILITY)
+          : v2Checked
       return status
     }
     if (options.onWrite) {
@@ -89,7 +98,9 @@ beforeEach(() => {
         createTask: createTaskLocal,
         addComment: addCommentLocal,
         updateTaskDescription: patchLocal,
-        supportsWritesV2: supportsWritesV2Local
+        supportsWritesV2: supportsWritesV2Local,
+        updateTaskBlockers: updateTaskBlockersLocal,
+        supportedDartFeatures: supportedFeaturesLocal
       },
       runtimeEnvironments: { call: runtimeCall, subscribe: vi.fn() }
     }
@@ -104,7 +115,9 @@ afterEach(() => {
     createTaskLocal,
     addCommentLocal,
     patchLocal,
-    supportsWritesV2Local
+    supportsWritesV2Local,
+    updateTaskBlockersLocal,
+    supportedFeaturesLocal
   ]) {
     mock.mockReset()
   }
@@ -243,6 +256,77 @@ describe('runtime Dart client writes', () => {
     expect(createTaskLocal).not.toHaveBeenCalled()
     expect(patchLocal).not.toHaveBeenCalled()
     expect(addCommentLocal).not.toHaveBeenCalled()
+  })
+
+  describe('blockers', () => {
+    const blockerArgs = { taskId: TASK_ID, blockerIds: ['zY8xW6vU4tS2'] }
+
+    it('sends the write to a remote host with dart.relationships.v1 and returns the reply task', async () => {
+      const replyTask = task({ id: TASK_ID, htmlUrl: 'https://evil.example/t/x' })
+      mockRemote({
+        withDartCapability: true,
+        onWrite: () => okEnvelope({ ok: true, task: replyTask })
+      })
+
+      const result = await dartUpdateTaskBlockersForTarget(remote, blockerArgs)
+
+      expect(result).toMatchObject({ ok: true, task: { id: TASK_ID, htmlUrl: '' } })
+      expect(runtimeCall).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          method: 'dart.updateTaskBlockers',
+          params: blockerArgs,
+          timeoutMs: 100_000
+        })
+      )
+    })
+
+    it('is notApplied and sends nothing to a host without dart.relationships.v1', async () => {
+      mockRemote({ withDartCapability: true, withRelationships: false })
+
+      const result = await dartUpdateTaskBlockersForTarget(remote, blockerArgs)
+
+      expect(result).toMatchObject({ ok: false, outcome: 'notApplied' })
+      expect(writeMethods()).toEqual([])
+    })
+
+    it('probes a local bridge for relationships and calls it only when supported', async () => {
+      supportedFeaturesLocal.mockResolvedValue({ board: true })
+      await expect(
+        dartUpdateTaskBlockersForTarget({ kind: 'local' }, blockerArgs)
+      ).resolves.toMatchObject({ ok: false, outcome: 'notApplied' })
+      expect(updateTaskBlockersLocal).not.toHaveBeenCalled()
+
+      supportedFeaturesLocal.mockResolvedValue({ board: true, relationships: true })
+      updateTaskBlockersLocal.mockResolvedValue(okTask())
+      await expect(
+        dartUpdateTaskBlockersForTarget({ kind: 'local' }, blockerArgs)
+      ).resolves.toMatchObject({ ok: true })
+      expect(updateTaskBlockersLocal).toHaveBeenCalledWith(blockerArgs)
+    })
+
+    it('is unknown when the call fails after dispatch, and keeps a host notApplied code', async () => {
+      mockRemote({
+        withDartCapability: true,
+        onWrite: () => {
+          throw new Error('socket closed')
+        }
+      })
+      await expect(dartUpdateTaskBlockersForTarget(remote, blockerArgs)).resolves.toMatchObject({
+        ok: false,
+        outcome: 'unknown'
+      })
+
+      mockRemote({
+        withDartCapability: true,
+        onWrite: () =>
+          okEnvelope({ ok: false, error: 'Not found.', errorCode: 'dart.taskNotFound' })
+      })
+      await expect(dartUpdateTaskBlockersForTarget(remote, blockerArgs)).resolves.toMatchObject({
+        ok: false,
+        outcome: 'notApplied',
+        errorCode: 'dart.taskNotFound'
+      })
+    })
   })
 
   describe('outcome', () => {

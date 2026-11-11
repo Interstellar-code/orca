@@ -1,6 +1,25 @@
 import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+
+// Upstream keeps package.json at an old version; the fork labels builds by the upstream release it contains.
+export const FORK_UPSTREAM_RELEASE_FILE = 'config/fork/upstream-release'
+
+export function forkBaseVersion(packageVersion, upstreamRelease) {
+  const release = upstreamRelease?.trim()
+  if (!release) {
+    return packageVersion
+  }
+  if (!/^\d+\.\d+\.\d+$/.test(release)) {
+    throw new Error(`${FORK_UPSTREAM_RELEASE_FILE} is not a release version: ${release}`)
+  }
+  return `${release}-fork`
+}
+
+export function readForkBaseVersion(packageVersion, root = process.cwd()) {
+  const file = resolve(root, FORK_UPSTREAM_RELEASE_FILE)
+  return forkBaseVersion(packageVersion, existsSync(file) ? readFileSync(file, 'utf8') : undefined)
+}
 
 export function createLocalBuildVersion(baseVersion, timestamp, commit) {
   if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(baseVersion)) {
@@ -24,7 +43,7 @@ export function getLocalBuildIdentity() {
   }).trim()
   return {
     commit,
-    version: createLocalBuildVersion(packageJson.version, Date.now(), commit)
+    version: createLocalBuildVersion(readForkBaseVersion(packageJson.version), Date.now(), commit)
   }
 }
 

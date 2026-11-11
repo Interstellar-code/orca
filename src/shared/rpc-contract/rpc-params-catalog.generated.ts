@@ -203,8 +203,10 @@ import {
   ListTasks,
   TaskId,
   UpdateTask,
+  UpdateTaskBlockers,
   UpdateTaskDescription
 } from './dart-params'
+import { DartSavedViewMutationParam } from './dart-saved-view-params'
 import {
   AttachParams as AttachParamsOfEmulatorParams,
   AxParams,
@@ -996,6 +998,7 @@ export const RPC_PARAMS_BY_METHOD = {
   'dart.status': null,
   'dart.testConnection': null,
   'dart.updateTask': UpdateTask,
+  'dart.updateTaskBlockers': UpdateTaskBlockers,
   'dart.updateTaskDescription': UpdateTaskDescription,
   'desktopBrowserBridge.attach': DesktopBrowserBridgeAttachParams,
   'desktopBrowserBridge.result': DesktopBrowserBridgeResultParams,
@@ -1548,8 +1551,10 @@ export const RPC_PARAMS_BY_METHOD = {
   'terminalDaemon.setLimit': TerminalLimitUpdateParams,
   'terminalDaemon.severedStatus': null,
   'ui.get': null,
+  'ui.getDartSavedViews': null,
   'ui.getJiraQuickFilters': null,
   'ui.getJiraSavedFilters': null,
+  'ui.mutateDartSavedViews': DartSavedViewMutationParam,
   'ui.mutateJiraSavedFilters': JiraSavedFilterMutationParam,
   'ui.recordFeatureInteraction': FeatureInteractionIdParam,
   'ui.set': UiUpdate,

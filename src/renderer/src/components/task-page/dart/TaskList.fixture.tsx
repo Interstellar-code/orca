@@ -1,8 +1,9 @@
 import type { Worktree } from '../../../../../shared/worktree/types'
 import { defineFixture } from '../../../component-fixtures/component-fixture'
 import { TaskPageDartFiltersView } from './Filters'
-import { fixtureConfig, fixtureTasks } from './dart-task.mock'
+import { fixtureConfig, fixtureHierarchyTasks, fixtureTasks } from './dart-task.mock'
 import { TaskPageDartTaskList } from './TaskList'
+import { useStubNestedListModel } from './TaskList.nested.test-support'
 import { DEFAULT_DART_LIST_FILTERS } from './task-page-dart-list-model'
 
 const linkedWorkspace = {
@@ -12,7 +13,23 @@ const linkedWorkspace = {
   path: '/work/fix-search-ranking'
 } as Worktree
 
-function ListShell({ truncated }: { truncated: boolean }): React.JSX.Element {
+const nestedScope = [
+  { ...fixtureHierarchyTasks[0], tags: ['billing'] },
+  ...fixtureHierarchyTasks.slice(1),
+  ...fixtureTasks.slice(0, 2)
+]
+
+function ListShell({
+  truncated,
+  nested = false
+}: {
+  truncated: boolean
+  nested?: boolean
+}): React.JSX.Element {
+  const model = useStubNestedListModel({
+    tasks: nestedScope,
+    initiallyExpanded: [fixtureHierarchyTasks[0].id]
+  })
   return (
     <div className="bg-background p-5 text-foreground">
       <TaskPageDartFiltersView
@@ -37,7 +54,8 @@ function ListShell({ truncated }: { truncated: boolean }): React.JSX.Element {
           </div>
         ) : null}
         <TaskPageDartTaskList
-          tasks={fixtureTasks}
+          tasks={nested ? nestedScope : fixtureTasks}
+          nested={nested ? model : undefined}
           selectedTaskId={null}
           getTaskWorkspaces={(task) => (task.id === 'aB3dE5gH7jK9' ? [linkedWorkspace] : [])}
           onOpenTask={() => {}}
@@ -60,4 +78,8 @@ export const truncated = defineFixture({
 export const narrow = defineFixture({
   width: 560,
   render: () => <ListShell truncated={false} />
+})
+export const nested = defineFixture({
+  width: 1100,
+  render: () => <ListShell truncated={false} nested />
 })

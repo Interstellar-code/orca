@@ -5,9 +5,12 @@ import {
   type DartMethodName
 } from '../../../../shared/rpc-contract/dart-params'
 import {
+  DART_BOARD_RUNTIME_CAPABILITY,
   DART_PROVIDER_RUNTIME_CAPABILITY,
+  DART_RELATIONSHIPS_RUNTIME_CAPABILITY,
   DART_WRITES_V2_RUNTIME_CAPABILITY
 } from '../../../../shared/dart/dart-capabilities'
+import type { DartHostFeatures } from '../../../../shared/dart/dart-types'
 import { taskProviderFailure } from '../../../../shared/task-provider-failure'
 import {
   DartUpdateRequiredError,
@@ -23,10 +26,7 @@ const DART_SETTINGS_TIMEOUT_MS = 15_000
 
 const DART_WRITE_METHODS = new Set<DartMethodName>(DART_UNVERIFIED_WRITE_METHODS)
 
-async function hostAdvertises(
-  capability: string,
-  onProbeFailure: 'false' | 'throw'
-): Promise<boolean> {
+async function hostCapabilities(onProbeFailure: 'false' | 'throw'): Promise<readonly string[]> {
   const environmentId = requireActiveEnvironment().id
   const status =
     onProbeFailure === 'throw'
@@ -34,11 +34,27 @@ async function hostAdvertises(
       : await getRemoteRuntimeStatus().catch(() => null)
   // Why: the verdict belongs to the probed host; a host switched in mid-probe is never trusted.
   assertActiveEnvironment(environmentId)
-  return status?.capabilities?.includes(capability) === true
+  return status?.capabilities ?? []
+}
+
+async function hostAdvertises(
+  capability: string,
+  onProbeFailure: 'false' | 'throw'
+): Promise<boolean> {
+  return (await hostCapabilities(onProbeFailure)).includes(capability)
 }
 
 const supportsWritesV2 = (): Promise<boolean> =>
   hostAdvertises(DART_WRITES_V2_RUNTIME_CAPABILITY, 'false')
+
+// Why: one probe feeds both flags so a host switch cannot mix two hosts' capabilities.
+const supportedDartFeatures = async (): Promise<DartHostFeatures> => {
+  const capabilities = await hostCapabilities('false')
+  return {
+    board: capabilities.includes(DART_BOARD_RUNTIME_CAPABILITY),
+    relationships: capabilities.includes(DART_RELATIONSHIPS_RUNTIME_CAPABILITY)
+  }
+}
 
 const PROVIDER_VERDICT_TTL_MS = 60_000
 const providerVerdictExpiry = new Map<string, number>()
@@ -130,7 +146,9 @@ export function createWebDartApi(): PreloadApi['dart'] {
     updateTask: (args) => dartCall('dart.updateTask', args, DART_WRITE_TIMEOUT_MS),
     updateTaskDescription: (args) =>
       dartCall('dart.updateTaskDescription', args, DART_WRITE_TIMEOUT_MS),
+    updateTaskBlockers: (args) => dartCall('dart.updateTaskBlockers', args, DART_WRITE_TIMEOUT_MS),
     supportsWritesV2,
+    supportedDartFeatures,
     addComment: (args) => dartCall('dart.addComment', args, DART_WRITE_TIMEOUT_MS)
   }
 }

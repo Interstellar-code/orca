@@ -69,3 +69,16 @@ describe('toDartFailure write outcome', () => {
     expect(toDartFailure(new DartApiError('x', 'network'), 'load')).not.toHaveProperty('outcome')
   })
 })
+
+describe('toDartFailure relationships', () => {
+  it('is a task-targeted write with its own message', () => {
+    expect(toDartFailure(http(404), 'relationships', true)).toMatchObject({
+      errorCode: 'dart.taskNotFound',
+      outcome: 'notApplied'
+    })
+    expect(toDartFailure(new Error('boom'), 'relationships', true)).toMatchObject({
+      error: 'Could not update blockers.',
+      outcome: 'unknown'
+    })
+  })
+})

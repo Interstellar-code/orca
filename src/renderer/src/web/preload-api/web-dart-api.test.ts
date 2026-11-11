@@ -16,6 +16,10 @@ vi.mock('./web-runtime-session', () => ({
   assertActiveEnvironment: mocks.assertActiveEnvironment
 }))
 
+import {
+  BLOCKER_PARAMS,
+  BLOCKER_REPLY
+} from '../../../../shared/dart/dart-blocker-reply.test-support'
 import { clearDartProviderVerdictCacheForTests, createWebDartApi } from './web-dart-api'
 
 beforeEach(() => {
@@ -51,6 +55,74 @@ describe('web dart supportsWritesV2', () => {
       throw new Error('environment changed')
     })
     await expect(createWebDartApi().supportsWritesV2()).rejects.toThrow('environment changed')
+  })
+})
+
+describe('web dart supportedDartFeatures', () => {
+  it('derives both flags from one probe so hosts are never mixed', async () => {
+    mocks.getRemoteRuntimeStatus
+      .mockResolvedValueOnce({ capabilities: ['dart.board.v1'] })
+      .mockResolvedValueOnce({ capabilities: ['dart.relationships.v1'] })
+    await expect(createWebDartApi().supportedDartFeatures()).resolves.toEqual({
+      board: true,
+      relationships: false
+    })
+    expect(mocks.getRemoteRuntimeStatus).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports board when the host advertises dart.board.v1', async () => {
+    mocks.getRemoteRuntimeStatus.mockResolvedValue({ capabilities: ['dart.board.v1'] })
+    await expect(createWebDartApi().supportedDartFeatures()).resolves.toEqual({
+      board: true,
+      relationships: false
+    })
+    expect(mocks.assertActiveEnvironment).toHaveBeenCalledWith('env-1')
+  })
+
+  it('reports no board without the capability', async () => {
+    mocks.getRemoteRuntimeStatus.mockResolvedValue({ capabilities: ['dart.writes.v2'] })
+    await expect(createWebDartApi().supportedDartFeatures()).resolves.toEqual({
+      board: false,
+      relationships: false
+    })
+  })
+
+  it('reports relationships when the host advertises dart.relationships.v1', async () => {
+    mocks.getRemoteRuntimeStatus.mockResolvedValue({ capabilities: ['dart.relationships.v1'] })
+    await expect(createWebDartApi().supportedDartFeatures()).resolves.toEqual({
+      board: false,
+      relationships: true
+    })
+  })
+
+  it('reports no board when the probe fails', async () => {
+    mocks.getRemoteRuntimeStatus.mockRejectedValue(new Error('offline'))
+    await expect(createWebDartApi().supportedDartFeatures()).resolves.toEqual({
+      board: false,
+      relationships: false
+    })
+  })
+
+  it('does not trust a verdict for a host switched in mid-probe', async () => {
+    mocks.getRemoteRuntimeStatus.mockResolvedValue({ capabilities: ['dart.board.v1'] })
+    mocks.assertActiveEnvironment.mockImplementation(() => {
+      throw new Error('environment changed')
+    })
+    await expect(createWebDartApi().supportedDartFeatures()).rejects.toThrow('environment changed')
+  })
+})
+
+describe('web dart listTasks reply', () => {
+  it('returns the host reply with raw unchanged', async () => {
+    const reply = { ok: true, tasks: [], totalCount: 39, raw: { rowCount: 4, totalCount: 40 } }
+    mocks.getRemoteRuntimeStatus.mockResolvedValue({ capabilities: ['dart.provider.v1'] })
+    mocks.callRuntimeEnvelope.mockResolvedValue({ ok: true, result: reply })
+    await expect(createWebDartApi().listTasks({ order: 'order' })).resolves.toEqual(reply)
+    expect(mocks.callRuntimeEnvelope).toHaveBeenCalledWith(
+      'dart.listTasks',
+      { order: 'order' },
+      expect.any(Number)
+    )
   })
 })
 
@@ -184,6 +256,18 @@ describe('web dart writes', () => {
     expect(mocks.callRuntimeEnvelope).toHaveBeenCalledWith(
       'dart.updateTaskDescription',
       args,
+      100_000
+    )
+  })
+
+  it('sends the blocker write with the write timeout', async () => {
+    mocks.callRuntimeEnvelope.mockResolvedValue({ ok: true, result: BLOCKER_REPLY })
+    await expect(createWebDartApi().updateTaskBlockers(BLOCKER_PARAMS)).resolves.toEqual(
+      BLOCKER_REPLY
+    )
+    expect(mocks.callRuntimeEnvelope).toHaveBeenCalledWith(
+      'dart.updateTaskBlockers',
+      BLOCKER_PARAMS,
       100_000
     )
   })

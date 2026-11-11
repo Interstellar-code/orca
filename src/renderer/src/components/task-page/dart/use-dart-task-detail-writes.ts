@@ -4,6 +4,7 @@ import type { TaskSourceContext } from '../../../../../shared/task-source-contex
 import { translate } from '@/i18n/i18n'
 import type { DartWriteFailure, DartWriteResult } from '@/runtime/runtime-dart-write-client'
 import { useAppStore } from '@/store'
+import type { DartReadScope } from '@/store/slices/dart/dart-read-coordination'
 import type { DartTaskIdentity } from '@/store/slices/dart/dart-task-identity'
 import type {
   DartDetailCommentsApi,
@@ -40,7 +41,7 @@ export function noOpenDartTaskFailure(): DartWriteFailure {
 }
 
 // The queue builds a new state object per call, so one object is cached per change for the external store.
-function useDartTaskWriteState(identity: DartTaskIdentity | null): DartTaskWriteState {
+export function useDartTaskWriteState(identity: DartTaskIdentity | null): DartTaskWriteState {
   const cache = useRef<{ identity: DartTaskIdentity | null; state: DartTaskWriteState }>({
     identity: null,
     state: NO_WRITES
@@ -79,9 +80,11 @@ function useDartTaskWriteState(identity: DartTaskIdentity | null): DartTaskWrite
 export function useDartTaskDetailWrites(args: {
   identity: DartTaskIdentity | null
   sourceContext: TaskSourceContext | null
+  /** The detail's host scope; queued writes keep the one captured at enqueue, so a host switch cannot redirect them. */
+  scope: DartReadScope
   displayedRef: RefObject<DartTask | null>
 }) {
-  const { identity, sourceContext, displayedRef } = args
+  const { identity, sourceContext, scope, displayedRef } = args
   const fetchDartTask = useAppStore((s) => s.fetchDartTask)
   const updateDartTask = useAppStore((s) => s.updateDartTask)
   const updateDartTaskDescription = useAppStore((s) => s.updateDartTaskDescription)
@@ -107,12 +110,20 @@ export function useDartTaskDetailWrites(args: {
         optimistic,
         fields,
         write: () => write(identity.taskId),
-        refresh: () => fetchDartTask(identity.taskId, { sourceContext, force: true }),
+        refresh: () => fetchDartTask(identity.taskId, { sourceContext, scope, force: true }),
         patch: (patch) => patchDartTask(identity, patch),
         invalidateLists: () => invalidateDartLists(identity)
       })
     },
-    [displayedRef, identity, sourceContext, fetchDartTask, patchDartTask, invalidateDartLists]
+    [
+      displayedRef,
+      identity,
+      sourceContext,
+      scope,
+      fetchDartTask,
+      patchDartTask,
+      invalidateDartLists
+    ]
   )
 
   const onUpdate = useCallback<DartDetailEditApi['onUpdate']>(
@@ -120,17 +131,17 @@ export function useDartTaskDetailWrites(args: {
       enqueueWrite(
         optimistic,
         editedFields(Object.fromEntries(Object.keys(updates).map((field) => [field, undefined]))),
-        (taskId) => updateDartTask(taskId, updates, { sourceContext })
+        (taskId) => updateDartTask(taskId, updates, { sourceContext, scope })
       ),
-    [enqueueWrite, sourceContext, updateDartTask]
+    [enqueueWrite, sourceContext, scope, updateDartTask]
   )
 
   const onSavePatch = useCallback<DartDetailDescriptionApi['onSavePatch']>(
     (updates) =>
       enqueueWrite({}, ['description'], (taskId) =>
-        updateDartTaskDescription({ taskId, updates }, { sourceContext })
+        updateDartTaskDescription({ taskId, updates }, { sourceContext, scope })
       ),
-    [enqueueWrite, sourceContext, updateDartTaskDescription]
+    [enqueueWrite, sourceContext, scope, updateDartTaskDescription]
   )
 
   const onAddComment = useCallback<DartDetailCommentsApi['onAddComment']>(
@@ -138,10 +149,10 @@ export function useDartTaskDetailWrites(args: {
       identity
         ? addDartComment(
             { taskId: identity.taskId, text, ...(parentId ? { parentId } : {}) },
-            { sourceContext }
+            { sourceContext, scope }
           )
         : Promise.resolve(noOpenDartTaskFailure()),
-    [addDartComment, identity, sourceContext]
+    [addDartComment, identity, sourceContext, scope]
   )
 
   const dismissNotice = useCallback<DartNoticeApi['dismissNotice']>(() => {

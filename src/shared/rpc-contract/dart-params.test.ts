@@ -11,6 +11,7 @@ import {
   ListTasks,
   TaskId,
   UpdateTask,
+  UpdateTaskBlockers,
   UpdateTaskDescription
 } from './dart-params'
 
@@ -150,5 +151,37 @@ describe('Dart RPC params', () => {
     expect(
       UpdateTask.safeParse({ taskId: 'aBcD3fGh1jKl', updates: { assignee: null } }).success
     ).toBe(true)
+  })
+
+  it('accepts parentId and ids filters and maps parentId to parent_id', () => {
+    expect(DART_TASK_LIST_QUERY_PARAMS.parentId).toBe('parent_id')
+    expect(DART_TASK_LIST_QUERY_PARAMS.ids).toBe('ids')
+    expect(ListTasks.safeParse({ parentId: taskId, ids: [taskId] }).success).toBe(true)
+    expect(ListTasks.safeParse({ parentId: '' }).success).toBe(false)
+  })
+
+  it('bounds ids to 1 to 100 entries', () => {
+    const idsOf = (count: number): string[] =>
+      Array.from({ length: count }, (_, i) => `abcDEF${String(i).padStart(6, '0')}`)
+    expect(ListTasks.safeParse({ ids: idsOf(100) }).success).toBe(true)
+    expect(ListTasks.safeParse({ ids: idsOf(101) }).success).toBe(false)
+    expect(ListTasks.safeParse({ ids: [] }).success).toBe(false)
+  })
+})
+
+describe('UpdateTaskBlockers', () => {
+  const other = 'zyxWVU987654'
+
+  it('accepts a replacement list, including an empty one', () => {
+    expect(UpdateTaskBlockers.safeParse({ taskId, blockerIds: [other] }).success).toBe(true)
+    expect(UpdateTaskBlockers.safeParse({ taskId, blockerIds: [] }).success).toBe(true)
+  })
+
+  it('refuses bad ids, duplicates, over 100 ids and a self-block', () => {
+    const many = Array.from({ length: 101 }, (_, i) => `abcDEF${String(i).padStart(6, '0')}`)
+    expect(UpdateTaskBlockers.safeParse({ taskId, blockerIds: ['short'] }).success).toBe(false)
+    expect(UpdateTaskBlockers.safeParse({ taskId, blockerIds: [other, other] }).success).toBe(false)
+    expect(UpdateTaskBlockers.safeParse({ taskId, blockerIds: many }).success).toBe(false)
+    expect(UpdateTaskBlockers.safeParse({ taskId, blockerIds: [taskId] }).success).toBe(false)
   })
 })

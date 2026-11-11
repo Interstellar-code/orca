@@ -4,7 +4,8 @@ import {
   getTaskSourceCacheScope,
   type TaskSourceContext
 } from '../../../../../shared/task-source-context'
-import type { DartConnectionStatus } from '../../../../../shared/dart/dart-types'
+import type { DartConnectionStatus, DartTaskPage } from '../../../../../shared/dart/dart-types'
+import type { DartScopeMeta } from '@/components/task-page/dart/dart-board-contracts'
 import { defaultScopeHost } from '@/lib/default-creation-host'
 import {
   getEnvironmentRuntimeContextKey,
@@ -35,24 +36,65 @@ let dartConnectionGeneration = 0
 export const EMPTY_DART_READ_CACHES = {
   dartTaskCache: {},
   dartListCache: {},
-  dartConfigCache: {}
+  dartConfigCache: {},
+  dartRelationshipCache: {},
+  dartScopeMetaCache: {},
+  dartMountedScopeKey: null
 } satisfies Partial<DartSlice>
 
 export function isFreshDartCacheEntry<T>(entry: CacheEntry<T> | undefined): entry is CacheEntry<T> {
   return entry !== undefined && Date.now() - entry.fetchedAt < CACHE_TTL
 }
 
+/** `keep` holds keys that survive eviction whatever their age, such as a just-patched entry with `fetchedAt: 0`. */
 export function evictStaleDartCacheEntries<T>(
-  cache: Record<string, CacheEntry<T>>
+  cache: Record<string, CacheEntry<T>>,
+  keep?: ReadonlySet<string>
 ): Record<string, CacheEntry<T>> {
   const keys = Object.keys(cache)
   if (keys.length <= MAX_CACHE_ENTRIES) {
     return cache
   }
-  const newest = keys
+  const kept = keys.filter((key) => keep?.has(key))
+  const rest = keys
+    .filter((key) => !keep?.has(key))
     .sort((a, b) => (cache[a]?.fetchedAt ?? 0) - (cache[b]?.fetchedAt ?? 0))
-    .slice(keys.length - MAX_CACHE_ENTRIES)
-  return Object.fromEntries(newest.map((key) => [key, cache[key]]))
+  const newest = rest.slice(rest.length - (MAX_CACHE_ENTRIES - kept.length))
+  return Object.fromEntries([...kept, ...newest].map((key) => [key, cache[key]]))
+}
+
+/** Metadata outlives no list entry, except the mounted key, which can hold a read that published no rows. */
+export function pruneDartScopeMetaCache(
+  metaCache: Record<string, DartScopeMeta>,
+  listCache: Record<string, CacheEntry<DartTaskPage>>,
+  mountedKey: string | null
+): Record<string, DartScopeMeta> {
+  const entries = Object.entries(metaCache)
+  const kept = entries.filter(([key]) => key in listCache || key === mountedKey)
+  return kept.length === entries.length ? metaCache : Object.fromEntries(kept)
+}
+
+/** An expanded parent's children must not be evicted by scope reads. */
+const CHILDREN_LIST_KEY_MARKER = '::list::children::'
+
+/** The mounted scope entry and children entries keep their slots even when a patch marked them stale. */
+export function evictDartListCache(
+  state: Pick<DartSlice, 'dartMountedScopeKey' | 'dartScopeMetaCache'>,
+  listCache: Record<string, CacheEntry<DartTaskPage>>
+): Pick<DartSlice, 'dartListCache' | 'dartScopeMetaCache'> {
+  const keep = new Set([
+    ...(state.dartMountedScopeKey ? [state.dartMountedScopeKey] : []),
+    ...Object.keys(listCache).filter((key) => key.includes(CHILDREN_LIST_KEY_MARKER))
+  ])
+  const dartListCache = evictStaleDartCacheEntries(listCache, keep)
+  return {
+    dartListCache,
+    dartScopeMetaCache: pruneDartScopeMetaCache(
+      state.dartScopeMetaCache,
+      dartListCache,
+      state.dartMountedScopeKey
+    )
+  }
 }
 
 /** Stops older reads from caching; a task write stops only this, never a status check or a connect in progress. */
@@ -172,21 +214,60 @@ export function isDartScopeOnPageHost(
   return getRuntimeTargetHostId(scope.target) === getRuntimeTargetHostId(defaultScopeHost(settings))
 }
 
+/** The one place a viewer is installed: a viewer that differs from the host's last seen one drops its scope entries, whichever host is shown. */
 export function dartStatusUpdate(
-  _state: AppState,
+  state: Pick<
+    AppState,
+    | 'dartStatus'
+    | 'dartStatusContextKey'
+    | 'dartLastSeenViewers'
+    | 'dartListCache'
+    | 'dartScopeMetaCache'
+    | 'dartMountedScopeKey'
+  >,
   contextKey: string,
   status: DartConnectionStatus,
   extra?: Partial<DartSlice>
 ): Partial<DartSlice> {
+  const nextViewer = status.viewer?.id ?? null
+  const lastSeen =
+    state.dartLastSeenViewers[contextKey] ??
+    (state.dartStatusContextKey === contextKey ? (state.dartStatus.viewer?.id ?? null) : undefined)
   return {
     dartStatus: status,
     dartStatusChecked: true,
     dartStatusContextKey: contextKey,
     dartUpdateRequired: false,
+    dartLastSeenViewers: { ...state.dartLastSeenViewers, [contextKey]: nextViewer },
+    ...(lastSeen !== undefined && lastSeen !== nextViewer
+      ? dropDartScopeCachesForHost(state, contextKey)
+      : undefined),
     ...extra
   }
 }
 
 export function isDartAuthLostFailure(errorCode: string | undefined): boolean {
   return errorCode === 'dart.unauthorized' || errorCode === 'dart.notConnected'
+}
+
+/** A new account on the same host must not see or patch the previous account's scope entries. */
+export function dropDartScopeCachesForHost(
+  state: Pick<DartSlice, 'dartListCache' | 'dartScopeMetaCache' | 'dartMountedScopeKey'>,
+  contextKey: string
+): Pick<DartSlice, 'dartListCache' | 'dartScopeMetaCache' | 'dartMountedScopeKey'> {
+  const prefix = `${contextKey}::list::scope::`
+  const childrenPrefix = `${contextKey}${CHILDREN_LIST_KEY_MARKER}`
+  const keep = <T>(cache: Record<string, T>): Record<string, T> =>
+    Object.fromEntries(
+      Object.entries(cache).filter(
+        ([key]) => !key.startsWith(prefix) && !key.startsWith(childrenPrefix)
+      )
+    )
+  return {
+    dartListCache: keep(state.dartListCache),
+    dartScopeMetaCache: keep(state.dartScopeMetaCache),
+    dartMountedScopeKey: state.dartMountedScopeKey?.startsWith(prefix)
+      ? null
+      : state.dartMountedScopeKey
+  }
 }

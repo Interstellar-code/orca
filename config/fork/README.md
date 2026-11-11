@@ -13,13 +13,14 @@ can prove no client is connected.
 
 ## What the pieces do
 
-| Path                                  | Role                                                                                                                                                 |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `rebuild-and-install.sh`              | Fast-forward from `origin/main`, merge `upstream/main`, run the Dart gates, build, push, notify. `--mode mac` (default) or `--mode server`.          |
-| `install-built-app.sh`                | The Mac install command the notification points at. Refuses while Orca runs; stages the new app and restores the old one if the swap fails.          |
-| `sign-fork-app.sh`                    | Signs an `Orca.app` with the fork identity and verifies it. The rebuild runs it after every Mac build; the installer refuses an app without it.      |
-| `com.interstellar.orca-rebuild.plist` | launchd template that runs the script nightly at 03:30 local.                                                                                        |
-| `src/main/updater/lifecycle` guard    | A `-local.` build never calls `setFeedURL`/`checkForUpdates`; "Check for Updates" answers "This is a fork build; updates come from the rebuild job". |
+| Path                                  | Role                                                                                                                                                                                                                  |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rebuild-and-install.sh`              | Fast-forward from `origin/main`, merge `upstream/main`, run the Dart gates, build, push, notify. `--mode mac` (default) or `--mode server`.                                                                           |
+| `install-built-app.sh`                | The Mac install command the notification points at. Refuses while Orca runs; stages the new app and restores the old one if the swap fails.                                                                           |
+| `sign-fork-app.sh`                    | Signs an `Orca.app` with the fork identity and verifies it. The rebuild runs it after every Mac build; the installer refuses an app without it.                                                                       |
+| `com.interstellar.orca-rebuild.plist` | launchd template that runs the script nightly at 03:30 local.                                                                                                                                                         |
+| `upstream-release`                    | The newest upstream release whose `main` point the fork holds. Builds are versioned `<release>-fork.local.<time>.<commit>` (upstream leaves `package.json` behind); the rebuild updates it after each upstream merge. |
+| `src/main/updater/lifecycle` guard    | A `-local.` build never calls `setFeedURL`/`checkForUpdates`; "Check for Updates" answers "This is a fork build; updates come from the rebuild job".                                                                  |
 
 ## One-time setup
 

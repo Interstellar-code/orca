@@ -21,12 +21,14 @@ export function useTaskPageDartDetailRouting(args: {
     [dartTaskSourceContext, pageData.openDartSourceContext, selectedDartTask]
   )
   const openDartDetailPage = useCallback(
-    (task: DartTask) => {
+    (task: DartTask, sourceContext?: TaskSourceContext | null) => {
       openTaskPage(
         {
           taskSource: 'dart',
           openDartTask: task,
-          openDartSourceContext: dartTaskSourceContext
+          // A detail opening a related task keeps its own host's scope, not the page's.
+          openDartSourceContext:
+            sourceContext?.provider === 'dart' ? sourceContext : dartTaskSourceContext
         },
         { recordTasksInteraction: false }
       )
