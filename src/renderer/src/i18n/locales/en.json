@@ -18665,7 +18665,8 @@
               "countRefresh": "Refresh",
               "readChanged": "Tasks changed while loading. Refresh to try again.",
               "readRetry": "Retry",
-              "showMoreDone": "Show 50 more finished"
+              "showMoreDone": "Show 50 more finished",
+              "checkMore": "Check"
             },
             "Filters": {
               "assignedToMe": "Assigned to me",
@@ -18692,7 +18693,9 @@
               "priorityFilter": "Priority",
               "allPriorities": "All priorities",
               "onHold": "On hold",
-              "showEmptyColumns": "Show empty columns"
+              "showEmptyColumns": "Show empty columns",
+              "blockedOnHold": "Blocked (on hold)",
+              "nestSubtasks": "Show subtasks nested"
             },
             "TaskCreateDialog": {
               "title": "New Dart task",
@@ -18791,7 +18794,16 @@
               "columnStatus": "Status",
               "columnPriority": "Priority",
               "columnAssignee": "Assignee",
-              "columnUpdated": "Updated"
+              "columnUpdated": "Updated",
+              "columnTags": "Tags",
+              "subtasksDone": "{{done}} of {{total}} done",
+              "subtasksLoaded": "{{count}} loaded",
+              "subtasksFailed": "Could not load subtasks.",
+              "retry": "Retry",
+              "subtasksLoading": "Loading subtasks…",
+              "subtasksTruncated": "Showing {{shown}} of {{total}} subtasks · Open in Dart",
+              "collapseSubtasks": "Collapse subtasks of {{value0}}",
+              "expandSubtasks": "Expand subtasks of {{value0}}"
             },
             "task": {
               "page": {
@@ -18966,7 +18978,53 @@
               "countIncomplete": "About {{open}} open tasks (Dart changed during the read) ·",
               "countFiltering": "Filtering the first {{cap}} of {{total}} open tasks.",
               "countCut": "Showing {{cap}} of {{total}} open tasks. Pick a dartboard, Mine or search to narrow.",
-              "countOpenOf": "{{open}} open of {{total}} · {{done}} latest done"
+              "countOpenOf": "{{open}} open of {{total}} · {{done}} latest done",
+              "hiddenSubtasks_one": "{{count}} subtask is under a task not shown here",
+              "hiddenSubtasks_other": "{{count}} subtasks are under tasks not shown here",
+              "notChecked_one": "{{count}} on-hold task not checked",
+              "notChecked_other": "{{count}} on-hold tasks not checked"
+            },
+            "DartBlockerPicker": {
+              "add": "Add blocker",
+              "search": "Search tasks",
+              "searching": "Searching",
+              "thisDartboardOnly": "This dartboard only",
+              "dartboardOnlyUnavailable": "This task has no dartboard.",
+              "hint": "Type to search tasks",
+              "error": "Search failed",
+              "retry": "Retry",
+              "empty": "No matching tasks"
+            },
+            "TaskDetailRelationships": {
+              "titlesError": "Could not load titles",
+              "onHoldOne": "On hold · waiting on 1 open blocker",
+              "onHoldMany": "On hold · waiting on {{count}} open blockers",
+              "parent": "Parent",
+              "blockedBy": "Blocked by",
+              "saving": "Saving…",
+              "noBlockers": "No blockers",
+              "removeBlocker": "Remove blocker {{title}}",
+              "blocking": "Blocking",
+              "noBlocking": "Not blocking any task",
+              "blockingHint": "Read-only here: change it on that task.",
+              "heading": "Relationships",
+              "notChecked": "Dart did not return this task's links",
+              "linksError": "Could not load this task's links"
+            },
+            "TaskDetailSubtasks": {
+              "heading": "Subtasks",
+              "loadedDone": "{{done}} of {{loaded}} loaded done",
+              "doneCount": "{{done}} of {{total}} done",
+              "error": "Could not load subtasks",
+              "none": "No subtasks",
+              "showing": "Showing {{loaded}} of {{total}}",
+              "openInDart": "Open in Dart",
+              "addLater": "Adding subtasks from Orca comes later."
+            },
+            "use-dart-task-relationships": {
+              "parentMissing": "Dart did not return the parent task.",
+              "noLinks": "Dart did not return this task's links",
+              "noDartboard": "This task has no dartboard."
             }
           },
           "task": {
@@ -23668,7 +23726,8 @@
       "requestTooLarge": "This change is too large to save to Dart from Orca. Shorten it or edit it in Dart.",
       "textTooLargeKb": "This text is too large to save to Dart from Orca ({{size}} KB, limit {{limit}} KB). Shorten it or edit it in Dart.",
       "textTooLongChars": "This text is too long to save to Dart from Orca ({{size}} characters, limit {{limit}}). Shorten it or edit it in Dart.",
-      "writesUpdateRequired": "Update the remote Orca server to edit this field in Dart."
+      "writesUpdateRequired": "Update the remote Orca server to edit this field in Dart.",
+      "relationshipsUpdateRequired": "Update the remote Orca server to use task links in Dart."
     }
   },
   "editorConflicts": {

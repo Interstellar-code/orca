@@ -374,7 +374,10 @@ describe('DartBoard card markers', () => {
     render(<DartBoard model={modelWith([onHold, plain], entries)} selectedTaskId={null} />)
 
     expect(screen.getAllByText('Blockers not checked')).toHaveLength(1)
-    const doneCard = screen.getByText(plain.title).closest('[data-dart-card-id]') as HTMLElement
+    const doneCard = screen.getByText(plain.title).closest('[data-dart-card-id]')
+    if (!(doneCard instanceof HTMLElement)) {
+      throw new Error('done card not found')
+    }
     expect(within(doneCard).queryByText('Blockers not checked')).not.toBeInTheDocument()
   })
 

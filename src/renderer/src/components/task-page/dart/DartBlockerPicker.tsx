@@ -130,12 +130,24 @@ export function DartBlockerPicker({
     [abandon, run, text]
   )
 
-  const forceDartboardOnlyOff = dartboardOnlyUnavailable && thisDartboardOnly
+  const modeForcedOff = useRef(false)
+  if (dartboardOnlyUnavailable && thisDartboardOnly) {
+    modeForcedOff.current = true
+    setThisDartboardOnly(false)
+  }
+  const textRef = useRef(text)
+  textRef.current = text
   useEffect(() => {
-    if (forceDartboardOnlyOff) {
-      changeMode(false)
+    if (!modeForcedOff.current) {
+      return
     }
-  }, [forceDartboardOnlyOff, changeMode])
+    modeForcedOff.current = false
+    abandon()
+    setSearch({ kind: 'idle' })
+    if (textRef.current.trim() !== '') {
+      void run(textRef.current, false)
+    }
+  }, [dartboardOnlyUnavailable, abandon, run])
 
   const pick = (task: DartTask): void => {
     setOpen(false)

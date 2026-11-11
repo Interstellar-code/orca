@@ -197,7 +197,7 @@ describe('DartBlockerPicker This dartboard only', () => {
   it('disables the toggle with a reason when the task has no dartboard, and never filters by dartboard', async () => {
     const { searchTasks } = setup(undefined, true)
     const toggle = screen.getByRole('switch', { name: 'This dartboard only' })
-    expect((toggle as HTMLButtonElement).disabled).toBe(true)
+    expect(toggle.hasAttribute('disabled')).toBe(true)
     expect(toggle.getAttribute('aria-checked')).toBe('false')
     expect(screen.getByText('This task has no dartboard.')).toBeTruthy()
 

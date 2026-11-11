@@ -1197,6 +1197,12 @@
             "TaskList": {
               "linkedWorkspaceCount_one": "{{count}} workspace linked to this task",
               "linkedWorkspaceCount_other": "{{count}} workspaces linked to this task"
+            },
+            "task-page-dart-list-model": {
+              "hiddenSubtasks_one": "{{count}} subtask is under a task not shown here",
+              "hiddenSubtasks_other": "{{count}} subtasks are under tasks not shown here",
+              "notChecked_one": "{{count}} on-hold task not checked",
+              "notChecked_other": "{{count}} on-hold tasks not checked"
             }
           }
         },

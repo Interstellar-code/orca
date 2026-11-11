@@ -41,21 +41,31 @@ afterEach(() => {
 })
 
 describe('Dart count line: stored blocked chip with an open total above the cap', () => {
-  it('does not claim client filtering on a host without relationships', async () => {
-    const host = desktop.open()
-    seedOpenTasks(host, 'Open', 1_100, 'To-do')
-    renderPage()
-    await screen.findAllByRole('heading')
+  it(
+    'does not claim client filtering on a host without relationships',
+    async () => {
+      const host = desktop.open()
+      seedOpenTasks(host, 'Open', 1_100, 'To-do')
+      renderPage()
+      await screen.findAllByRole('heading')
 
-    expect(await screen.findByText(/^Showing 1,000 of 1,101 open tasks/)).toBeTruthy()
-    expect(screen.queryByText(/Filtering the first/)).toBeNull()
-  }, 30_000)
+      expect(await screen.findByText(/^Showing 1,000 of 1,101 open tasks/)).toBeTruthy()
+      expect(screen.queryByText(/Filtering the first/)).toBeNull()
+    },
+    // Seeds and renders 1,100 tasks, slow on CI runners.
+    30_000
+  )
 
-  it('keeps counting the stored blocked chip as a client filter on a host with relationships', async () => {
-    const host = desktop.open({ relationships: true })
-    seedOpenTasks(host, 'Open', 1_100, 'To-do')
-    renderPage()
+  it(
+    'keeps counting the stored blocked chip as a client filter on a host with relationships',
+    async () => {
+      const host = desktop.open({ relationships: true })
+      seedOpenTasks(host, 'Open', 1_100, 'To-do')
+      renderPage()
 
-    expect(await screen.findByText(/^Filtering the first 1,000 of 1,101 open tasks/)).toBeTruthy()
-  }, 30_000)
+      expect(await screen.findByText(/^Filtering the first 1,000 of 1,101 open tasks/)).toBeTruthy()
+    },
+    // Seeds and renders 1,100 tasks, slow on CI runners.
+    30_000
+  )
 })

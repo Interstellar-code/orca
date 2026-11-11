@@ -7,10 +7,15 @@ import { dartTaskFixture } from '@/store/slices/dart/dart-fake-runtime.test-supp
 import type { TaskSourceContext } from '../../../../../shared/task-source-context'
 import { TaskPageDartTaskDetail } from './TaskDetail'
 
-const wiring = vi.hoisted(() => ({
-  runCloseGuards: (): Promise<boolean> => Promise.resolve(true),
-  openRelated: null as null | ((related: unknown) => void)
-}))
+const wiring = vi.hoisted(
+  (): {
+    runCloseGuards: () => Promise<boolean>
+    openRelated: null | ((related: unknown) => void)
+  } => ({
+    runCloseGuards: () => Promise.resolve(true),
+    openRelated: null
+  })
+)
 
 vi.mock('./use-dart-task-detail-data', () => ({
   useDartTaskDetailData: (task: unknown) => ({

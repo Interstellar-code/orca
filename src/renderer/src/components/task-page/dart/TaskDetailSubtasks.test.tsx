@@ -25,11 +25,7 @@ const done = task('subDone00001', 'Document the columns', {
   completedAt: '2026-11-01T00:00:00Z'
 })
 
-function load(
-  state: DartLoad<DartTaskPage>['state'],
-  data: DartTaskPage | null,
-  error: string | null = null
-) {
+function load<T>(state: DartLoad<T>['state'], data: T | null, error: string | null = null) {
   return { state, data, error, retry: vi.fn() }
 }
 
@@ -38,8 +34,8 @@ function api(subtasks: DartLoad<DartTaskPage>, state: DartRelationshipsApi['stat
     task: task('parentTask001', 'Parent task'),
     state,
     parent: null,
-    blockers: load('ready', null) as DartLoad<readonly DartTask[]>,
-    blocking: load('ready', null) as DartLoad<readonly DartTask[]>,
+    blockers: load<readonly DartTask[]>('ready', null),
+    blocking: load<readonly DartTask[]>('ready', null),
     subtasks,
     pending: false,
     blocked: false,
