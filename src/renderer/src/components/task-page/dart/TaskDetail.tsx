@@ -8,6 +8,7 @@ import { translate } from '@/i18n/i18n'
 import type { DartOpenTask } from './dart-board-contracts'
 import { DartTaskDetailView } from './TaskDetailView'
 import { useDartTaskDetailData } from './use-dart-task-detail-data'
+import { useDartTaskRelationships } from './use-dart-task-relationships'
 
 export function TaskPageDartTaskDetail({
   task,
@@ -16,7 +17,8 @@ export function TaskPageDartTaskDetail({
   workspaces,
   onUse,
   onClose,
-  onOpenWorkspace
+  onOpenWorkspace,
+  onOpenTask
 }: {
   task: DartTask | null
   sourceContext: TaskSourceContext | null
@@ -30,6 +32,11 @@ export function TaskPageDartTaskDetail({
   const data = useDartTaskDetailData(task, sourceContext, providerRuntimeContextKey)
   const { runCloseGuards } = data
   const displayed = data.task
+  const relationships = useDartTaskRelationships({
+    task: displayed,
+    sourceContext,
+    config: data.config
+  })
   const openTaskIdRef = useRef(task?.id ?? null)
   const closePendingRef = useRef(false)
   useEffect(() => {
@@ -122,6 +129,8 @@ export function TaskPageDartTaskDetail({
               draftKey: data.descriptionDraftKey
             }}
             notice={notice}
+            relationships={relationships}
+            onOpenRelatedTask={(related) => onOpenTask?.(related, sourceContext)}
             workspaces={workspaces}
             onUse={onUse}
             onClose={() => void requestClose()}

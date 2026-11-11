@@ -3,6 +3,7 @@ import type { DartComment, DartTask } from '../../../../../shared/dart/dart-type
 import type { Worktree } from '../../../../../shared/worktree/types'
 import { Button } from '@/components/ui/button'
 import { translate } from '@/i18n/i18n'
+import type { DartRelationshipsApi } from './dart-board-contracts'
 import type {
   DartDetailCommentsApi,
   DartDetailDescriptionApi,
@@ -15,6 +16,8 @@ import { DartTaskDetailHeader } from './TaskDetailHeader'
 import { DartTaskDetailNotice } from './TaskDetailNotice'
 import { DartTaskDetailProperties } from './TaskDetailProperties'
 import { SectionHeading } from './TaskDetailSectionHeading'
+import { dartRelationshipsKnown, TaskDetailRelationships } from './TaskDetailRelationships'
+import { TaskDetailSubtasks } from './TaskDetailSubtasks'
 
 export type DartDetailLoadState<T> =
   | { status: 'loading' }
@@ -35,6 +38,9 @@ export type DartTaskDetailViewProps = {
   }
   descriptionApi: DartDetailDescriptionApi
   notice: DartNoticeApi
+  /** Absent hides the relationship sections (release A fixtures, hosts without links). */
+  relationships?: DartRelationshipsApi
+  onOpenRelatedTask?: (task: DartTask) => void
   workspaces: readonly Worktree[]
   onUse: (task: DartTask) => void
   onClose: () => void
@@ -47,6 +53,8 @@ export function DartTaskDetailView({
   commentsApi,
   descriptionApi,
   notice,
+  relationships,
+  onOpenRelatedTask,
   workspaces,
   onUse,
   onClose,
@@ -65,6 +73,21 @@ export function DartTaskDetailView({
           </div>
         ) : null}
         <DartTaskDetailProperties {...edit} />
+
+        {relationships && onOpenRelatedTask ? (
+          <>
+            <TaskDetailRelationships
+              relationships={relationships}
+              onOpenRelatedTask={onOpenRelatedTask}
+            />
+            {dartRelationshipsKnown(relationships) ? (
+              <TaskDetailSubtasks
+                relationships={relationships}
+                onOpenRelatedTask={onOpenRelatedTask}
+              />
+            ) : null}
+          </>
+        ) : null}
 
         <DartTaskDetailDescription {...descriptionApi} onRetry={onRetry} />
 
