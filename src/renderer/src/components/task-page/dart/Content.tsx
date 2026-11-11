@@ -18,6 +18,7 @@ import { TaskPageDartCreateDialog } from './TaskCreateDialog'
 import {
   buildDartCountLine,
   buildDartHiddenSubtasksText,
+  buildDartNotCheckedText,
   isDartAuthFailureCode,
   isDartListTruncated,
   splitDartBoardFilters,
@@ -163,9 +164,10 @@ export function TaskPageDartContent({
         })
       : null
   const hiddenSubtasksText = buildDartHiddenSubtasksText(dartNestedList.hiddenSubtasks)
+  const notCheckedText = buildDartNotCheckedText(dartBoardModel.notChecked ?? 0)
   const refresh = (): void => setDartRefreshNonce((n) => n + 1)
   const readChanged = dartBoardPath && dartScopeMeta?.partialReason === 'changed'
-  const { doneMore, hasMoreDone, showMoreDone } = dartBoardModel
+  const { doneMore, hasMoreDone, showMoreDone, checkMore } = dartBoardModel
   const authFailed = isDartAuthFailureCode(dartError?.code)
   // Why: a client filter can hide every loaded row while later pages may still match.
   const boardMounted =
@@ -199,6 +201,21 @@ export function TaskPageDartContent({
               count: dartTasks.length
             })
           )}
+          {notCheckedText && checkMore ? (
+            <>
+              {' · '}
+              {notCheckedText}{' '}
+              <Button
+                type="button"
+                variant="link"
+                size="chip"
+                className="text-2xs"
+                onClick={checkMore}
+              >
+                {translate('auto.components.task.page.dart.Content.checkMore', 'Check')}
+              </Button>
+            </>
+          ) : null}
         </div>
       </div>
       <div

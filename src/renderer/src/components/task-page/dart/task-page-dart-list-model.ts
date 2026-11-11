@@ -62,6 +62,18 @@ export function buildDartHiddenSubtasksText(hiddenSubtasks: number): string | nu
   )
 }
 
+/** D14.3: on-hold tasks whose blockers have not been read yet. */
+export function buildDartNotCheckedText(notChecked: number): string | null {
+  if (notChecked <= 0) {
+    return null
+  }
+  return translate(
+    'auto.components.task.page.dart.task-page-dart-list-model.notChecked',
+    '{{count}} on-hold tasks not checked',
+    { count: notChecked, defaultValue_one: '{{count}} on-hold task not checked' }
+  )
+}
+
 // Why: Dart ignores unknown parameters and applies hidden workspace defaults, so every filter is sent explicitly.
 // Why: without a viewer id "mine" has no assignee to filter by, and an unfiltered list would show everyone's tasks.
 export function buildDartListArgs(

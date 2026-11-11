@@ -97,6 +97,29 @@ describe('useDartNestedListModel', () => {
     })
   })
 
+  it('refetches on re-expansion after the entry is invalidated or stale, not while fresh', async () => {
+    vi.useFakeTimers()
+    const hook = mountModel([PARENT])
+    const scope = getDartReadScope(useAppStore.getState().settings)
+    const toggleTwice = async () => {
+      await act(async () => hook.result.current.toggle(PARENT.id))
+      await act(async () => hook.result.current.toggle(PARENT.id))
+    }
+
+    await toggleTwice()
+    expect(listRequests()).toBe(1)
+    await toggleTwice()
+    expect(listRequests()).toBe(1)
+
+    act(() => useAppStore.getState().invalidateDartLists(dartAccountIdentity(scope, VIEWER.id)))
+    await toggleTwice()
+    expect(listRequests()).toBe(2)
+
+    await act(() => vi.advanceTimersByTimeAsync(10 * 60 * 1000))
+    await toggleTwice()
+    expect(listRequests()).toBe(3)
+  })
+
   it('stays idle before 200 ms and loading after', async () => {
     vi.useFakeTimers()
     const release = host.hold('dart.listTasks')

@@ -21,6 +21,7 @@ import { useDartSubtaskNesting } from './use-dart-subtask-nesting'
 import { useDartOnHoldRelationshipReads } from './use-dart-on-hold-relationship-reads'
 import { useDartHostFeatures } from './use-dart-host-features'
 import { useDartFilterActions } from './use-dart-filter-actions'
+import { useDartEffectiveClientFilters } from './use-dart-effective-client-filters'
 import { useDartDisplayedTasks } from './use-dart-displayed-tasks'
 import { useDartListPinnedRows } from './use-dart-list-pinned-rows'
 import {
@@ -76,10 +77,9 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
     () => dartPageScopeFromContextKey(providerRuntimeContextKey),
     [providerRuntimeContextKey]
   )
-  const accountViewerId = useAppStore((s) => dartScopeViewerId(s, pageScope))
   // Scoped: a status that still describes another host gives this page no viewer.
-  const viewerId = accountViewerId
-  const { hostKey, accountKey } = dartAccountIdentity(pageScope, accountViewerId)
+  const viewerId = useAppStore((s) => dartScopeViewerId(s, pageScope))
+  const { hostKey, accountKey } = dartAccountIdentity(pageScope, viewerId)
   const [dartFilters, setDartFilters] = useDartAccountFilters(hostKey, accountKey)
   const { dartSearchInput, setDartSearchInput, setDartFilter, applyDartSearch } =
     useDartFilterActions(setDartFilters)
@@ -101,7 +101,7 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
     active,
     refreshNonce: dartRefreshNonce,
     hostKey,
-    accountViewerId,
+    accountViewerId: viewerId,
     fetchDartConfig
   })
   const { featuresReady, hostFeatures } = useDartHostFeatures({
@@ -122,9 +122,7 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
   const serverFiltersKey = JSON.stringify(server)
   // oxlint-disable-next-line react-hooks/exhaustive-deps -- Why: serverFiltersKey fingerprints the three server filters.
   const serverFilters = useMemo(() => server, [serverFiltersKey])
-  const { status, tag, priority, onHold, blockedOnHold } = client
-  // oxlint-disable-next-line react-hooks/exhaustive-deps -- Why: the five client filters are listed individually.
-  const clientFilters = useMemo(() => client, [status, tag, priority, onHold, blockedOnHold])
+  const clientFilters = useDartEffectiveClientFilters(client, relationshipsHost)
   const scopeKey = useMemo(
     () => (boardPath ? dartScopeCacheKey(pageScope, serverFilters) : null),
     [boardPath, serverFilters, pageScope]
@@ -136,14 +134,13 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
   const baseTasks: readonly DartTask[] = boardPath
     ? (scopeEntry?.data?.tasks ?? EMPTY_TASKS)
     : dartTasks
-
   useDartOnHoldRelationshipReads({
     active: active && relationshipsHost,
     scopeKey,
     scopeEntryTasks: scopeEntry?.data?.tasks,
-    fetchedAt: scopeMeta?.fetchedAt ?? 0,
+    scopeMeta,
     pageScope,
-    viewerId: accountViewerId
+    viewerId
   })
 
   const patchLocalRow = useCallback((taskId: string, fields: Partial<DartTask>) => {
@@ -215,6 +212,7 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
     loadedCount: dartLoadedCount
   } = useDartDisplayedTasks({
     boardPath,
+    relationshipsHost,
     hasWorkspace: dartHasWorkspace,
     layout,
     baseTasks,
@@ -255,7 +253,7 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
     pageScope,
     hostKey,
     accountKey,
-    viewerId: accountViewerId
+    viewerId
   })
   const openDartTask = useCallback((task: DartTask) => {
     actionsRef.current.openDartDetailPage?.(task)

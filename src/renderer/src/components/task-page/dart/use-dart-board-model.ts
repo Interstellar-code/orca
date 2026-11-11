@@ -21,9 +21,9 @@ import type {
   DartScopeMeta,
   DartServerFilters
 } from './dart-board-contracts'
-import { DART_ON_HOLD_READ_CAP } from '@/store/slices/dart/dart-on-hold-relationship-actions'
 import { scopedDartCacheKey, type DartReadScope } from '@/store/slices/dart/dart-read-coordination'
 import { dartTaskIdentityKey } from '@/store/slices/dart/dart-task-identity'
+import { useDartOnHoldCheckMore } from './use-dart-on-hold-check-more'
 import { enqueueDartTaskWrite } from './dart-task-write-queue'
 import { mergeDartPinnedRows, type PinnedDartRow } from './use-dart-list-pinned-rows'
 
@@ -112,6 +112,7 @@ export function useDartBoardModel(args: {
     const cached = new Map<string, DartRelationshipCacheEntry>()
     const entries = new Map<string, DartRelationshipCacheEntry>()
     const unchecked: string[] = []
+    const errored = new Set<string>()
     for (const task of candidates) {
       const entry =
         relationshipCache?.[dartTaskIdentityKey({ hostKey, accountKey, taskId: task.id })]
@@ -127,9 +128,12 @@ export function useDartBoardModel(args: {
         (!entry || entry.state === 'notChecked' || entry.state === 'error')
       ) {
         unchecked.push(task.id)
+        if (entry?.state === 'error') {
+          errored.add(task.id)
+        }
       }
     }
-    return { candidates, entries, unchecked }
+    return { candidates, entries, unchecked, errored }
   }, [relationshipsHost, rows, pinnedRows, hostKey, accountKey, relationshipCache])
 
   const { columns, cardInfoById } = useMemo(() => {
@@ -185,17 +189,13 @@ export function useDartBoardModel(args: {
     childrenKeyPrefix
   ])
 
-  const unchecked = relationshipView?.unchecked
-  const notChecked = unchecked?.length
-  const checkMore = useMemo(
-    () =>
-      unchecked
-        ? (): void => {
-            void readDartOnHoldRelationships(unchecked.slice(0, DART_ON_HOLD_READ_CAP))
-          }
-        : undefined,
-    [unchecked, readDartOnHoldRelationships]
-  )
+  const notChecked = relationshipView?.unchecked.length
+  const checkMore = useDartOnHoldCheckMore({
+    unchecked: relationshipView?.unchecked,
+    errored: relationshipView?.errored,
+    publication: `${scopeKey ?? ''}:${meta.generation}`,
+    read: readDartOnHoldRelationships
+  })
 
   const statuses = useMemo(() => (config ? [...config.statuses] : NO_STATUSES), [config])
   const hasMoreDone = meta.doneOffset < meta.doneTotal

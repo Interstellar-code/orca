@@ -3,55 +3,56 @@ import type { DartTask } from '../../../../../shared/dart/dart-types'
 import { useAppStore } from '@/store'
 import type { DartReadScope } from '@/store/slices/dart/dart-read-coordination'
 import { dartTaskIdentity, dartTaskIdentityKey } from '@/store/slices/dart/dart-task-identity'
+import type { DartScopeMeta } from './dart-board-contracts'
 import { isDartTaskOnHold } from './dart-board-columns'
 
 const ON_HOLD_READ_BATCH = 20
 
-/** D14.3 outcome 2: after each published read set, reads the first 20 on-hold tasks one after another. */
+/** D14.3 outcome 2: after each published read set, reads the first 20 on-hold tasks not read since the publication, one after another. */
 export function useDartOnHoldRelationshipReads(args: {
   active: boolean
   scopeKey: string | null
   scopeEntryTasks: readonly DartTask[] | undefined
-  fetchedAt: number
+  scopeMeta: DartScopeMeta | null
   pageScope: DartReadScope
   viewerId: string | null
 }): void {
-  const { active, scopeKey, scopeEntryTasks, fetchedAt, pageScope, viewerId } = args
+  const { active, scopeKey, scopeEntryTasks, scopeMeta, pageScope, viewerId } = args
   const readDartOnHoldRelationships = useAppStore((s) => s.readDartOnHoldRelationships)
-  const lastRun = useRef<{ scopeKey: string | null; fetchedAt: number }>({
+  const lastRun = useRef<{ scopeKey: string | null; generation: number | null }>({
     scopeKey: null,
-    fetchedAt: 0
+    generation: null
   })
+  // Meta generation rises once per published read set, partial or complete, so it tells same-millisecond publications apart.
+  const generation = scopeMeta?.generation ?? null
   useEffect(() => {
-    if (!active || !scopeKey || fetchedAt === 0) {
+    if (!active || !scopeKey || generation === null || !scopeEntryTasks) {
       return
     }
-    const seen = lastRun.current.scopeKey === scopeKey
-    if (seen && lastRun.current.fetchedAt === fetchedAt) {
+    if (lastRun.current.scopeKey === scopeKey && lastRun.current.generation === generation) {
       return
     }
-    lastRun.current = { scopeKey, fetchedAt }
-    const firstBatch = (scopeEntryTasks ?? [])
+    lastRun.current = { scopeKey, generation }
+    const cache = useAppStore.getState().dartRelationshipCache
+    const batch = scopeEntryTasks
       .filter(isDartTaskOnHold)
+      .filter((candidate) => {
+        const entry =
+          cache[dartTaskIdentityKey(dartTaskIdentity(pageScope, candidate.id, viewerId))]
+        // A known entry read before this publication is stale: each read set reads on-hold tasks again (D14.3).
+        return entry?.state !== 'known' || entry.fetchedAt <= (scopeMeta?.fetchedAt ?? 0)
+      })
       .slice(0, ON_HOLD_READ_BATCH)
       .map((candidate) => candidate.id)
-    if (firstBatch.length === 0) {
-      return
+    if (batch.length > 0) {
+      void readDartOnHoldRelationships(batch)
     }
-    // A re-mount on a fresh entry keeps what the store already read.
-    const cache = useAppStore.getState().dartRelationshipCache
-    const alreadyRead = firstBatch.every(
-      (id) => cache[dartTaskIdentityKey(dartTaskIdentity(pageScope, id, viewerId))]
-    )
-    if (!seen && alreadyRead) {
-      return
-    }
-    void readDartOnHoldRelationships(firstBatch)
   }, [
     active,
     scopeKey,
     scopeEntryTasks,
-    fetchedAt,
+    generation,
+    scopeMeta?.fetchedAt,
     pageScope,
     viewerId,
     readDartOnHoldRelationships

@@ -3,6 +3,7 @@ import type { DartTask } from '../../../../../shared/dart/dart-types'
 import { applyDartBoardFilters } from './dart-board-columns'
 import type { DartClientFilters, DartScopeMeta } from './dart-board-contracts'
 import { filterLinkedDartTasks } from './task-page-dart-linked-issues'
+import { buildDartRelationshipEntries, useDartRelationshipCache } from './dart-relationship-entries'
 import { sortDartTasksByRecency } from './task-page-dart-list-model'
 import {
   mergeDartPinnedRows,
@@ -23,16 +24,24 @@ export function useDartDisplayedTasks(args: {
   accountKey: string
   search: string
   clientFilters: DartClientFilters
+  relationshipsHost: boolean
 }): { tasks: readonly DartTask[]; totalCount: number; loadedCount: number } {
   const { boardPath, hasWorkspace, layout, baseTasks, localTotal, scopeMeta, search } = args
-  const { pinnedRows, hostKey, accountKey, clientFilters } = args
+  const { pinnedRows, hostKey, accountKey, clientFilters, relationshipsHost } = args
+  const relationshipCache = useDartRelationshipCache(relationshipsHost)
   const tasks = useMemo(() => {
     if (!boardPath) {
       const merged = mergeDartPinnedRows(baseTasks, pinnedRows, { hostKey, accountKey })
       return sortDartTasksByRecency(hasWorkspace ? filterLinkedDartTasks(merged, search) : merged)
     }
     const merged = mergeDartPinnedRows(baseTasks, pinnedRows, { hostKey, accountKey }, (read) =>
-      applyDartBoardFilters(read, clientFilters)
+      applyDartBoardFilters(
+        read,
+        clientFilters,
+        relationshipCache
+          ? buildDartRelationshipEntries(read, relationshipCache, { hostKey, accountKey })
+          : undefined
+      )
     )
     return layout === 'list' ? sortDartTasksByRecency(merged) : merged
   }, [
@@ -44,7 +53,8 @@ export function useDartDisplayedTasks(args: {
     accountKey,
     search,
     layout,
-    clientFilters
+    clientFilters,
+    relationshipCache
   ])
   const pinnedExtra = useMemo(
     () => missingDartPinnedRows(baseTasks, pinnedRows, { hostKey, accountKey }).length,

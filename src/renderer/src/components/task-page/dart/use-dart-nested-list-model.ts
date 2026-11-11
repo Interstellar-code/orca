@@ -131,8 +131,8 @@ export function useDartNestedListModel(args: {
         }
         return { ...base, expanded: next }
       })
-      const key = childrenCacheKey(live.current.pageScope, taskId)
-      if (opening && !useAppStore.getState().dartListCache[key]?.data) {
+      if (opening) {
+        // The store serves a fresh entry without a request and refetches a stale or invalidated one.
         readChildren(taskId, false)
       }
     },

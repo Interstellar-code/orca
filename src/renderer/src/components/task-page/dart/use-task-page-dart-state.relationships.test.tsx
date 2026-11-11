@@ -165,6 +165,28 @@ describe('useTaskPageDartState subtasks and blockers', () => {
     expect(listRequests()).toHaveLength(before)
   })
 
+  it('ignores a stored blocked chip on a host without relationships and keeps the stored value', async () => {
+    const { hook } = openBoardPage({ extraTasks: [onHold(1)] })
+    await waitFor(() => expect(hook.result.current.dartTasks).toHaveLength(3))
+
+    act(() => hook.result.current.setDartFilter('blockedOnHold', true))
+
+    expect(hook.result.current.dartFilters.blockedOnHold).toBe(true)
+    expect(hook.result.current.dartTasks).toHaveLength(3)
+  })
+
+  it('applies the stored blocked chip on a host with relationships', async () => {
+    const held = Array.from({ length: 25 }, (_, index) => onHold(index))
+    const { hook, host } = openBoardPage({ relationships: true, extraTasks: held })
+    await waitFor(() => expect(getTaskRequests(host)).toHaveLength(20))
+    await waitFor(() => expect(hook.result.current.dartBoardModel.notChecked).toBe(5))
+
+    act(() => hook.result.current.setDartFilter('blockedOnHold', true))
+
+    expect(hook.result.current.dartTasks).toHaveLength(5)
+    expect(hook.result.current.dartTasks.every((task) => task.status === 'On hold')).toBe(true)
+  })
+
   it('reads the first 20 on-hold tasks after each publish and checks the next batch on request', async () => {
     const held = Array.from({ length: 25 }, (_, index) => onHold(index))
     const { hook, host } = openBoardPage({ relationships: true, extraTasks: held })

@@ -485,5 +485,55 @@ describe('useDartBoardModel', () => {
       act(() => hook.result.current.checkMore?.())
       expect(readSpy).toHaveBeenLastCalledWith(held.slice(21).map((task) => task.id))
     })
+
+    describe('checkMore after failed reads', () => {
+      async function openHeldScope(heldCount: number, failingCount: number) {
+        const held = Array.from({ length: heldCount }, (_, index) =>
+          openTask(`held${String(index).padStart(2, '0')}-`, 'On Hold')
+        )
+        const failing = new Set(held.slice(0, failingCount).map((task) => task.id))
+        const { scopeKey, account } = await openScope(held)
+        const readSpy = vi.fn((ids: readonly string[]) => {
+          const next = Object.fromEntries(
+            ids.map((id) => [
+              dartTaskIdentityKey({ ...account, taskId: id }),
+              relationshipEntry(failing.has(id) ? 'error' : 'known')
+            ])
+          )
+          useAppStore.setState((state) => ({
+            dartRelationshipCache: { ...state.dartRelationshipCache, ...next }
+          }))
+          return Promise.resolve()
+        })
+        useAppStore.setState({ readDartOnHoldRelationships: readSpy })
+        const hook = mountModel(scopeKey, account, { features: RELATIONSHIPS_FEATURES })
+        return { held, readSpy, hook }
+      }
+
+      it('reads tasks not yet attempted before retrying failed ones', async () => {
+        const { held, readSpy, hook } = await openHeldScope(28, 3)
+
+        act(() => hook.result.current.checkMore?.())
+        expect(readSpy).toHaveBeenLastCalledWith(held.slice(0, 20).map((task) => task.id))
+        expect(hook.result.current.notChecked).toBe(3 + 8)
+
+        act(() => hook.result.current.checkMore?.())
+        expect(readSpy).toHaveBeenLastCalledWith(
+          [...held.slice(20), ...held.slice(0, 3)].map((task) => task.id)
+        )
+      })
+
+      it('reaches later tasks when more than a batch of earlier reads keep failing', async () => {
+        const { held, readSpy, hook } = await openHeldScope(27, 22)
+
+        act(() => hook.result.current.checkMore?.())
+        act(() => hook.result.current.checkMore?.())
+
+        expect(readSpy).toHaveBeenLastCalledWith(
+          [...held.slice(20), ...held.slice(0, 13)].map((task) => task.id)
+        )
+        expect(hook.result.current.notChecked).toBe(22)
+      })
+    })
   })
 })
