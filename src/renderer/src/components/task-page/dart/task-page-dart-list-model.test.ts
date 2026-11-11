@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { DartScopeMeta } from './dart-board-contracts'
-import { buildDartCountLine } from './task-page-dart-list-model'
+import { buildDartCountLine, buildDartHiddenSubtasksText } from './task-page-dart-list-model'
 
 const meta = (overrides: Partial<DartScopeMeta>): DartScopeMeta => ({
   openTotal: 120,
@@ -51,5 +51,13 @@ describe('buildDartCountLine', () => {
       text: 'About 118 open tasks (Dart changed during the read) ·',
       offersRefresh: true
     })
+  })
+})
+
+describe('buildDartHiddenSubtasksText', () => {
+  it('uses the singular for one and nothing for zero', () => {
+    expect(buildDartHiddenSubtasksText(0)).toBeNull()
+    expect(buildDartHiddenSubtasksText(1)).toBe('1 subtask is under a task not shown here')
+    expect(buildDartHiddenSubtasksText(3)).toBe('3 subtasks are under tasks not shown here')
   })
 })

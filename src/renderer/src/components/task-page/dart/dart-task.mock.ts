@@ -111,6 +111,89 @@ export const fixtureBoardTasks: DartTask[] = [
   }
 ]
 
+// Release B data: a parent with subtasks, a three-level chain, and on-hold tasks with blocker links.
+const noLinks = {
+  subtaskIds: [],
+  blockerIds: [],
+  blockingIds: [],
+  duplicateIds: [],
+  relatedIds: []
+}
+
+export const fixtureSubtaskParent: DartTask = {
+  ...base,
+  id: 'pA1rEnT2tAsK',
+  title: 'Rework the billing report',
+  dartboard: 'Example/Platform',
+  status: 'Doing',
+  priority: 'High',
+  updatedAt: new Date(Date.now() - 30 * 60_000).toISOString(),
+  relationships: { ...noLinks, subtaskIds: ['cH1lDaBcDeF1', 'cH2lDgHiJkL2'] }
+}
+
+export const fixtureSubtasks: DartTask[] = [
+  {
+    ...base,
+    id: 'cH1lDaBcDeF1',
+    title: 'Add the CSV export button',
+    parentId: fixtureSubtaskParent.id,
+    dartboard: 'Example/Platform',
+    status: 'To-do',
+    priority: 'Medium',
+    updatedAt: new Date(Date.now() - 50 * 60_000).toISOString(),
+    relationships: { ...noLinks, subtaskIds: ['gR2aNdChLd01'] }
+  },
+  {
+    ...base,
+    id: 'cH2lDgHiJkL2',
+    title: 'Document the export columns',
+    parentId: fixtureSubtaskParent.id,
+    dartboard: 'Example/Platform',
+    status: 'Done',
+    priority: 'Low',
+    completedAt: new Date(Date.now() - 3_600_000).toISOString(),
+    updatedAt: new Date(Date.now() - 3_600_000).toISOString(),
+    relationships: noLinks
+  }
+]
+
+export const fixtureGrandchild: DartTask = {
+  ...base,
+  id: 'gR2aNdChLd01',
+  title: 'Escape commas in exported names',
+  parentId: fixtureSubtasks[0].id,
+  dartboard: 'Example/Platform',
+  status: 'To-do',
+  priority: 'Low',
+  updatedAt: new Date(Date.now() - 2 * 3_600_000).toISOString(),
+  relationships: noLinks
+}
+
+export const fixtureHierarchyTasks: DartTask[] = [
+  fixtureSubtaskParent,
+  ...fixtureSubtasks,
+  fixtureGrandchild
+]
+
+export const fixtureBlockedOnHold: DartTask = {
+  ...fixtureBoardTasks[3],
+  relationships: { ...noLinks, blockerIds: [fixtureTasks[0].id] }
+}
+
+export const fixtureUnblockedOnHold: DartTask = {
+  ...fixtureBoardTasks[4],
+  relationships: noLinks
+}
+
+export const fixtureBlockerTasks: DartTask[] = [
+  fixtureBlockedOnHold,
+  fixtureUnblockedOnHold,
+  {
+    ...fixtureTasks[0],
+    relationships: { ...noLinks, blockingIds: [fixtureBlockedOnHold.id] }
+  }
+]
+
 export const fixtureDetailTask: DartTask = {
   ...fixtureTasks[0],
   tags: ['search', 'backend'],

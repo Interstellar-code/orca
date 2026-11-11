@@ -23,7 +23,14 @@ export function useDartHostFeatures(args: {
     void dartBoardFeaturesForTarget(target).then((features) => {
       if (!cancelled) {
         // A bridge that answers nothing counts as no board.
-        setProbed({ hostKey, target, features: { board: features?.board === true } })
+        setProbed({
+          hostKey,
+          target,
+          features: {
+            board: features?.board === true,
+            ...(features?.relationships === true ? { relationships: true } : {})
+          }
+        })
       }
     })
     return () => {

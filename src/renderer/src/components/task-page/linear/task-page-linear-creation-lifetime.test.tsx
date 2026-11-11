@@ -206,6 +206,19 @@ it.each([
           showMoreDone: vi.fn(),
           onOpenTask: vi.fn()
         },
+        dartNestedList: {
+          rows: [],
+          nested: false,
+          hiddenSubtasks: 0,
+          expanded: new Set<string>(),
+          toggle: vi.fn(),
+          canExpand: () => false,
+          children: vi.fn(),
+          cardInfo: vi.fn()
+        },
+        dartNestSubtasks: true,
+        setDartNestSubtasks: vi.fn(),
+        dartRelationshipsHost: false,
         dartSavedViews: {
           views: [],
           activeViewId: null,

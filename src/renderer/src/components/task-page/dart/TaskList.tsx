@@ -14,6 +14,7 @@ import { translate } from '@/i18n/i18n'
 import { openAppHttpLink } from '@/lib/app-http-link-open'
 import { cn } from '@/lib/utils'
 import { formatRelativeTime } from '../task-page-source-context'
+import type { DartNestedListModel } from './dart-board-contracts'
 import { getDartStatusTone, getDartTaskOpenUrl } from './task-page-dart-list-model'
 
 const ROW_GRID_CLASS =
@@ -21,6 +22,8 @@ const ROW_GRID_CLASS =
 
 export type TaskPageDartTaskListProps = {
   tasks: readonly DartTask[]
+  /** Placeholder until B5: rows render flat; absent = flat as release A. */
+  nested?: DartNestedListModel
   selectedTaskId: string | null
   getTaskWorkspaces: (task: DartTask) => readonly Worktree[]
   onOpenTask: (task: DartTask) => void
@@ -230,6 +233,7 @@ function DartTaskRow({
 
 export function TaskPageDartTaskList({
   tasks,
+  nested,
   selectedTaskId,
   getTaskWorkspaces,
   onOpenTask,
@@ -256,7 +260,7 @@ export function TaskPageDartTaskList({
         <span />
       </div>
       <div className="divide-y divide-border/50">
-        {tasks.map((task) => (
+        {(nested ? nested.rows.map((row) => row.task) : tasks).map((task) => (
           <DartTaskRow
             key={task.id}
             task={task}

@@ -17,6 +17,8 @@ import type { DartBoardFeatures, DartScopeMeta } from './dart-board-contracts'
 import { splitDartBoardFilters } from './task-page-dart-list-model'
 import { useDartAccountFilters } from './use-dart-account-filters'
 import { useDartBoardModel } from './use-dart-board-model'
+import { useDartSubtaskNesting } from './use-dart-subtask-nesting'
+import { useDartOnHoldRelationshipReads } from './use-dart-on-hold-relationship-reads'
 import { useDartHostFeatures } from './use-dart-host-features'
 import { useDartFilterActions } from './use-dart-filter-actions'
 import { useDartDisplayedTasks } from './use-dart-displayed-tasks'
@@ -67,7 +69,8 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
   const [dartRefreshNonce, setDartRefreshNonce] = useState(0)
   const [dartTasks, setDartTasks] = useState<DartTask[]>([])
   const [dartTotalCount, setDartTotalCount] = useState(0)
-  const { viewMode, setViewMode, setDartLayout, setDartShowEmptyColumns } = useDartViewMode()
+  const { viewMode, setViewMode, setDartLayout, setDartShowEmptyColumns, setDartNestSubtasks } =
+    useDartViewMode()
   const active = taskSource === 'dart' && dartConnected
   const pageScope = useMemo(
     () => dartPageScopeFromContextKey(providerRuntimeContextKey),
@@ -107,6 +110,7 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
     target: pageScope.target
   })
   const hostSupportsBoard = hostFeatures?.board === true
+  const relationshipsHost = hostFeatures?.relationships === true
   const boardPath = hostSupportsBoard && !dartHasWorkspace
   const layout: DartLayout = boardPath ? viewMode.layout : 'list'
   const layoutSwitchDisabledReason: DartLayoutSwitchDisabledReason | null = dartHasWorkspace
@@ -118,9 +122,9 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
   const serverFiltersKey = JSON.stringify(server)
   // oxlint-disable-next-line react-hooks/exhaustive-deps -- Why: serverFiltersKey fingerprints the three server filters.
   const serverFilters = useMemo(() => server, [serverFiltersKey])
-  const { status, tag, priority, onHold } = client
-  // oxlint-disable-next-line react-hooks/exhaustive-deps -- Why: the four client filters are listed individually.
-  const clientFilters = useMemo(() => client, [status, tag, priority, onHold])
+  const { status, tag, priority, onHold, blockedOnHold } = client
+  // oxlint-disable-next-line react-hooks/exhaustive-deps -- Why: the five client filters are listed individually.
+  const clientFilters = useMemo(() => client, [status, tag, priority, onHold, blockedOnHold])
   const scopeKey = useMemo(
     () => (boardPath ? dartScopeCacheKey(pageScope, serverFilters) : null),
     [boardPath, serverFilters, pageScope]
@@ -132,6 +136,15 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
   const baseTasks: readonly DartTask[] = boardPath
     ? (scopeEntry?.data?.tasks ?? EMPTY_TASKS)
     : dartTasks
+
+  useDartOnHoldRelationshipReads({
+    active: active && relationshipsHost,
+    scopeKey,
+    scopeEntryTasks: scopeEntry?.data?.tasks,
+    fetchedAt: scopeMeta?.fetchedAt ?? 0,
+    pageScope,
+    viewerId: accountViewerId
+  })
 
   const patchLocalRow = useCallback((taskId: string, fields: Partial<DartTask>) => {
     setDartTasks((rows) =>
@@ -225,9 +238,25 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
     setHasWorkspace: setDartHasWorkspace
   })
   const boardFeatures: DartBoardFeatures = useMemo(
-    () => ({ board: hostSupportsBoard, savedViews: dartSavedViews.supported }),
-    [hostSupportsBoard, dartSavedViews.supported]
+    () => ({
+      board: hostSupportsBoard,
+      savedViews: dartSavedViews.supported,
+      ...(relationshipsHost ? { relationships: true } : {})
+    }),
+    [hostSupportsBoard, dartSavedViews.supported, relationshipsHost]
   )
+  const { nested: nestedList, model: dartNestedList } = useDartSubtaskNesting({
+    boardPath,
+    relationshipsHost,
+    nestSubtasks: viewMode.nestSubtasks,
+    search: dartFilters.search,
+    clientFilters,
+    tasks: displayedDartTasks,
+    pageScope,
+    hostKey,
+    accountKey,
+    viewerId: accountViewerId
+  })
   const openDartTask = useCallback((task: DartTask) => {
     actionsRef.current.openDartDetailPage?.(task)
   }, [])
@@ -238,6 +267,7 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
     serverFilters,
     clientFilters,
     showEmptyColumns: viewMode.showEmptyColumns,
+    nested: nestedList,
     config: dartConfig,
     features: boardFeatures,
     hostKey,
@@ -245,63 +275,40 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
     pinnedRows,
     onOpenTask: openDartTask
   })
-
-  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the fields added below are assigned right after this cast, before the model is returned.
-  const nextModel = model as TModel & {
-    dartFilters: typeof dartFilters
-    setDartFilter: typeof setDartFilter
-    dartSearchInput: typeof dartSearchInput
-    setDartSearchInput: typeof setDartSearchInput
-    applyDartSearch: typeof applyDartSearch
-    dartHasWorkspace: typeof dartHasWorkspace
-    setDartHasWorkspace: typeof setDartHasWorkspace
-    setDartRefreshNonce: typeof setDartRefreshNonce
-    dartTasks: typeof displayedDartTasks
-    dartTotalCount: typeof dartTotalCount
-    dartLoading: typeof dartLoading
-    dartError: typeof dartError
-    dartConfig: typeof dartConfig
-    dartConfigError?: typeof dartConfigError
-    getDartTaskWorkspaces: typeof getDartTaskWorkspaces
-    noteDartTaskCreated: typeof noteDartTaskCreated
-    dartLayout: DartLayout
-    setDartLayout: typeof setDartLayout
-    dartShowEmptyColumns: boolean
-    setDartShowEmptyColumns: typeof setDartShowEmptyColumns
-    dartLayoutSwitchDisabledReason: DartLayoutSwitchDisabledReason | null
-    dartBoardPath: boolean
-    dartScopeMeta: DartScopeMeta | null
-    dartLoadedCount: number
-    dartBoardModel: typeof dartBoardModel
-    dartSavedViews: typeof dartSavedViews
-  }
-  nextModel.dartFilters = dartFilters
-  nextModel.setDartFilter = setDartFilter
-  nextModel.dartSearchInput = dartSearchInput
-  nextModel.setDartSearchInput = setDartSearchInput
-  nextModel.applyDartSearch = applyDartSearch
-  nextModel.dartHasWorkspace = dartHasWorkspace
-  nextModel.setDartHasWorkspace = setDartHasWorkspace
-  nextModel.setDartRefreshNonce = setDartRefreshNonce
-  nextModel.dartTasks = displayedDartTasks
-  nextModel.dartTotalCount = displayedTotalCount
-  nextModel.dartLoading = dartLoading || (active && !featuresReady)
-  nextModel.dartError = dartError
-  nextModel.dartConfig = dartConfig
-  nextModel.dartConfigError = dartConfigError
-  nextModel.getDartTaskWorkspaces = getDartTaskWorkspaces
-  nextModel.noteDartTaskCreated = noteDartTaskCreated
-  nextModel.dartLayout = layout
-  nextModel.setDartLayout = setDartLayout
-  nextModel.dartShowEmptyColumns = viewMode.showEmptyColumns
-  nextModel.setDartShowEmptyColumns = setDartShowEmptyColumns
-  nextModel.dartLayoutSwitchDisabledReason = layoutSwitchDisabledReason
-  nextModel.dartBoardPath = boardPath
-  nextModel.dartScopeMeta = scopeMeta
-  nextModel.dartLoadedCount = dartLoadedCount
-  nextModel.dartBoardModel = dartBoardModel
-  nextModel.dartSavedViews = dartSavedViews
-  return nextModel
+  const optionalConfigError: { dartConfigError?: typeof dartConfigError } = { dartConfigError }
+  // Why: the page model is one shared object that later hooks read, so the Dart fields are added in place.
+  return Object.assign(model, {
+    dartFilters,
+    setDartFilter,
+    dartSearchInput,
+    setDartSearchInput,
+    applyDartSearch,
+    dartHasWorkspace,
+    setDartHasWorkspace,
+    setDartRefreshNonce,
+    dartTasks: displayedDartTasks,
+    dartTotalCount: displayedTotalCount,
+    dartLoading: dartLoading || (active && !featuresReady),
+    dartError,
+    dartConfig,
+    ...optionalConfigError,
+    getDartTaskWorkspaces,
+    noteDartTaskCreated,
+    dartLayout: layout,
+    setDartLayout,
+    dartShowEmptyColumns: viewMode.showEmptyColumns,
+    setDartShowEmptyColumns,
+    dartLayoutSwitchDisabledReason: layoutSwitchDisabledReason,
+    dartBoardPath: boardPath,
+    dartScopeMeta: scopeMeta,
+    dartLoadedCount,
+    dartBoardModel,
+    dartSavedViews,
+    dartNestedList,
+    dartNestSubtasks: viewMode.nestSubtasks,
+    setDartNestSubtasks,
+    dartRelationshipsHost: relationshipsHost
+  })
 }
 export type TaskPageDartStateFields = Omit<
   ReturnType<typeof useTaskPageDartState<TaskPageDartStateInput>>,

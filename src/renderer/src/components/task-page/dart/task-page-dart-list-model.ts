@@ -34,12 +34,32 @@ export function splitDartBoardFilters(filters: DartBoardFilters): {
   server: DartServerFilters
   client: DartClientFilters
 } {
-  const { mine, dartboard, search, status, tag, priority, onHold } = filters
-  return { server: { mine, dartboard, search }, client: { status, tag, priority, onHold } }
+  const { mine, dartboard, search, status, tag, priority, onHold, blockedOnHold } = filters
+  return {
+    server: { mine, dartboard, search },
+    client: { status, tag, priority, onHold, blockedOnHold: blockedOnHold === true }
+  }
 }
 
 export function hasDartClientFilter(client: DartClientFilters): boolean {
-  return Boolean(client.status || client.tag || client.priority || client.onHold)
+  return Boolean(
+    client.status || client.tag || client.priority || client.onHold || client.blockedOnHold
+  )
+}
+
+/** D13.1: the count line says how many subtasks sit under tasks that are not loaded. */
+export function buildDartHiddenSubtasksText(hiddenSubtasks: number): string | null {
+  if (hiddenSubtasks <= 0) {
+    return null
+  }
+  return translate(
+    'auto.components.task.page.dart.task-page-dart-list-model.hiddenSubtasks',
+    '{{count}} subtasks are under tasks not shown here',
+    {
+      count: hiddenSubtasks,
+      defaultValue_one: '{{count}} subtask is under a task not shown here'
+    }
+  )
 }
 
 // Why: Dart ignores unknown parameters and applies hidden workspace defaults, so every filter is sent explicitly.

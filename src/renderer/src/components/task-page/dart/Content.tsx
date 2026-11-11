@@ -17,6 +17,7 @@ import { TaskPageDartTaskDetail } from './TaskDetail'
 import { TaskPageDartCreateDialog } from './TaskCreateDialog'
 import {
   buildDartCountLine,
+  buildDartHiddenSubtasksText,
   isDartAuthFailureCode,
   isDartListTruncated,
   splitDartBoardFilters,
@@ -54,6 +55,7 @@ export function TaskPageDartContent({
     dartScopeMeta,
     dartLoadedCount,
     dartBoardModel,
+    dartNestedList,
     dartFilters,
     setDartRefreshNonce,
     getDartTaskWorkspaces,
@@ -160,6 +162,7 @@ export function TaskPageDartContent({
           clientFilterActive
         })
       : null
+  const hiddenSubtasksText = buildDartHiddenSubtasksText(dartNestedList.hiddenSubtasks)
   const refresh = (): void => setDartRefreshNonce((n) => n + 1)
   const readChanged = dartBoardPath && dartScopeMeta?.partialReason === 'changed'
   const { doneMore, hasMoreDone, showMoreDone } = dartBoardModel
@@ -178,6 +181,7 @@ export function TaskPageDartContent({
           {translate('auto.components.task.page.dart.Content.listTitle', 'Dart tasks')}
         </div>
         <div role="status" className="shrink-0 text-2xs text-muted-foreground">
+          {hiddenSubtasksText ? <span className="mr-1">{hiddenSubtasksText} ·</span> : null}
           {countLine ? (
             <>
               {countLine.text}
@@ -306,6 +310,7 @@ export function TaskPageDartContent({
         {dartTasks.length > 0 && dartLayout === 'list' ? (
           <TaskPageDartTaskList
             tasks={dartTasks}
+            nested={dartNestedList.nested ? dartNestedList : undefined}
             selectedTaskId={selectedDartTask?.id ?? null}
             getTaskWorkspaces={getDartTaskWorkspaces}
             onOpenTask={openDartDetailPage}
@@ -347,6 +352,7 @@ export function TaskPageDartContent({
         onUse={(task: DartTask) => handleUseDartItem(task)}
         onClose={closeTaskDetailPage}
         onOpenWorkspace={openWorkspace}
+        onOpenTask={openDartDetailPage}
       />
       <TaskPageDartCreateDialog model={model} />
       {connectDialog}
