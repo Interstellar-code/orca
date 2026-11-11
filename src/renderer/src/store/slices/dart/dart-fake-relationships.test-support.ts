@@ -24,8 +24,7 @@ export function selectFakeListRows(
   tasks: Iterable<DartTask>,
   params: RpcParams
 ): DartTask[] | Failure {
-  const raw: Record<string, unknown> = { ...params }
-  const query = ListTasks.safeParse({ parentId: raw.parentId, ids: raw.ids })
+  const query = ListTasks.safeParse({ parentId: params.parentId, ids: params.ids })
   if (!query.success) {
     return {
       ok: false,
@@ -74,6 +73,5 @@ export function planBlockerWrite(
   if (!current.relationships) {
     return { failure: refusal("Dart did not return this task's links", 'dart.updateFailed') }
   }
-  dartCalls.push(`PUT /tasks/${taskId}`)
   return { taskId, changes: { relationships: { ...current.relationships, blockerIds } } }
 }

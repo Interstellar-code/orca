@@ -39,6 +39,11 @@ export function createDartOnHoldRelationshipActions(
         dartTaskIdentityKey(dartTaskIdentity(scope, taskId, viewerId))
       const unique = [...new Set(taskIds)]
       const targets = unique.slice(0, DART_ON_HOLD_READ_CAP)
+      // Identity of the stored loading entry owns the key: a newer read or a write replaces it.
+      const marked = new Map<
+        string,
+        { marker: DartRelationshipCacheEntry; prior: DartRelationshipCacheEntry | undefined }
+      >()
       // Past the cap is "not checked", never "not blocked"; an existing entry is kept.
       set((state) => {
         const next = { ...state.dartRelationshipCache }
@@ -46,43 +51,80 @@ export function createDartOnHoldRelationshipActions(
           const key = keyOf(taskId)
           const entry = next[key]
           if (targets.includes(taskId)) {
-            next[key] = { ...(entry ?? NOT_CHECKED), state: 'loading', error: null }
+            const marker: DartRelationshipCacheEntry = {
+              ...(entry ?? NOT_CHECKED),
+              state: 'loading',
+              error: null
+            }
+            marked.set(key, { marker, prior: entry })
+            next[key] = marker
           } else if (!entry) {
             next[key] = NOT_CHECKED
           }
         }
         return { dartRelationshipCache: next }
       })
-      for (const taskId of targets) {
-        if (!isCurrent()) {
+      const restoreUnread = (): void => {
+        const owned = [...marked].filter(
+          ([key, { marker }]) => get().dartRelationshipCache[key] === marker
+        )
+        if (owned.length === 0) {
           return
         }
-        // Forced, so every read set sees fresh blockers; the detail's task cache gets the same task.
-        const result = await get()
-          .fetchDartTask(taskId, { scope, force: true })
-          .catch((error: unknown) => ({
-            ok: false as const,
-            error: error instanceof Error ? error.message : 'Dart request failed',
-            errorCode: undefined
-          }))
-        if (!isCurrent()) {
-          return
+        set((state) => {
+          const next = { ...state.dartRelationshipCache }
+          for (const [key, { prior }] of owned) {
+            // A prior loading entry belongs to a read that can no longer install.
+            next[key] =
+              prior?.state === 'loading'
+                ? { ...prior, state: 'notChecked' }
+                : (prior ?? NOT_CHECKED)
+          }
+          return { dartRelationshipCache: next }
+        })
+      }
+      const readTargets = async (): Promise<void> => {
+        for (const taskId of targets) {
+          if (!isCurrent()) {
+            return
+          }
+          // Forced, so every read set sees fresh blockers; the detail's task cache gets the same task.
+          const result = await get()
+            .fetchDartTask(taskId, { scope, force: true })
+            .catch((error: unknown) => ({
+              ok: false as const,
+              error: error instanceof Error ? error.message : 'Dart request failed',
+              errorCode: undefined
+            }))
+          if (!isCurrent()) {
+            return
+          }
+          const entry: DartRelationshipCacheEntry = result.ok
+            ? {
+                // No links data is unknown, not "no blockers".
+                state: result.task.relationships ? 'known' : 'notChecked',
+                relationships: result.task.relationships ?? null,
+                fetchedAt: Date.now(),
+                error: null
+              }
+            : { state: 'error', relationships: null, fetchedAt: Date.now(), error: result.error }
+          const key = keyOf(taskId)
+          const owned = get().dartRelationshipCache[key] === marked.get(key)?.marker
+          marked.delete(key)
+          if (owned) {
+            set((state) => ({
+              dartRelationshipCache: { ...state.dartRelationshipCache, [key]: entry }
+            }))
+          }
+          if (!result.ok && isDartAuthLostFailure(result.errorCode)) {
+            return
+          }
         }
-        const entry: DartRelationshipCacheEntry = result.ok
-          ? {
-              // No links data is unknown, not "no blockers".
-              state: result.task.relationships ? 'known' : 'notChecked',
-              relationships: result.task.relationships ?? null,
-              fetchedAt: Date.now(),
-              error: null
-            }
-          : { state: 'error', relationships: null, fetchedAt: Date.now(), error: result.error }
-        set((state) => ({
-          dartRelationshipCache: { ...state.dartRelationshipCache, [keyOf(taskId)]: entry }
-        }))
-        if (!result.ok && isDartAuthLostFailure(result.errorCode)) {
-          return
-        }
+      }
+      try {
+        await readTargets()
+      } finally {
+        restoreUnread()
       }
     }
   }

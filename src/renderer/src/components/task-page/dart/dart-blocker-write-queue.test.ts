@@ -116,6 +116,15 @@ describe('blocker writes through the write queue', () => {
     expect(page.host.dartCalls).toEqual([`GET /tasks/${page.taskId}`, `PUT /tasks/${page.taskId}`])
   })
 
+  it('logs a PUT only for a write that reached Dart, not for a failed pre-read', async () => {
+    const page = await openDetail()
+    page.host.failReads = true
+
+    await expect(page.setBlockers([BLOCKER_ID])).resolves.toMatchObject({ ok: false })
+
+    expect(page.host.dartCalls).toEqual([`GET /tasks/${page.taskId}`])
+  })
+
   it('keeps a status write independent of a blocker write that came back unknown', async () => {
     const page = await openDetail()
     page.host.lostReplies.push(LOST_REPLY)

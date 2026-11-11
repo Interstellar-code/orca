@@ -96,12 +96,13 @@ export class FakeDartHost {
     return this.requests.filter((request) => request.method === method).map(({ params }) => params)
   }
 
-  private write(apply: () => object): object {
+  private write(apply: () => object, onSent: () => void = () => {}): object {
     if (this.transportError) {
       const error = this.transportError
       this.transportError = null
       throw error
     }
+    onSent()
     const refusal = this.refusals.shift()
     if (refusal) {
       return refusal
@@ -201,7 +202,10 @@ export class FakeDartHost {
     if ('failure' in plan) {
       return plan.failure
     }
-    return this.write(() => this.update(params, plan.changes))
+    return this.write(
+      () => this.update(params, plan.changes),
+      () => this.dartCalls.push(`PUT /tasks/${plan.taskId}`)
+    )
   }
 
   private applyWrite(method: string, params: RpcParams): object {

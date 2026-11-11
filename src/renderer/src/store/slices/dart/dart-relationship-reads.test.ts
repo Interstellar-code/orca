@@ -86,11 +86,7 @@ describe('dart reads by id', () => {
       complete: true,
       tasks: [{ id: taskId(0) }]
     })
-    // RpcParams does not type `ids`.
-    const sizes = host.requestsOf('dart.listTasks').map((params) => {
-      const sent: unknown = Reflect.get(params, 'ids')
-      return Array.isArray(sent) ? sent.length : null
-    })
+    const sizes = host.requestsOf('dart.listTasks').map((params) => params.ids?.length)
     expect(sizes).toEqual([100, 100, 50])
   })
 
@@ -103,6 +99,19 @@ describe('dart reads by id', () => {
     expect(result).toMatchObject({ ok: true, total: 350, complete: false })
     expect(host.count('dart.listTasks')).toBe(3)
     expect(store.getState().dartListCache).toEqual({})
+  })
+
+  it('keeps total and complete apart for concurrent reads that share their first 300 ids', async () => {
+    const { store } = openStore()
+    const ids = Array.from({ length: 350 }, (_, index) => taskId(index))
+
+    const [exact, over] = await Promise.all([
+      store.getState().readDartTasksByIds(ids.slice(0, 300)),
+      store.getState().readDartTasksByIds(ids)
+    ])
+
+    expect(exact).toMatchObject({ ok: true, total: 300, complete: true })
+    expect(over).toMatchObject({ ok: true, total: 350, complete: false })
   })
 })
 
@@ -187,5 +196,100 @@ describe('dart on-hold relationship reads', () => {
     expect(Object.keys(store.getState().dartRelationshipCache)).toHaveLength(2)
     await store.getState().disconnectDart()
     expect(store.getState().dartRelationshipCache).toEqual({})
+  })
+
+  describe('with a read in flight', () => {
+    const cleared = relationshipsFixture({ blockerIds: ['blocker00002'] })
+
+    function setup(count: number) {
+      const opened = openStore()
+      const ids = addOnHoldTasks(opened.host, count)
+      const entryOf = (id: string) =>
+        opened.store.getState().dartRelationshipCache[
+          dartTaskIdentityKey(dartTaskIdentity(opened.scope, id, viewer.id))
+        ]
+      return { ...opened, ids, entryOf }
+    }
+
+    it('keeps a newer read when an overtaken one replies late', async () => {
+      const { host, store, ids, entryOf } = setup(1)
+      const release = host.hold('dart.getTask')
+      const overtaken = store.getState().readDartOnHoldRelationships(ids)
+      await vi.waitFor(() => expect(host.count('dart.getTask')).toBe(1))
+      host.addTask(dartTaskFixture(ids[0], { status: 'On hold', relationships: cleared }))
+
+      await store.getState().readDartOnHoldRelationships(ids)
+      release()
+      await overtaken
+
+      expect(entryOf(ids[0])).toMatchObject({ state: 'known', relationships: cleared })
+    })
+
+    it('keeps an entry written to the cache after the read started', async () => {
+      const { host, store, scope, ids, entryOf } = setup(1)
+      const release = host.hold('dart.getTask')
+      const read = store.getState().readDartOnHoldRelationships(ids)
+      await vi.waitFor(() => expect(host.count('dart.getTask')).toBe(1))
+      const written = { state: 'known', relationships: cleared, fetchedAt: 1, error: null } as const
+      const key = dartTaskIdentityKey(dartTaskIdentity(scope, ids[0], viewer.id))
+      store.setState((state) => ({
+        dartRelationshipCache: { ...state.dartRelationshipCache, [key]: written }
+      }))
+
+      release()
+      await read
+
+      expect(entryOf(ids[0])).toBe(written)
+    })
+
+    it('puts unread targets back to what they were when the host changes', async () => {
+      const { host, store, ids, entryOf } = setup(3)
+      await store.getState().readDartOnHoldRelationships(ids.slice(0, 1))
+      const known = entryOf(ids[0])
+      const release = host.hold('dart.getTask')
+      const read = store.getState().readDartOnHoldRelationships(ids)
+      await vi.waitFor(() => expect(host.count('dart.getTask')).toBe(2))
+      store.setState({
+        settings: { ...store.getState().settings!, activeRuntimeEnvironmentId: 'other-host' }
+      })
+
+      release()
+      await read
+
+      expect(host.count('dart.getTask')).toBe(2)
+      expect(entryOf(ids[0])).toBe(known)
+      expect(entryOf(ids[1])).toMatchObject({ state: 'notChecked', relationships: null })
+      expect(entryOf(ids[2])).toMatchObject({ state: 'notChecked', relationships: null })
+    })
+
+    it('puts unread targets back to not checked when Dart refuses the token', async () => {
+      const { store, ids, entryOf } = setup(3)
+      store.setState({
+        fetchDartTask: async () => ({
+          ok: false,
+          error: 'Dart token rejected.',
+          errorCode: 'dart.unauthorized'
+        })
+      })
+
+      await store.getState().readDartOnHoldRelationships(ids)
+
+      expect(entryOf(ids[0])).toMatchObject({ state: 'error', error: 'Dart token rejected.' })
+      expect(entryOf(ids[1])).toMatchObject({ state: 'notChecked', relationships: null })
+      expect(entryOf(ids[2])).toMatchObject({ state: 'notChecked', relationships: null })
+    })
+
+    it('leaves the emptied cache empty when a disconnect interrupts the read', async () => {
+      const { host, store, ids } = setup(2)
+      const release = host.hold('dart.getTask')
+      const read = store.getState().readDartOnHoldRelationships(ids)
+      await vi.waitFor(() => expect(host.count('dart.getTask')).toBe(1))
+      await store.getState().disconnectDart()
+
+      release()
+      await read
+
+      expect(store.getState().dartRelationshipCache).toEqual({})
+    })
   })
 })

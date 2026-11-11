@@ -203,7 +203,7 @@ export function createDartReadActions(set: DartSliceSet, get: DartSliceGet): Dar
         get,
         scope,
         inflightReads: inflightIdsReads,
-        flightKey: `${scope.contextKey}::ids::${readable.join(',')}`,
+        flightKey: `${scope.contextKey}::ids::${unique.join(',')}`,
         force: options?.force,
         read: async () => {
           const tasks: DartTask[] = []

@@ -22,6 +22,8 @@ export type RpcParams = {
   isCompleted?: boolean
   offset?: number
   limit?: number
+  ids?: readonly string[]
+  blockerIds?: readonly string[]
   order?: string
   /** `ui.mutateDartSavedViews` sends the mutation itself as its params. */
   kind?: string
