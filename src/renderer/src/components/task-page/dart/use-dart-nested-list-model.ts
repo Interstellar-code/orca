@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DartTask } from '../../../../../shared/dart/dart-types'
 import { useAppStore } from '@/store'
 import { scopedDartCacheKey, type DartReadScope } from '@/store/slices/dart/dart-read-coordination'
-import { dartTaskIdentity, dartTaskIdentityKey } from '@/store/slices/dart/dart-task-identity'
+import { dartTaskIdentityKey } from '@/store/slices/dart/dart-task-identity'
 import { buildDartCardInfo, dartRelationshipEntryFor } from './dart-board-columns'
 import type {
   DartCardInfo,
@@ -11,6 +11,7 @@ import type {
   DartRelationshipCacheEntry,
   DartTaskPage
 } from './dart-board-contracts'
+import { dartPublicationRelationshipEntry } from './dart-publication-relationship-entries'
 import { collectDartChildrenEntries, reconcileDartTasks } from './dart-loaded-children'
 import { buildDartNestedRows, buildDartTaskTree } from './dart-task-tree'
 
@@ -41,10 +42,13 @@ export function useDartNestedListModel(args: {
   pageScope: DartReadScope
   hostKey: string
   accountKey: string
-  viewerId: string | null
+  /** Unused: relationship keys come from the host and account keys. */
+  viewerId?: string | null
+  /** The scope's current publication: relationship entries from another one count as not checked (D14.3). */
+  publicationId?: number
   relationshipsHost: boolean
 }): DartNestedListModel {
-  const { tasks, nested, pageScope, hostKey, accountKey, viewerId, relationshipsHost } = args
+  const { tasks, nested, pageScope, hostKey, accountKey, relationshipsHost, publicationId } = args
   const scopeId = `${hostKey}\n${accountKey}`
   const listCache = useAppStore((state) => state.dartListCache)
   const relationshipCache = useAppStore((state) => state.dartRelationshipCache)
@@ -210,20 +214,25 @@ export function useDartNestedListModel(args: {
     [rows, nested, expanded]
   )
 
+  // Every reconciled task, cache-only children included, through the board's key.
   const relationshipsByTaskId = useMemo(() => {
     const byId = new Map<string, DartRelationshipCacheEntry>()
     if (!relationshipsHost) {
       return byId
     }
-    for (const task of tasks) {
-      const entry =
-        relationshipCache[dartTaskIdentityKey(dartTaskIdentity(pageScope, task.id, viewerId))]
+    const entryOf = (task: DartTask): DartRelationshipCacheEntry | undefined =>
+      dartPublicationRelationshipEntry(
+        relationshipCache[dartTaskIdentityKey({ hostKey, accountKey, taskId: task.id })],
+        publicationId
+      )
+    for (const task of reconciled.all) {
+      const entry = entryOf(task)
       if (entry) {
         byId.set(task.id, entry)
       }
     }
     return byId
-  }, [tasks, relationshipCache, pageScope, viewerId, relationshipsHost])
+  }, [reconciled, relationshipCache, hostKey, accountKey, relationshipsHost, publicationId])
 
   // List rows carry no links, so only a read relationship entry, a task's own links or loaded rows can rule a parent out.
   const canExpand = useCallback(

@@ -25,9 +25,23 @@ const NOT_CHECKED: DartRelationshipCacheEntry = {
 export function createDartOnHoldRelationshipActions(
   set: DartSliceSet,
   get: DartSliceGet
-): Pick<DartSlice, 'readDartOnHoldRelationships'> {
+): Pick<DartSlice, 'readDartOnHoldRelationships' | 'markDartOnHoldReadPublication'> {
   return {
-    readDartOnHoldRelationships: async (taskIds) => {
+    markDartOnHoldReadPublication: (scopeKey, publicationId) =>
+      set((state) => {
+        const meta = state.dartScopeMetaCache[scopeKey]
+        return meta?.publicationId === publicationId
+          ? {
+              dartScopeMetaCache: {
+                ...state.dartScopeMetaCache,
+                [scopeKey]: { ...meta, onHoldReadPublicationId: publicationId }
+              }
+            }
+          : state
+      }),
+    readDartOnHoldRelationships: async (taskIds, options) => {
+      const stamp =
+        options?.publicationId === undefined ? {} : { publicationId: options.publicationId }
       const scope = getDartReadScope(get().settings)
       const viewerId = dartScopeViewerId(get(), scope)
       registerDartCacheAlias(scope, viewerId)
@@ -54,7 +68,8 @@ export function createDartOnHoldRelationshipActions(
             const marker: DartRelationshipCacheEntry = {
               ...(entry ?? NOT_CHECKED),
               state: 'loading',
-              error: null
+              error: null,
+              ...stamp
             }
             marked.set(key, { marker, prior: entry })
             next[key] = marker
@@ -105,9 +120,16 @@ export function createDartOnHoldRelationshipActions(
                 state: result.task.relationships ? 'known' : 'notChecked',
                 relationships: result.task.relationships ?? null,
                 fetchedAt: Date.now(),
-                error: null
+                error: null,
+                ...stamp
               }
-            : { state: 'error', relationships: null, fetchedAt: Date.now(), error: result.error }
+            : {
+                state: 'error',
+                relationships: null,
+                fetchedAt: Date.now(),
+                error: result.error,
+                ...stamp
+              }
           const key = keyOf(taskId)
           const owned = get().dartRelationshipCache[key] === marked.get(key)?.marker
           marked.delete(key)

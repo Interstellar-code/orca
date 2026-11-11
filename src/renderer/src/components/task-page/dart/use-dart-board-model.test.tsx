@@ -133,11 +133,18 @@ function columnIds(hook: ReturnType<typeof mountModel>, status: string): string[
     ?.tasks.map((task) => task.id)
 }
 
+function currentPublicationId(): number | undefined {
+  const { dartMountedScopeKey, dartScopeMetaCache } = useAppStore.getState()
+  return dartMountedScopeKey ? dartScopeMetaCache[dartMountedScopeKey]?.publicationId : undefined
+}
+
+/** Read in the scope's current publication unless a test says otherwise. */
 function relationshipEntry(
   state: DartRelationshipCacheEntry['state'],
   blockerIds: string[] = []
 ): DartRelationshipCacheEntry {
   return {
+    publicationId: currentPublicationId(),
     state,
     relationships:
       state === 'known'
@@ -414,6 +421,48 @@ describe('useDartBoardModel', () => {
       expect(columnIds(hook, 'On Hold')).toEqual([blocked.id])
     })
 
+    it('treats a known entry from another or no publication as not checked, and one from the current publication as known', async () => {
+      const current = openTask('current', 'On Hold')
+      const older = openTask('older', 'On Hold')
+      const unstamped = openTask('unstamped', 'On Hold')
+      const { scopeKey, account } = await openScope([current, older, unstamped])
+      const publicationId = currentPublicationId()!
+      cacheRelationships(account, {
+        [current.id]: relationshipEntry('known', ['b1']),
+        [older.id]: { ...relationshipEntry('known', ['b1']), publicationId: publicationId - 1 },
+        [unstamped.id]: { ...relationshipEntry('known', ['b1']), publicationId: undefined }
+      })
+      const hook = mountModel(scopeKey, account, { features: RELATIONSHIPS_FEATURES })
+
+      expect(hook.result.current.cardInfo(current.id)).toMatchObject({
+        relationshipState: 'known',
+        blockedBy: 1
+      })
+      for (const task of [older, unstamped]) {
+        expect(hook.result.current.cardInfo(task.id)).toMatchObject({
+          relationshipState: 'notChecked',
+          blockedBy: null
+        })
+      }
+      expect(hook.result.current.notChecked).toBe(2)
+    })
+
+    it('keeps an older-publication known on-hold task under the blocked-on-hold filter and drops a current known-unblocked one', async () => {
+      const older = openTask('older', 'On Hold')
+      const unblocked = openTask('unblocked', 'On Hold')
+      const { scopeKey, account } = await openScope([older, unblocked])
+      cacheRelationships(account, {
+        [older.id]: { ...relationshipEntry('known'), publicationId: currentPublicationId()! - 1 },
+        [unblocked.id]: relationshipEntry('known')
+      })
+      const hook = mountModel(scopeKey, account, {
+        features: RELATIONSHIPS_FEATURES,
+        clientFilters: { ...CLIENT_FILTERS, blockedOnHold: true }
+      })
+
+      expect(columnIds(hook, 'On Hold')).toEqual([older.id])
+    })
+
     it('renders exactly as release A on a host without relationships', async () => {
       const onHold = openTask('hold', 'On Hold')
       const { scopeKey, account } = await openScope([onHold])
@@ -584,6 +633,31 @@ describe('useDartBoardModel', () => {
       expect(hook.result.current.cardInfo(newParent.id).subtasks?.loaded).toBe(1)
     })
 
+    it('keeps a stale parentless pinned row out of the cards when its newer cached copy has a listed parent', async () => {
+      const parent = openTask('parent')
+      const stalePin = openTask('pinned')
+      const newerCopy = { ...stalePin, parentId: parent.id, updatedAt: '2026-11-10T00:00:00.000Z' }
+      const { scopeKey, account, scope } = await openScope([parent])
+      useAppStore.setState((state) => ({
+        dartListCache: {
+          ...state.dartListCache,
+          [scopedDartCacheKey(scope, `list::children::${parent.id}`)]: {
+            data: { tasks: [newerCopy], totalCount: 1 },
+            fetchedAt: T0
+          }
+        }
+      }))
+      const pinnedRows = new Map([[stalePin.id, { row: stalePin, survivesNextClear: false }]])
+      const hook = mountModel(scopeKey, account, {
+        features: RELATIONSHIPS_FEATURES,
+        nested: true,
+        pinnedRows
+      })
+
+      expect(columnIds(hook, 'To-do')).toEqual([parent.id])
+      expect(hook.result.current.cardInfo(parent.id).subtasks?.loaded).toBe(1)
+    })
+
     it('checks the next 20 not-checked on-hold tasks in read order', async () => {
       const held = Array.from({ length: 25 }, (_, index) =>
         openTask(`held${String(index).padStart(2, '0')}-`, 'On Hold')
@@ -596,7 +670,10 @@ describe('useDartBoardModel', () => {
 
       expect(hook.result.current.notChecked).toBe(24)
       act(() => hook.result.current.checkMore?.())
-      expect(readSpy).toHaveBeenLastCalledWith(held.slice(1, 21).map((task) => task.id))
+      expect(readSpy).toHaveBeenLastCalledWith(
+        held.slice(1, 21).map((task) => task.id),
+        { publicationId: currentPublicationId() }
+      )
 
       act(() =>
         cacheRelationships(
@@ -606,7 +683,10 @@ describe('useDartBoardModel', () => {
       )
       expect(hook.result.current.notChecked).toBe(4)
       act(() => hook.result.current.checkMore?.())
-      expect(readSpy).toHaveBeenLastCalledWith(held.slice(21).map((task) => task.id))
+      expect(readSpy).toHaveBeenLastCalledWith(
+        held.slice(21).map((task) => task.id),
+        { publicationId: currentPublicationId() }
+      )
     })
 
     describe('checkMore after failed reads', () => {
@@ -637,12 +717,16 @@ describe('useDartBoardModel', () => {
         const { held, readSpy, hook } = await openHeldScope(28, 3)
 
         act(() => hook.result.current.checkMore?.())
-        expect(readSpy).toHaveBeenLastCalledWith(held.slice(0, 20).map((task) => task.id))
+        expect(readSpy).toHaveBeenLastCalledWith(
+          held.slice(0, 20).map((task) => task.id),
+          { publicationId: currentPublicationId() }
+        )
         expect(hook.result.current.notChecked).toBe(3 + 8)
 
         act(() => hook.result.current.checkMore?.())
         expect(readSpy).toHaveBeenLastCalledWith(
-          [...held.slice(20), ...held.slice(0, 3)].map((task) => task.id)
+          [...held.slice(20), ...held.slice(0, 3)].map((task) => task.id),
+          { publicationId: currentPublicationId() }
         )
       })
 
@@ -653,7 +737,8 @@ describe('useDartBoardModel', () => {
         act(() => hook.result.current.checkMore?.())
 
         expect(readSpy).toHaveBeenLastCalledWith(
-          [...held.slice(20), ...held.slice(0, 13)].map((task) => task.id)
+          [...held.slice(20), ...held.slice(0, 13)].map((task) => task.id),
+          { publicationId: currentPublicationId() }
         )
         expect(hook.result.current.notChecked).toBe(22)
       })

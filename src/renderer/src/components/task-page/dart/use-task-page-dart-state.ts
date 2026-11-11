@@ -253,7 +253,7 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
     pageScope,
     hostKey,
     accountKey,
-    viewerId
+    publicationId: scopeMeta?.publicationId
   })
   const openDartTask = useCallback((task: DartTask) => {
     actionsRef.current.openDartDetailPage?.(task)

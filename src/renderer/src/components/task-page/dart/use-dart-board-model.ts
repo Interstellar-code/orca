@@ -6,9 +6,7 @@ import { useAppStore } from '@/store'
 import {
   applyDartBoardFilters,
   buildDartBoardColumns,
-  buildDartCardInfo,
-  dartRelationshipEntryFor,
-  isDartTaskOnHold
+  buildDartCardInfo
 } from './dart-board-columns'
 import type {
   DartBoardColumn,
@@ -17,13 +15,12 @@ import type {
   DartCardInfo,
   DartClientFilters,
   DartLoad,
-  DartRelationshipCacheEntry,
   DartScopeMeta,
   DartServerFilters
 } from './dart-board-contracts'
 import { scopedDartCacheKey, type DartReadScope } from '@/store/slices/dart/dart-read-coordination'
-import { dartTaskIdentityKey } from '@/store/slices/dart/dart-task-identity'
 import { useDartOnHoldCheckMore } from './use-dart-on-hold-check-more'
+import { buildDartRelationshipView } from './dart-publication-relationship-entries'
 import { collectDartChildrenEntries, reconcileDartTasks } from './dart-loaded-children'
 import { enqueueDartTaskWrite } from './dart-task-write-queue'
 import { mergeDartPinnedRows, type PinnedDartRow } from './use-dart-list-pinned-rows'
@@ -101,6 +98,12 @@ export function useDartBoardModel(args: {
   const patchDartTask = useAppStore((state) => state.patchDartTask)
   const invalidateDartLists = useAppStore((state) => state.invalidateDartLists)
   const meta = storedMeta ?? EMPTY_META
+  const publicationId = storedMeta?.publicationId
+  // Check stamps its entries with the publication it was clicked in, so they count as read there.
+  const readOnHoldForPublication = useCallback(
+    (taskIds: string[]) => readDartOnHoldRelationships(taskIds, { publicationId }),
+    [readDartOnHoldRelationships, publicationId]
+  )
 
   const childrenKeyPrefix = scopedDartCacheKey(pageScope, CHILDREN_ENTRY_PREFIX)
 
@@ -123,39 +126,32 @@ export function useDartBoardModel(args: {
     }
     const merged = mergeDartPinnedRows(rows ?? NO_TASKS, pinnedRows, { hostKey, accountKey })
     const candidates = reconciled ? merged.map(reconciled.newestOf) : merged
-    const cached = new Map<string, DartRelationshipCacheEntry>()
-    const entries = new Map<string, DartRelationshipCacheEntry>()
-    const unchecked: string[] = []
-    const errored = new Set<string>()
-    for (const task of candidates) {
-      const entry =
-        relationshipCache?.[dartTaskIdentityKey({ hostKey, accountKey, taskId: task.id })]
-      if (entry) {
-        cached.set(task.id, entry)
-      }
-      const resolved = dartRelationshipEntryFor(task, cached, true)
-      if (resolved) {
-        entries.set(task.id, resolved)
-      }
-      if (
-        isDartTaskOnHold(task) &&
-        (!entry || entry.state === 'notChecked' || entry.state === 'error')
-      ) {
-        unchecked.push(task.id)
-        if (entry?.state === 'error') {
-          errored.add(task.id)
-        }
-      }
-    }
-    return { entries, unchecked, errored }
-  }, [relationshipsHost, rows, pinnedRows, hostKey, accountKey, relationshipCache, reconciled])
+    return buildDartRelationshipView({
+      candidates,
+      relationshipCache,
+      hostKey,
+      accountKey,
+      publicationId
+    })
+  }, [
+    relationshipsHost,
+    rows,
+    pinnedRows,
+    hostKey,
+    accountKey,
+    relationshipCache,
+    reconciled,
+    publicationId
+  ])
 
   const { columns, cardInfoById } = useMemo(() => {
     const entries = relationshipView?.entries
     const readRows = reconciled && rows ? rows.map(reconciled.newestOf) : (rows ?? NO_TASKS)
-    const merged = mergeDartPinnedRows(readRows, pinnedRows, { hostKey, accountKey }, (read) =>
+    const withPins = mergeDartPinnedRows(readRows, pinnedRows, { hostKey, accountKey }, (read) =>
       applyDartBoardFilters(read, clientFilters, entries)
     )
+    // Pins are in the reconciled scope rows too, so a stale pin shows as its newest copy.
+    const merged = reconciled ? withPins.map(reconciled.newestOf) : withPins
     const built =
       layout === 'board' && config
         ? buildDartBoardColumns(merged, config, { showEmptyColumns, nested })
@@ -189,8 +185,8 @@ export function useDartBoardModel(args: {
   const checkMore = useDartOnHoldCheckMore({
     unchecked: relationshipView?.unchecked,
     errored: relationshipView?.errored,
-    publication: storedMeta?.publicationId ?? 0,
-    read: readDartOnHoldRelationships
+    publication: publicationId ?? 0,
+    read: readOnHoldForPublication
   })
 
   const statuses = useMemo(() => (config ? [...config.statuses] : NO_STATUSES), [config])

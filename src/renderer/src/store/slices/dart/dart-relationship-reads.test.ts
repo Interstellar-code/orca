@@ -183,6 +183,39 @@ describe('dart on-hold relationship reads', () => {
     expect(entryOf('missing00001')?.error).toEqual(expect.any(String))
   })
 
+  it('stamps the given publication id on every entry it writes and leaves entries unstamped without one', async () => {
+    const { host, store, scope } = openStore()
+    const ids = [...addOnHoldTasks(host, 2), 'missing00001']
+    const entryOf = (id: string) =>
+      store.getState().dartRelationshipCache[
+        dartTaskIdentityKey(dartTaskIdentity(scope, id, viewer.id))
+      ]
+
+    await store.getState().readDartOnHoldRelationships(ids)
+    expect(ids.map((id) => entryOf(id)?.publicationId)).toEqual([undefined, undefined, undefined])
+
+    await store.getState().readDartOnHoldRelationships(ids, { publicationId: 7 })
+    expect(entryOf(ids[0])).toMatchObject({ state: 'known', publicationId: 7 })
+    expect(entryOf(ids[2])).toMatchObject({ state: 'error', publicationId: 7 })
+  })
+
+  it('marks the on-hold read publication on the scope meta only while that publication is current', () => {
+    const { store } = openStore()
+    const meta = { openTotal: 0, doneTotal: 0, doneOffset: 0, generation: 1, fetchedAt: 1 }
+    store.setState({
+      dartScopeMetaCache: {
+        current: { ...meta, incomplete: false, partialReason: null, publicationId: 4 },
+        replaced: { ...meta, incomplete: false, partialReason: null, publicationId: 9 }
+      }
+    })
+
+    store.getState().markDartOnHoldReadPublication('current', 4)
+    store.getState().markDartOnHoldReadPublication('replaced', 4)
+
+    expect(store.getState().dartScopeMetaCache.current?.onHoldReadPublicationId).toBe(4)
+    expect(store.getState().dartScopeMetaCache.replaced?.onHoldReadPublicationId).toBeUndefined()
+  })
+
   it('is emptied by connect and by disconnect', async () => {
     const { host, store } = openStore()
     const ids = addOnHoldTasks(host, 2)

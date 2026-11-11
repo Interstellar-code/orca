@@ -8,6 +8,8 @@ function updatedAtMs(task: DartTask): number {
 export type DartReconciledTasks = {
   /** The task's newest copy across scope and children entries, or the task itself when unknown. */
   newestOf(task: DartTask): DartTask
+  /** Every task, scope and cache-only, as its newest copy. */
+  all: readonly DartTask[]
   /** Scope ids in first-appearance order, each as its newest copy, without a parent. */
   topLevel: readonly DartTask[]
   /** Newest copies whose own `parentId` is `parentId`: each task sits under one parent only. */
@@ -58,6 +60,7 @@ export function reconcileDartTasks(
     return task && !task.parentId ? [task] : []
   })
   return {
+    all: [...newest.values()],
     newestOf: (task) => newest.get(task.id) ?? task,
     topLevel,
     childrenOf: (parentId) => byParent.get(parentId) ?? NO_TASKS,

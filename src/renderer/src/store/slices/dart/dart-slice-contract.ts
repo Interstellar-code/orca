@@ -114,7 +114,12 @@ export type DartSlice = DartScopeReadSlice & {
     options: { sourceContext?: TaskSourceContext | null; dartboard?: string }
   ) => Promise<DartClientResult<{ tasks: DartTask[] }>>
   /** Default scope; reads `getTask` one after another for the first 20 ids, outside the epoch window. */
-  readDartOnHoldRelationships: (taskIds: readonly string[]) => Promise<void>
+  readDartOnHoldRelationships: (
+    taskIds: readonly string[],
+    options?: { publicationId?: number }
+  ) => Promise<void>
+  /** Records on the scope's meta that its publication's first on-hold reads started; ignored once another publication replaced it. */
+  markDartOnHoldReadPublication: (scopeKey: string, publicationId: number) => void
   /** Reaches every cached copy under the identity's host and account, whatever alias it is keyed by. */
   patchDartTask: (identity: DartTaskIdentity, patch: Partial<DartTask>) => void
   invalidateDartLists: (identity: DartAccountIdentity) => void

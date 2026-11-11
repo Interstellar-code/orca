@@ -15,7 +15,7 @@ export function useDartSubtaskNesting(args: {
   pageScope: DartReadScope
   hostKey: string
   accountKey: string
-  viewerId: string | null
+  publicationId?: number
 }): { nested: boolean; model: DartNestedListModel } {
   const { boardPath, relationshipsHost, nestSubtasks, search, clientFilters, ...listArgs } = args
   const nested =

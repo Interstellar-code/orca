@@ -26,6 +26,8 @@ export type DartScopeMeta = {
   readonly partialReason: 'rateLimited' | 'error' | 'changed' | null
   /** Session-unique, increasing id of the read set last published into this scope; absent = never published. */
   readonly publicationId?: number
+  /** The publication whose first on-hold reads started; lives and is evicted with the meta. */
+  readonly onHoldReadPublicationId?: number
 }
 
 export type DartScopeReadResult = {
@@ -70,6 +72,8 @@ export type DartRelationshipCacheEntry = {
   readonly relationships: DartTaskRelationships | null
   readonly fetchedAt: number
   readonly error: string | null
+  /** Publication this on-hold read was made for; absent or another id counts as not checked (D14.3). */
+  readonly publicationId?: number
 }
 
 export type DartNestedListRow = {

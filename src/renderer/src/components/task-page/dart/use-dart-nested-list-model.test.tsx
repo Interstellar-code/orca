@@ -10,7 +10,7 @@ import {
   type FakeDartHost
 } from '@/store/slices/dart/dart-fake-runtime.test-support'
 import { getDartReadScope } from '@/store/slices/dart/dart-read-coordination'
-import { dartAccountIdentity } from '@/store/slices/dart/dart-task-identity'
+import { dartAccountIdentity, dartTaskIdentityKey } from '@/store/slices/dart/dart-task-identity'
 import { useDartNestedListModel } from './use-dart-nested-list-model'
 
 const VIEWER = { id: 'user-a', name: 'Alex Example' }
@@ -29,7 +29,10 @@ function listRequests(): number {
   return host.count('dart.listTasks')
 }
 
-function mountModel(tasks: readonly DartTask[], overrides: { nested?: boolean } = {}) {
+function mountModel(
+  tasks: readonly DartTask[],
+  overrides: { nested?: boolean; publicationId?: number } = {}
+) {
   const scope = getDartReadScope(useAppStore.getState().settings)
   const account = dartAccountIdentity(scope, VIEWER.id)
   return renderHook(
@@ -41,6 +44,7 @@ function mountModel(tasks: readonly DartTask[], overrides: { nested?: boolean } 
         hostKey: account.hostKey,
         accountKey: account.accountKey,
         viewerId: VIEWER.id,
+        publicationId: overrides.publicationId ?? 7,
         relationshipsHost: true
       }),
     { initialProps: { tasks } }
@@ -207,5 +211,81 @@ describe('useDartNestedListModel', () => {
     ])
     expect(hook.result.current.cardInfo(PARENT.id).subtasks?.loaded).toBe(0)
     expect(hook.result.current.cardInfo(other.id).subtasks?.loaded).toBe(1)
+  })
+
+  describe('relationships of cache-only children', () => {
+    const HELD = dartTaskFixture('held00000001', {
+      title: 'Held',
+      status: 'On Hold',
+      parentId: PARENT.id
+    })
+
+    async function expandedWithHeldChild() {
+      host.addTask(HELD)
+      const hook = mountModel([PARENT], { publicationId: 7 })
+      await act(async () => hook.result.current.toggle(PARENT.id))
+      expect(hook.result.current.rows.map((row) => row.task.id)).toContain(HELD.id)
+      return hook
+    }
+
+    async function cacheHeldEntry(
+      hook: Awaited<ReturnType<typeof expandedWithHeldChild>>,
+      publicationId: number | undefined
+    ) {
+      const account = dartAccountIdentity(
+        getDartReadScope(useAppStore.getState().settings),
+        VIEWER.id
+      )
+      act(() =>
+        useAppStore.setState({
+          dartRelationshipCache: {
+            [dartTaskIdentityKey({ ...account, taskId: HELD.id })]: {
+              state: 'known',
+              relationships: {
+                subtaskIds: [],
+                blockerIds: ['b1', 'b2'],
+                blockingIds: [],
+                duplicateIds: [],
+                relatedIds: []
+              },
+              fetchedAt: 1,
+              error: null,
+              publicationId
+            }
+          }
+        })
+      )
+      return hook.result.current.cardInfo(HELD.id)
+    }
+
+    it('shows a known entry for an on-hold child only the children entry holds', async () => {
+      const hook = await expandedWithHeldChild()
+
+      expect(await cacheHeldEntry(hook, 7)).toMatchObject({
+        relationshipState: 'known',
+        blockedBy: 2
+      })
+    })
+
+    it('treats an entry read in another publication as not checked', async () => {
+      const hook = await expandedWithHeldChild()
+
+      expect(await cacheHeldEntry(hook, 6)).toMatchObject({
+        relationshipState: 'notChecked',
+        blockedBy: null
+      })
+      expect(await cacheHeldEntry(hook, undefined)).toMatchObject({
+        relationshipState: 'notChecked'
+      })
+    })
+
+    it('shows not checked for such a child without an entry', async () => {
+      const hook = await expandedWithHeldChild()
+
+      expect(hook.result.current.cardInfo(HELD.id)).toMatchObject({
+        relationshipState: 'notChecked',
+        blockedBy: null
+      })
+    })
   })
 })
