@@ -6,7 +6,7 @@ import {
   type DartViewMode
 } from '@/components/dart-view-mode-storage'
 
-/** D10: the layout and "Show empty columns" live in the tab; the user's own changes are remembered on the device. */
+/** D10: the layout, "Show empty columns" and "Show subtasks nested" live in the tab; the user's own changes are remembered on the device. */
 export function useDartViewMode() {
   const [viewMode, setViewMode] = useState<DartViewMode>(loadDartViewMode)
   const remember = useCallback((change: Partial<DartViewMode>) => {
@@ -19,5 +19,9 @@ export function useDartViewMode() {
     (showEmptyColumns: boolean) => remember({ showEmptyColumns }),
     [remember]
   )
-  return { viewMode, setViewMode, setDartLayout, setDartShowEmptyColumns }
+  const setDartNestSubtasks = useCallback(
+    (nestSubtasks: boolean) => remember({ nestSubtasks }),
+    [remember]
+  )
+  return { viewMode, setViewMode, setDartLayout, setDartShowEmptyColumns, setDartNestSubtasks }
 }

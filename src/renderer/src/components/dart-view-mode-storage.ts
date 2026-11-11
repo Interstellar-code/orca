@@ -1,11 +1,11 @@
 import type { DartLayout } from '../../../shared/dart/dart-saved-views'
 
-export type DartViewMode = { layout: DartLayout; showEmptyColumns: boolean }
+export type DartViewMode = { layout: DartLayout; showEmptyColumns: boolean; nestSubtasks: boolean }
 
 // Device-local, like the Jira view mode, rather than synced through ui.set.
 const STORAGE_KEY = 'orca.dart.view-mode.v1'
 
-const DEFAULT_MODE: DartViewMode = { layout: 'list', showEmptyColumns: false }
+const DEFAULT_MODE: DartViewMode = { layout: 'list', showEmptyColumns: false, nestSubtasks: true }
 
 function parseDartViewMode(raw: string | null): DartViewMode {
   if (!raw) {
@@ -18,7 +18,8 @@ function parseDartViewMode(raw: string | null): DartViewMode {
   const stored = new Map(Object.entries(parsed))
   return {
     layout: stored.get('layout') === 'board' ? 'board' : DEFAULT_MODE.layout,
-    showEmptyColumns: stored.get('showEmptyColumns') === true
+    showEmptyColumns: stored.get('showEmptyColumns') === true,
+    nestSubtasks: stored.get('nestSubtasks') !== false
   }
 }
 
@@ -35,7 +36,10 @@ export function saveDartViewMode(mode: DartViewMode): void {
     // Storing only the non-defaults keeps a future default change from being pinned by old devices.
     const stored = {
       ...(mode.layout === DEFAULT_MODE.layout ? {} : { layout: mode.layout }),
-      ...(mode.showEmptyColumns === DEFAULT_MODE.showEmptyColumns ? {} : { showEmptyColumns: true })
+      ...(mode.showEmptyColumns === DEFAULT_MODE.showEmptyColumns
+        ? {}
+        : { showEmptyColumns: true }),
+      ...(mode.nestSubtasks === DEFAULT_MODE.nestSubtasks ? {} : { nestSubtasks: false })
     }
     if (Object.keys(stored).length === 0) {
       localStorage.removeItem(STORAGE_KEY)

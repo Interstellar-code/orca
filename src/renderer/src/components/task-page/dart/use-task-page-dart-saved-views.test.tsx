@@ -54,7 +54,7 @@ function mount(env: string, current: HookArgs['current'] = baseCurrent()) {
 }
 
 function baseCurrent(): HookArgs['current'] {
-  return { filters: NO_FILTERS, layout: 'list', showEmptyColumns: false }
+  return { filters: NO_FILTERS, layout: 'list', showEmptyColumns: false, nestSubtasks: true }
 }
 
 async function ready(hook: ReturnType<typeof mount>): Promise<void> {
@@ -130,7 +130,8 @@ describe('useTaskPageDartSavedViews', () => {
     const current = {
       filters: { ...NO_FILTERS, status: 'Doing', priority: 'High' },
       layout: 'board' as const,
-      showEmptyColumns: true
+      showEmptyColumns: true,
+      nestSubtasks: false
     }
     hook.rerender({ env, current })
     expect(hook.result.current.modified).toBe(true)
@@ -138,7 +139,55 @@ describe('useTaskPageDartSavedViews', () => {
     await act(async () => {
       await hook.result.current.saveCurrent()
     })
-    expect(lastSaved(host).views).toEqual([view('a', 'Active', current)])
+    expect(lastSaved(host).views).toEqual([
+      view('a', 'Active', { ...current, filters: { ...current.filters, blockedOnHold: false } })
+    ])
+    expect(hook.result.current.modified).toBe(false)
+  })
+
+  it('keeps nestSubtasks and blockedOnHold through save, apply and modified detection', async () => {
+    const { env, host } = freshHost([view('a', 'Active')], 'a')
+    const hook = mount(env)
+    await ready(hook)
+    const current = {
+      ...baseCurrent(),
+      filters: { ...NO_FILTERS, blockedOnHold: true },
+      nestSubtasks: false
+    }
+    hook.rerender({ env, current })
+    expect(hook.result.current.modified).toBe(true)
+
+    await act(async () => {
+      await hook.result.current.saveAsNew('Blocked')
+    })
+    const created = lastSaved(host).views.find((item) => item.name === 'Blocked')
+    expect(created).toMatchObject({ nestSubtasks: false, filters: { blockedOnHold: true } })
+    expect(hook.result.current.modified).toBe(false)
+
+    await act(async () => {
+      await hook.result.current.apply('a')
+    })
+    expect(hook.result.current.modified).toBe(true)
+    hook.rerender({ env, current: { ...baseCurrent(), nestSubtasks: false } })
+    expect(hook.result.current.modified).toBe(true)
+    hook.rerender({
+      env,
+      current: { ...baseCurrent(), filters: { ...NO_FILTERS, blockedOnHold: true } }
+    })
+    expect(hook.result.current.modified).toBe(true)
+  })
+
+  it('treats a release A view without the new fields as nested on, chip off and unmodified', async () => {
+    const { env } = freshHost([view('a', 'Active')], 'a')
+    const hook = mount(env)
+    await ready(hook)
+
+    expect(hook.applyView).toHaveBeenCalledWith(view('a', 'Active'))
+    expect(hook.result.current.modified).toBe(false)
+    hook.rerender({
+      env,
+      current: { ...baseCurrent(), filters: { ...NO_FILTERS, blockedOnHold: false } }
+    })
     expect(hook.result.current.modified).toBe(false)
   })
 

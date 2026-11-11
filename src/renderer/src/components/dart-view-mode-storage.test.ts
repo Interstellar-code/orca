@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { loadDartViewMode, saveDartViewMode } from './dart-view-mode-storage'
 
 const KEY = 'orca.dart.view-mode.v1'
+const DEFAULTS = { layout: 'list', showEmptyColumns: false, nestSubtasks: true } as const
 
 afterEach(() => {
   localStorage.clear()
@@ -11,25 +12,31 @@ afterEach(() => {
 })
 
 describe('dart view mode storage', () => {
-  it('round-trips the non-default layout and empty-column choice', () => {
-    saveDartViewMode({ layout: 'board', showEmptyColumns: true })
-    expect(loadDartViewMode()).toEqual({ layout: 'board', showEmptyColumns: true })
+  it('round-trips the non-default layout, empty-column and nesting choices', () => {
+    const mode = { layout: 'board', showEmptyColumns: true, nestSubtasks: false } as const
+    saveDartViewMode(mode)
+    expect(loadDartViewMode()).toEqual(mode)
   })
 
-  it('stores only non-defaults and removes the key when both are default', () => {
-    saveDartViewMode({ layout: 'board', showEmptyColumns: false })
+  it('stores only non-defaults and removes the key when all are default', () => {
+    saveDartViewMode({ layout: 'board', showEmptyColumns: false, nestSubtasks: true })
     expect(JSON.parse(localStorage.getItem(KEY) ?? '')).toEqual({ layout: 'board' })
-    saveDartViewMode({ layout: 'list', showEmptyColumns: false })
+    saveDartViewMode({ layout: 'list', showEmptyColumns: false, nestSubtasks: false })
+    expect(JSON.parse(localStorage.getItem(KEY) ?? '')).toEqual({ nestSubtasks: false })
+    saveDartViewMode(DEFAULTS)
     expect(localStorage.getItem(KEY)).toBeNull()
   })
 
   it('falls back to defaults for malformed or unknown values and ignores unknown keys', () => {
     localStorage.setItem(KEY, '{nope')
-    expect(loadDartViewMode()).toEqual({ layout: 'list', showEmptyColumns: false })
-    localStorage.setItem(KEY, JSON.stringify({ layout: 'grid', showEmptyColumns: 'yes' }))
-    expect(loadDartViewMode()).toEqual({ layout: 'list', showEmptyColumns: false })
-    localStorage.setItem(KEY, JSON.stringify({ layout: 'board', nestSubtasks: true }))
-    expect(loadDartViewMode()).toEqual({ layout: 'board', showEmptyColumns: false })
+    expect(loadDartViewMode()).toEqual(DEFAULTS)
+    localStorage.setItem(
+      KEY,
+      JSON.stringify({ layout: 'grid', showEmptyColumns: 'yes', nestSubtasks: 'no' })
+    )
+    expect(loadDartViewMode()).toEqual(DEFAULTS)
+    localStorage.setItem(KEY, JSON.stringify({ layout: 'board', unknown: true }))
+    expect(loadDartViewMode()).toEqual({ ...DEFAULTS, layout: 'board' })
   })
 
   it('keeps working when storage throws', () => {
@@ -39,7 +46,9 @@ describe('dart view mode storage', () => {
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new Error('full')
     })
-    expect(loadDartViewMode()).toEqual({ layout: 'list', showEmptyColumns: false })
-    expect(() => saveDartViewMode({ layout: 'board', showEmptyColumns: true })).not.toThrow()
+    expect(loadDartViewMode()).toEqual(DEFAULTS)
+    expect(() =>
+      saveDartViewMode({ layout: 'board', showEmptyColumns: true, nestSubtasks: false })
+    ).not.toThrow()
   })
 })

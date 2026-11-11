@@ -14,7 +14,11 @@ import {
   readDartSavedViewState
 } from '@/runtime/runtime-dart-saved-view-state'
 import type { DartSavedViewsModel } from './dart-board-contracts'
-import { isDartSavedViewModified, type DartViewSnapshotValue } from './dart-saved-view-modified'
+import {
+  dartViewSnapshot,
+  isDartSavedViewModified,
+  type DartViewSnapshotValue
+} from './dart-saved-view-modified'
 
 type SavedViewsOwner = { targetKey: string; active: boolean }
 type SavedViewsLifetime = {
@@ -204,7 +208,15 @@ export function useTaskPageDartSavedViews(args: {
       return false
     }
     const stored = next.views.find((item) => item.id === expected.id)
-    if (!stored || stored.name !== expected.name || isDartSavedViewModified(stored, expected)) {
+    // A release A host drops the release B fields, which must not read as a refusal.
+    const sent = dartViewSnapshot(expected)
+    const echoed = dartViewSnapshot(stored ?? expected)
+    const acceptable = {
+      ...sent,
+      nestSubtasks: echoed.nestSubtasks,
+      filters: { ...sent.filters, blockedOnHold: echoed.filters.blockedOnHold }
+    }
+    if (!stored || stored.name !== expected.name || isDartSavedViewModified(stored, acceptable)) {
       toast.error(refusalMessage())
       return false
     }
@@ -256,12 +268,18 @@ export function useTaskPageDartSavedViews(args: {
       }),
     saveCurrent: () =>
       run(async (send) => {
-        return activeView ? saveView(send, { ...activeView, ...currentRef.current }) : false
+        return activeView
+          ? saveView(send, { ...activeView, ...dartViewSnapshot(currentRef.current) })
+          : false
       }),
     saveAsNew: (name) =>
       run(async (send) => {
         const id = createNonSecureContextUuid()
-        const saved = await saveView(send, { id, name: name.trim(), ...currentRef.current })
+        const saved = await saveView(send, {
+          id,
+          name: name.trim(),
+          ...dartViewSnapshot(currentRef.current)
+        })
         if (!saved) {
           return false
         }

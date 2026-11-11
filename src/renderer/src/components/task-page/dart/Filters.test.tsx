@@ -102,6 +102,9 @@ function boardControls(
     switchDisabledReason: null,
     showEmptyColumns: false,
     onShowEmptyColumnsChange: () => {},
+    relationshipsHost: true,
+    nestSubtasks: true,
+    onNestSubtasksChange: () => {},
     fetchedAt: null,
     savedViews,
     ...overrides
@@ -169,5 +172,42 @@ describe('Dart filters board controls', () => {
     cleanup()
     renderFilters({ config: boardConfig, board: boardControls({ layout: 'list' }) })
     expect(screen.queryByRole('switch', { name: 'Show empty columns' })).toBeNull()
+  })
+})
+
+describe('Dart filters relationship controls', () => {
+  it('toggles the Blocked (on hold) chip as a client filter next to On hold', async () => {
+    const user = userEvent.setup()
+    const onFilterChange = vi.fn()
+    const onRefresh = vi.fn()
+    renderFilters({ config: boardConfig, onFilterChange, onRefresh, board: boardControls() })
+
+    await user.click(screen.getByRole('button', { name: 'Blocked (on hold)' }))
+
+    expect(onFilterChange).toHaveBeenCalledExactlyOnceWith('blockedOnHold', true)
+    expect(onRefresh).not.toHaveBeenCalled()
+  })
+
+  it('calls onNestSubtasksChange from the nesting switch', async () => {
+    const user = userEvent.setup()
+    const onNestSubtasksChange = vi.fn()
+    renderFilters({
+      config: boardConfig,
+      board: boardControls({ nestSubtasks: true, onNestSubtasksChange })
+    })
+
+    await user.click(screen.getByRole('switch', { name: 'Show subtasks nested' }))
+
+    expect(onNestSubtasksChange).toHaveBeenCalledWith(false)
+  })
+
+  it.each([
+    ['a host without relationships', { relationshipsHost: false }],
+    ['a list-only tab', { listOnly: true }]
+  ] as const)('renders neither control for %s', (_name, overrides) => {
+    renderFilters({ config: boardConfig, board: boardControls(overrides) })
+
+    expect(screen.queryByRole('button', { name: 'Blocked (on hold)' })).toBeNull()
+    expect(screen.queryByRole('switch', { name: 'Show subtasks nested' })).toBeNull()
   })
 })

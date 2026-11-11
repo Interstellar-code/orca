@@ -40,6 +40,9 @@ function boardControls(
     switchDisabledReason: null,
     showEmptyColumns: false,
     onShowEmptyColumnsChange: () => {},
+    relationshipsHost: true,
+    nestSubtasks: true,
+    onNestSubtasksChange: () => {},
     fetchedAt: Date.now() - 5 * 60_000,
     savedViews: savedViews(),
     ...overrides

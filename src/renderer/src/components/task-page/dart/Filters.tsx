@@ -34,12 +34,17 @@ export type DartFiltersBoardControls = {
   switchDisabledReason: DartLayoutSwitchDisabledReason | null
   showEmptyColumns: boolean
   onShowEmptyColumnsChange: (enabled: boolean) => void
+  /** The host has dart.relationships.v1; without it the row renders exactly as release A. */
+  relationshipsHost: boolean
+  nestSubtasks: boolean
+  onNestSubtasksChange: (enabled: boolean) => void
   fetchedAt: number | null
   savedViews: DartSavedViewsModel
 }
 
 export type TaskPageDartFiltersProps = {
-  filters: DartListFilters & Partial<Pick<DartBoardFilters, 'tag' | 'priority' | 'onHold'>>
+  filters: DartListFilters &
+    Partial<Pick<DartBoardFilters, 'tag' | 'priority' | 'onHold' | 'blockedOnHold'>>
   config: DartWorkspaceConfig | null
   viewerAvailable: boolean
   hasWorkspace: boolean
@@ -111,6 +116,7 @@ export function TaskPageDartFiltersView({
 }: TaskPageDartFiltersProps): React.JSX.Element {
   const phase3Controls = board !== undefined && !board.listOnly
   const onHoldOffered = phase3Controls && config ? hasDartOnHoldOption(config) : false
+  const relationshipsControls = phase3Controls && board.relationshipsHost
   const mineActive = filters.mine && viewerAvailable && !hasWorkspace
   const allActive = (!filters.mine || !viewerAvailable) && !hasWorkspace
   const serverFiltersDisabled = hasWorkspace
@@ -207,6 +213,35 @@ export function TaskPageDartFiltersView({
                 >
                   {translate('auto.components.task.page.dart.Filters.onHold', 'On hold')}
                 </Button>
+              ) : null}
+              {onHoldOffered && relationshipsControls ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={filters.blockedOnHold ? 'secondary' : 'outline'}
+                  aria-pressed={Boolean(filters.blockedOnHold)}
+                  onClick={() => onFilterChange('blockedOnHold', !filters.blockedOnHold)}
+                >
+                  {translate(
+                    'auto.components.task.page.dart.Filters.blockedOnHold',
+                    'Blocked (on hold)'
+                  )}
+                </Button>
+              ) : null}
+              {relationshipsControls ? (
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="dart-nest-subtasks"
+                    checked={board.nestSubtasks}
+                    onCheckedChange={board.onNestSubtasksChange}
+                  />
+                  <Label htmlFor="dart-nest-subtasks">
+                    {translate(
+                      'auto.components.task.page.dart.Filters.nestSubtasks',
+                      'Show subtasks nested'
+                    )}
+                  </Label>
+                </div>
               ) : null}
               {board.layout === 'board' ? (
                 <div className="flex items-center gap-2">
@@ -359,6 +394,9 @@ export function TaskPageDartFilters({
         switchDisabledReason: model.dartLayoutSwitchDisabledReason,
         showEmptyColumns: model.dartShowEmptyColumns,
         onShowEmptyColumnsChange: model.setDartShowEmptyColumns,
+        relationshipsHost: model.dartRelationshipsHost,
+        nestSubtasks: model.dartNestSubtasks,
+        onNestSubtasksChange: model.setDartNestSubtasks,
         fetchedAt: model.dartScopeMeta?.fetchedAt ?? null,
         savedViews: model.dartSavedViews
       }}

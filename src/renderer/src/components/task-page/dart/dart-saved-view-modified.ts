@@ -8,6 +8,7 @@ export type DartViewSnapshotValue = {
   filters: DartBoardFilters
   layout: DartLayout
   showEmptyColumns: boolean
+  nestSubtasks: boolean
 }
 
 const FILTER_KEYS = [
@@ -20,13 +21,29 @@ const FILTER_KEYS = [
   'onHold'
 ] as const satisfies readonly (keyof DartBoardFilters)[]
 
+/** Release A views and host-dropped fields leave these absent: they mean nested on and the blocked chip off. */
+export function dartViewSnapshot(
+  view: Pick<DartSavedView, 'filters' | 'layout' | 'showEmptyColumns' | 'nestSubtasks'>
+): DartViewSnapshotValue {
+  return {
+    filters: { ...view.filters, blockedOnHold: view.filters.blockedOnHold ?? false },
+    layout: view.layout,
+    showEmptyColumns: view.showEmptyColumns,
+    nestSubtasks: view.nestSubtasks ?? true
+  }
+}
+
 export function isDartSavedViewModified(
   view: DartSavedView,
   current: DartViewSnapshotValue
 ): boolean {
+  const saved = dartViewSnapshot(view)
+  const now = dartViewSnapshot(current)
   return (
-    view.layout !== current.layout ||
-    view.showEmptyColumns !== current.showEmptyColumns ||
-    FILTER_KEYS.some((key) => view.filters[key] !== current.filters[key])
+    saved.layout !== now.layout ||
+    saved.showEmptyColumns !== now.showEmptyColumns ||
+    saved.nestSubtasks !== now.nestSubtasks ||
+    saved.filters.blockedOnHold !== now.filters.blockedOnHold ||
+    FILTER_KEYS.some((key) => saved.filters[key] !== now.filters[key])
   )
 }

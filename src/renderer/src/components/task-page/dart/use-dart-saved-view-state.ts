@@ -25,14 +25,23 @@ export function useDartSavedViewState(args: {
       setHasWorkspace(false)
       setFilters(view.filters)
       setSearchInput(view.filters.search)
-      setViewMode({ layout: view.layout, showEmptyColumns: view.showEmptyColumns })
+      setViewMode({
+        layout: view.layout,
+        showEmptyColumns: view.showEmptyColumns,
+        nestSubtasks: view.nestSubtasks ?? true
+      })
     },
     [setFilters, setHasWorkspace, setSearchInput, setViewMode]
   )
   return useTaskPageDartSavedViews({
     active,
     target,
-    current: { filters, layout: viewMode.layout, showEmptyColumns: viewMode.showEmptyColumns },
+    current: {
+      filters,
+      layout: viewMode.layout,
+      showEmptyColumns: viewMode.showEmptyColumns,
+      nestSubtasks: viewMode.nestSubtasks
+    },
     applyView
   })
 }
