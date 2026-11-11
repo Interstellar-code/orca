@@ -203,6 +203,7 @@ import {
   ListTasks,
   TaskId,
   UpdateTask,
+  UpdateTaskBlockers,
   UpdateTaskDescription
 } from './dart-params'
 import { DartSavedViewMutationParam } from './dart-saved-view-params'
@@ -997,6 +998,7 @@ export const RPC_PARAMS_BY_METHOD = {
   'dart.status': null,
   'dart.testConnection': null,
   'dart.updateTask': UpdateTask,
+  'dart.updateTaskBlockers': UpdateTaskBlockers,
   'dart.updateTaskDescription': UpdateTaskDescription,
   'desktopBrowserBridge.attach': DesktopBrowserBridgeAttachParams,
   'desktopBrowserBridge.result': DesktopBrowserBridgeResultParams,

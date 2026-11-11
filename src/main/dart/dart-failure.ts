@@ -11,6 +11,7 @@ export type DartOperation =
   | 'update'
   | 'comment'
   | 'descriptionPatch'
+  | 'relationships'
 
 const OPERATION_FAILURE: Record<DartOperation, { code: TaskProviderErrorCode; message: string }> = {
   connect: { code: 'dart.connectFailed', message: 'Could not connect to Dart.' },
@@ -23,7 +24,8 @@ const OPERATION_FAILURE: Record<DartOperation, { code: TaskProviderErrorCode; me
   descriptionPatch: {
     code: 'dart.updateFailed',
     message: 'Could not update the Dart description.'
-  }
+  },
+  relationships: { code: 'dart.updateFailed', message: 'Could not update blockers.' }
 }
 
 // Operations addressed by a task id: a 404 (JSON or HTML) means the task is gone.
@@ -32,7 +34,8 @@ const TASK_TARGETED = new Set<DartOperation>([
   'comments',
   'update',
   'comment',
-  'descriptionPatch'
+  'descriptionPatch',
+  'relationships'
 ])
 
 // Dart answers a comment on an unknown task id with 400 `{errors: ["taskId: No Task found ..."]}`.
@@ -85,7 +88,13 @@ export function isDartTokenRejected(error: unknown): boolean {
   return error instanceof DartApiError && error.status === 401
 }
 
-const WRITE_OPERATIONS = new Set<DartOperation>(['create', 'update', 'comment', 'descriptionPatch'])
+const WRITE_OPERATIONS = new Set<DartOperation>([
+  'create',
+  'update',
+  'comment',
+  'descriptionPatch',
+  'relationships'
+])
 
 export function isDartWriteOperation(operation: DartOperation): operation is DartWriteOperation {
   return WRITE_OPERATIONS.has(operation)
@@ -99,7 +108,12 @@ function outcomeAfterSend(error: unknown): DartWriteOutcome {
     : 'unknown'
 }
 
-export type DartWriteOperation = 'create' | 'update' | 'comment' | 'descriptionPatch'
+export type DartWriteOperation =
+  | 'create'
+  | 'update'
+  | 'comment'
+  | 'descriptionPatch'
+  | 'relationships'
 export type DartReadOperation = Exclude<DartOperation, DartWriteOperation>
 
 // Dart may echo the patched text in a 400; the reply carries a fixed message instead.

@@ -8,6 +8,7 @@ import {
   ListTasks,
   TaskId,
   UpdateTask,
+  UpdateTaskBlockers,
   UpdateTaskDescription,
   type DartFailure
 } from '../../../shared/rpc-contract/dart-params'
@@ -20,6 +21,7 @@ import {
   listComments,
   listTasks,
   updateTask,
+  updateTaskBlockers,
   updateTaskDescription
 } from '../../dart/dart-tasks'
 import { _resetPreflightCache } from '../../preflight/agent-detection'
@@ -74,5 +76,6 @@ export function registerDartHandlers(): void {
   handleParsed('dart:updateTaskDescription', UpdateTaskDescription, updateTaskDescription, {
     write: true
   })
+  handleParsed('dart:updateTaskBlockers', UpdateTaskBlockers, updateTaskBlockers, { write: true })
   handleParsed('dart:addComment', AddComment, addComment, { write: true })
 }

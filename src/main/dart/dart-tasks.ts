@@ -12,13 +12,20 @@ import {
   type ListTasks,
   type TaskId,
   type UpdateTask,
+  type UpdateTaskBlockers,
   type UpdateTaskDescription
 } from '../../shared/rpc-contract/dart-params'
 import { taskProviderFailure } from '../../shared/task-provider-failure'
 import { noteRequestFailure, readConfig, readToken } from './client'
 import { isDartWriteOperation, toDartFailure, type DartOperation } from './dart-failure'
 import { DartApiError, dartRequest, type DartQueryValue } from './dart-request'
-import { mapDartComment, mapDartTask, readDartPage, unwrapDartItem } from './dart-task-mapping'
+import {
+  mapDartComment,
+  mapDartTask,
+  readDartPage,
+  readOtherLinkLists,
+  unwrapDartItem
+} from './dart-task-mapping'
 
 type Reply<M extends keyof DartMethodContract> = DartMethodContract[M]['reply']
 
@@ -37,6 +44,8 @@ export function buildTaskListQuery(
     const param = TASK_LIST_QUERY_PARAMS.get(name)
     if (param && (typeof value === 'boolean' || (typeof value === 'string' && value !== ''))) {
       query[param] = value
+    } else if (param && Array.isArray(value) && value.length > 0) {
+      query[param] = value.join(',')
     }
   }
   query.limit = pageLimit(args?.limit)
@@ -243,6 +252,31 @@ export function updateTask(args: z.output<typeof UpdateTask>): Promise<Reply<'da
         await dartRequest<unknown>(token, `/tasks/${encodeURIComponent(args.taskId)}`, {
           method: 'PUT',
           body: { item: { ...validated.fields, id: args.taskId } }
+        })
+      )
+    )
+    if (!task) {
+      throw invalidResponse()
+    }
+    return { ok: true, task }
+  })
+}
+
+/** Dart may wipe the lists a partial `taskRelationships` write omits, so they are resent as read. */
+export function updateTaskBlockers(
+  args: z.output<typeof UpdateTaskBlockers>
+): Promise<Reply<'dart.updateTaskBlockers'>> {
+  return withToken('relationships', async (token, markRequestSent) => {
+    const path = `/tasks/${encodeURIComponent(args.taskId)}`
+    const current = unwrapDartItem(await dartRequest<unknown>(token, path))
+    const otherLists = readOtherLinkLists(current)
+    const taskRelationships = { blockerIds: args.blockerIds, ...otherLists }
+    markRequestSent()
+    const task = mapDartTask(
+      unwrapDartItem(
+        await dartRequest<unknown>(token, path, {
+          method: 'PUT',
+          body: { item: { id: args.taskId, taskRelationships } }
         })
       )
     )

@@ -45,6 +45,8 @@ async function transports() {
     dartUpdateTask: (args: Parameters<typeof dart.dartUpdateTask>[0]) => dart.dartUpdateTask(args),
     dartUpdateTaskDescription: (args: Parameters<typeof dart.dartUpdateTaskDescription>[0]) =>
       dart.dartUpdateTaskDescription(args),
+    dartUpdateTaskBlockers: (args: Parameters<typeof dart.dartUpdateTaskBlockers>[0]) =>
+      dart.dartUpdateTaskBlockers(args),
     dartAddComment: (args: Parameters<typeof dart.dartAddComment>[0]) => dart.dartAddComment(args)
   }
   const dispatcher = new RpcDispatcher({
@@ -413,6 +415,69 @@ describe('dart description patch replies over both transports', () => {
     expect(overIpc).toMatchObject({ errorCode: 'dart.rateLimited', outcome: 'notApplied' })
     expect(overRpc).toEqual(overIpc)
     expect(host.fetch.mock.calls.length - callsBefore).toBe(2)
+  })
+})
+
+describe('dart blocker replies over both transports', () => {
+  const OTHER_ID = 'zyxWVU654321'
+  const params = { taskId: TASK_ID, blockerIds: [OTHER_ID] }
+  const RAW_TASK = {
+    id: TASK_ID,
+    htmlUrl: `https://app.dartai.com/t/${TASK_ID}-fix-it`,
+    title: 'Fix it',
+    status: 'Doing',
+    taskRelationships: { blockerIds: [OTHER_ID], subtaskIds: [] }
+  }
+
+  async function connectedPair() {
+    const pair = await transports()
+    routeSignedIn(pair.host, CONFIG)
+    await pair.ipc('dart:connect', { apiToken: FIXTURE_TOKEN })
+    pair.host.route('GET', `/tasks/${TASK_ID}`, () =>
+      jsonResponse(200, { item: { ...RAW_TASK, taskRelationships: { subtaskIds: [] } } })
+    )
+    return pair
+  }
+
+  it('sends the same body and returns the same task', async () => {
+    const { host, ipc, rpc } = await connectedPair()
+    host.route('PUT', `/tasks/${TASK_ID}`, () => jsonResponse(200, { item: RAW_TASK }))
+
+    const overIpc = await ipc('dart:updateTaskBlockers', params)
+    const body = {
+      item: { id: TASK_ID, taskRelationships: { blockerIds: [OTHER_ID], subtaskIds: [] } }
+    }
+    expect(host.lastBody()).toEqual(body)
+    const overRpc = await rpc('dart.updateTaskBlockers', params)
+    expect(host.lastBody()).toEqual(body)
+
+    expect(overIpc).toMatchObject({ ok: true, task: { id: TASK_ID } })
+    expect(overRpc).toEqual(overIpc)
+  })
+
+  it('gives the same unknown outcome when the write response is lost', async () => {
+    const { host, ipc, rpc } = await connectedPair()
+    host.route('PUT', `/tasks/${TASK_ID}`, () => new Response('<html>', { status: 200 }))
+
+    const overIpc = await ipc('dart:updateTaskBlockers', params)
+
+    expect(overIpc).toMatchObject({ ok: false, outcome: 'unknown' })
+    expect(await rpc('dart.updateTaskBlockers', params)).toEqual(overIpc)
+  })
+
+  it('refuses a self-blocking task as notApplied over IPC and invalid_argument over RPC', async () => {
+    const { host, ipc, rpc } = await connectedPair()
+    const bad = { taskId: TASK_ID, blockerIds: [TASK_ID] }
+
+    await expect(ipc('dart:updateTaskBlockers', bad)).resolves.toMatchObject({
+      errorCode: 'dart.badRequest',
+      outcome: 'notApplied'
+    })
+    await expect(rpc('dart.updateTaskBlockers', bad)).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'invalid_argument' }
+    })
+    expect(host.fetch.mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(false)
   })
 })
 

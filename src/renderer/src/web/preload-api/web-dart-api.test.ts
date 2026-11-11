@@ -57,18 +57,35 @@ describe('web dart supportsWritesV2', () => {
 describe('web dart supportedDartFeatures', () => {
   it('reports board when the host advertises dart.board.v1', async () => {
     mocks.getRemoteRuntimeStatus.mockResolvedValue({ capabilities: ['dart.board.v1'] })
-    await expect(createWebDartApi().supportedDartFeatures()).resolves.toEqual({ board: true })
+    await expect(createWebDartApi().supportedDartFeatures()).resolves.toEqual({
+      board: true,
+      relationships: false
+    })
     expect(mocks.assertActiveEnvironment).toHaveBeenCalledWith('env-1')
   })
 
   it('reports no board without the capability', async () => {
     mocks.getRemoteRuntimeStatus.mockResolvedValue({ capabilities: ['dart.writes.v2'] })
-    await expect(createWebDartApi().supportedDartFeatures()).resolves.toEqual({ board: false })
+    await expect(createWebDartApi().supportedDartFeatures()).resolves.toEqual({
+      board: false,
+      relationships: false
+    })
+  })
+
+  it('reports relationships when the host advertises dart.relationships.v1', async () => {
+    mocks.getRemoteRuntimeStatus.mockResolvedValue({ capabilities: ['dart.relationships.v1'] })
+    await expect(createWebDartApi().supportedDartFeatures()).resolves.toEqual({
+      board: false,
+      relationships: true
+    })
   })
 
   it('reports no board when the probe fails', async () => {
     mocks.getRemoteRuntimeStatus.mockRejectedValue(new Error('offline'))
-    await expect(createWebDartApi().supportedDartFeatures()).resolves.toEqual({ board: false })
+    await expect(createWebDartApi().supportedDartFeatures()).resolves.toEqual({
+      board: false,
+      relationships: false
+    })
   })
 
   it('does not trust a verdict for a host switched in mid-probe', async () => {
@@ -226,6 +243,13 @@ describe('web dart writes', () => {
       args,
       100_000
     )
+  })
+
+  it('sends the blocker write with the write timeout', async () => {
+    mocks.callRuntimeEnvelope.mockResolvedValue({ ok: true, result: { ok: true } })
+    const args = { taskId: 'abcDEF123456', blockerIds: ['zyxWVU654321'] }
+    await createWebDartApi().updateTaskBlockers(args)
+    expect(mocks.callRuntimeEnvelope).toHaveBeenCalledWith('dart.updateTaskBlockers', args, 100_000)
   })
 
   it('reports host-refused write params as notApplied but leaves reads alone', async () => {

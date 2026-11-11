@@ -7,6 +7,7 @@ import {
 import {
   DART_BOARD_RUNTIME_CAPABILITY,
   DART_PROVIDER_RUNTIME_CAPABILITY,
+  DART_RELATIONSHIPS_RUNTIME_CAPABILITY,
   DART_WRITES_V2_RUNTIME_CAPABILITY
 } from '../../../../shared/dart/dart-capabilities'
 import type { DartHostFeatures } from '../../../../shared/dart/dart-types'
@@ -43,7 +44,8 @@ const supportsWritesV2 = (): Promise<boolean> =>
   hostAdvertises(DART_WRITES_V2_RUNTIME_CAPABILITY, 'false')
 
 const supportedDartFeatures = async (): Promise<DartHostFeatures> => ({
-  board: await hostAdvertises(DART_BOARD_RUNTIME_CAPABILITY, 'false')
+  board: await hostAdvertises(DART_BOARD_RUNTIME_CAPABILITY, 'false'),
+  relationships: await hostAdvertises(DART_RELATIONSHIPS_RUNTIME_CAPABILITY, 'false')
 })
 
 const PROVIDER_VERDICT_TTL_MS = 60_000
@@ -136,6 +138,7 @@ export function createWebDartApi(): PreloadApi['dart'] {
     updateTask: (args) => dartCall('dart.updateTask', args, DART_WRITE_TIMEOUT_MS),
     updateTaskDescription: (args) =>
       dartCall('dart.updateTaskDescription', args, DART_WRITE_TIMEOUT_MS),
+    updateTaskBlockers: (args) => dartCall('dart.updateTaskBlockers', args, DART_WRITE_TIMEOUT_MS),
     supportsWritesV2,
     supportedDartFeatures,
     addComment: (args) => dartCall('dart.addComment', args, DART_WRITE_TIMEOUT_MS)

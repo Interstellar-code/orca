@@ -100,6 +100,9 @@ export type DartApi = {
   updateTaskDescription: (
     args: DartMethodContract['dart.updateTaskDescription']['params']
   ) => DartReply<'dart.updateTaskDescription'>
+  updateTaskBlockers: (
+    args: DartMethodContract['dart.updateTaskBlockers']['params']
+  ) => DartReply<'dart.updateTaskBlockers'>
   /** Client-side capability query (`dart.writes.v2`), not an RPC. */
   supportsWritesV2: () => Promise<boolean>
   /** Client-side capability query (`dart.board.v1`), not an RPC. */

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { DartTask } from '../../shared/dart/dart-types'
 import { ListTasks } from '../../shared/rpc-contract/dart-params'
 import {
   FIXTURE_TOKEN,
@@ -424,5 +425,153 @@ describe('dart task writes', () => {
     if (status === 429 && !result.ok) {
       expect(result.error).toContain('Retry after 30 seconds.')
     }
+  })
+})
+
+const BLOCKER_A = 'aaaaaaaaaaaa'
+const BLOCKER_B = 'bbbbbbbbbbbb'
+const PATH = `/tasks/${TASK_ID}`
+
+describe('dart relationships', () => {
+  it('sends parent_id and comma-joined ids', async () => {
+    const { host, tasks } = await connected()
+    host.route('GET', '/tasks/list', () => jsonResponse(200, { count: 0, results: [] }))
+
+    await tasks.listTasks({ parentId: TASK_ID, ids: [BLOCKER_A, BLOCKER_B] })
+
+    const query = requestsTo(host, '/tasks/list')[0].url.searchParams
+    expect(query.get('parent_id')).toBe(TASK_ID)
+    expect(query.get('ids')).toBe(`${BLOCKER_A},${BLOCKER_B}`)
+  })
+
+  it('maps taskRelationships when present, drops bad ids, and gives empty lists for null', async () => {
+    const { host, tasks } = await connected()
+    const responses = [
+      { taskRelationships: { blockerIds: [BLOCKER_A, 'bad', 7], subtaskIds: [BLOCKER_B] } },
+      { taskRelationships: null },
+      { taskRelationships: { blockingIds: null } },
+      {}
+    ]
+    host.route('GET', PATH, () =>
+      jsonResponse(200, { item: { ...RAW_TASK, ...responses.shift() } })
+    )
+
+    const results: (DartTask | null)[] = []
+    for (let i = 0; i < 4; i++) {
+      const result = await tasks.getTask({ taskId: TASK_ID })
+      results.push(result.ok ? result.task : null)
+    }
+
+    const empty = {
+      subtaskIds: [],
+      blockerIds: [],
+      blockingIds: [],
+      duplicateIds: [],
+      relatedIds: []
+    }
+    expect(results[0]?.relationships).toEqual({
+      ...empty,
+      blockerIds: [BLOCKER_A],
+      subtaskIds: [BLOCKER_B]
+    })
+    expect(results[1]?.relationships).toEqual(empty)
+    expect(results[2]?.relationships).toEqual(empty)
+    expect(results[3]).not.toHaveProperty('relationships')
+  })
+
+  describe('updateTaskBlockers', () => {
+    const args = { taskId: TASK_ID, blockerIds: [BLOCKER_A] }
+
+    async function withRead(taskRelationships?: unknown) {
+      const ctx = await connected()
+      const item = taskRelationships === undefined ? RAW_TASK : { ...RAW_TASK, taskRelationships }
+      ctx.host.route('GET', PATH, () => jsonResponse(200, { item }))
+      ctx.host.route('PUT', PATH, () => jsonResponse(200, { item: RAW_TASK }))
+      return ctx
+    }
+
+    it('resends the other lists exactly as read, keeps omitted lists omitted', async () => {
+      const { host, tasks } = await withRead({
+        blockerIds: [BLOCKER_B],
+        subtaskIds: ['not-an-id', BLOCKER_B],
+        relatedIds: [],
+        blockingIds: null
+      })
+
+      await expect(tasks.updateTaskBlockers(args)).resolves.toMatchObject({ ok: true })
+
+      expect(host.lastBody()).toEqual({
+        item: {
+          id: TASK_ID,
+          taskRelationships: {
+            blockerIds: [BLOCKER_A],
+            subtaskIds: ['not-an-id', BLOCKER_B],
+            relatedIds: [],
+            blockingIds: null
+          }
+        }
+      })
+    })
+
+    it('sends only blockerIds when taskRelationships is null', async () => {
+      const { host, tasks } = await withRead(null)
+
+      await tasks.updateTaskBlockers(args)
+
+      expect(host.lastBody()).toEqual({
+        item: { id: TASK_ID, taskRelationships: { blockerIds: [BLOCKER_A] } }
+      })
+    })
+
+    it.each([
+      ['missing', undefined],
+      ['a string', 'x'],
+      ['an array', []]
+    ])('sends no write when taskRelationships is %s', async (_label, value) => {
+      const { host, tasks } = await withRead(value)
+
+      await expect(tasks.updateTaskBlockers(args)).resolves.toEqual({
+        ok: false,
+        errorCode: 'dart.updateFailed',
+        error: "Dart did not return this task's links",
+        outcome: 'notApplied'
+      })
+      expect(requestsTo(host, PATH).map(({ init }) => init?.method ?? 'GET')).toEqual(['GET'])
+    })
+
+    it('sends no write when the pre-read fails', async () => {
+      const { host, tasks } = await connected()
+      host.route('GET', PATH, () => jsonResponse(500, { detail: 'down' }))
+
+      await expect(tasks.updateTaskBlockers(args)).resolves.toMatchObject({
+        ok: false,
+        outcome: 'notApplied'
+      })
+      expect(requestsTo(host, PATH)).toHaveLength(1)
+    })
+
+    it('reports a dropped connection after the write as unknown', async () => {
+      const { host, tasks } = await connected()
+      host.route('GET', PATH, () =>
+        jsonResponse(200, { item: { ...RAW_TASK, taskRelationships: {} } })
+      )
+      // No PUT route: the fixture fetch rejects like a dropped connection.
+
+      await expect(tasks.updateTaskBlockers(args)).resolves.toMatchObject({
+        ok: false,
+        outcome: 'unknown'
+      })
+    })
+
+    it('maps a 404 on the write to dart.taskNotFound, notApplied', async () => {
+      const { host, tasks } = await withRead({})
+      host.route('PUT', PATH, () => jsonResponse(404, { errors: ['gone'] }))
+
+      await expect(tasks.updateTaskBlockers(args)).resolves.toMatchObject({
+        ok: false,
+        errorCode: 'dart.taskNotFound',
+        outcome: 'notApplied'
+      })
+    })
   })
 })
