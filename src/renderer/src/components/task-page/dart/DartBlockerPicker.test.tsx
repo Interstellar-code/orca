@@ -22,7 +22,8 @@ function setup(
   searchTasks: Mock<SearchTasks> = vi.fn<SearchTasks>().mockResolvedValue({
     ok: true,
     tasks: [candidate]
-  })
+  }),
+  dartboardOnlyUnavailable?: boolean
 ) {
   const onPick = vi.fn()
   render(
@@ -31,6 +32,7 @@ function setup(
       excludeIds={[current.id]}
       searchTasks={searchTasks}
       onPick={onPick}
+      dartboardOnlyUnavailable={dartboardOnlyUnavailable}
     />
   )
   const trigger = screen.getByRole('button', { name: /add blocker/i })
@@ -104,6 +106,27 @@ describe('DartBlockerPicker search', () => {
     expect(screen.queryAllByRole('option')).toHaveLength(0)
   })
 
+  it('makes the previous results unselectable as soon as the text changes, before the debounce fires', async () => {
+    const searchTasks = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, tasks: [candidate] })
+      .mockResolvedValueOnce({ ok: true, tasks: [other] })
+    const { onPick } = setup(searchTasks)
+    type('abc')
+    await advance(300)
+    expect(screen.getByText(candidate.title)).toBeTruthy()
+
+    type('abcd')
+    expect(screen.queryByText(candidate.title)).toBeNull()
+    fireEvent.keyDown(input(), { key: 'Enter' })
+    expect(onPick).not.toHaveBeenCalled()
+
+    await advance(300)
+    expect(screen.getByText(other.title)).toBeTruthy()
+    fireEvent.keyDown(input(), { key: 'Enter' })
+    expect(onPick).toHaveBeenCalledExactlyOnceWith(other)
+  })
+
   it.each([
     [
       'a failed reply',
@@ -169,6 +192,36 @@ describe('DartBlockerPicker This dartboard only', () => {
 
     fireEvent.click(screen.getByRole('switch', { name: 'This dartboard only' }))
     expect(screen.queryByText(candidate.title)).toBeNull()
+  })
+
+  it('disables the toggle with a reason when the task has no dartboard, and never filters by dartboard', async () => {
+    const { searchTasks } = setup(undefined, true)
+    const toggle = screen.getByRole('switch', { name: 'This dartboard only' })
+    expect((toggle as HTMLButtonElement).disabled).toBe(true)
+    expect(toggle.getAttribute('aria-checked')).toBe('false')
+    expect(screen.getByText('This task has no dartboard.')).toBeTruthy()
+
+    type('sea')
+    await advance(300)
+    expect(searchTasks).toHaveBeenCalledExactlyOnceWith('sea', { thisDartboardOnly: false })
+  })
+
+  it('turns the mode off and searches again without it when the dartboard becomes unavailable', async () => {
+    const searchTasks = vi.fn<SearchTasks>().mockResolvedValue({ ok: true, tasks: [candidate] })
+    const props = { taskId: self.id, excludeIds: [], searchTasks, onPick: vi.fn() }
+    const { rerender } = render(<DartBlockerPicker {...props} />)
+    fireEvent.click(screen.getByRole('button', { name: /add blocker/i }))
+    type('sea')
+    fireEvent.click(screen.getByRole('switch', { name: 'This dartboard only' }))
+    await advance(0)
+    expect(searchTasks).toHaveBeenLastCalledWith('sea', { thisDartboardOnly: true })
+
+    rerender(<DartBlockerPicker {...props} dartboardOnlyUnavailable />)
+    await advance(0)
+    expect(searchTasks).toHaveBeenLastCalledWith('sea', { thisDartboardOnly: false })
+    expect(
+      screen.getByRole('switch', { name: 'This dartboard only' }).getAttribute('aria-checked')
+    ).toBe('false')
   })
 })
 

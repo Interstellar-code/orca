@@ -43,8 +43,8 @@ export function TaskPageDartTaskDetail({
     openTaskIdRef.current = task?.id ?? null
     closePendingRef.current = false
   }, [task?.id])
-  // A guard that refuses or throws leaves the sheet open; a second close waits for the first, and a result for another task is dropped.
-  const requestClose = async (): Promise<void> => {
+  // A guard that refuses or throws keeps the task open; a second request waits for the first, and a result for another task is dropped.
+  const runGuarded = async (proceed: () => void): Promise<void> => {
     if (closePendingRef.current) {
       return
     }
@@ -53,12 +53,15 @@ export function TaskPageDartTaskDetail({
     try {
       const allowed = await runCloseGuards().catch(() => false)
       if (allowed && openTaskIdRef.current === openedFor) {
-        onClose()
+        proceed()
       }
     } finally {
       closePendingRef.current = false
     }
   }
+  const requestClose = (): Promise<void> => runGuarded(onClose)
+  const requestOpenRelated = (related: DartTask): Promise<void> =>
+    runGuarded(() => onOpenTask?.(related, sourceContext))
   const notice = {
     notice: data.notice,
     dismissNotice: data.dismissNotice,
@@ -130,7 +133,7 @@ export function TaskPageDartTaskDetail({
             }}
             notice={notice}
             relationships={relationships}
-            onOpenRelatedTask={(related) => onOpenTask?.(related, sourceContext)}
+            onOpenRelatedTask={(related) => void requestOpenRelated(related)}
             workspaces={workspaces}
             onUse={onUse}
             onClose={() => void requestClose()}

@@ -229,11 +229,22 @@ export const useDartTaskRelationships: UseDartTaskRelationships = ({ task, sourc
 
   const dartboard = task?.dartboard
   const searchTasks = useCallback<DartRelationshipsApi['searchTasks']>(
-    (text, options) =>
-      searchDartTasks(text, {
+    async (text, options) => {
+      if (options?.thisDartboardOnly && !dartboard) {
+        // A missing dartboard must never widen the search to every board.
+        return {
+          ok: false,
+          error: translate(
+            'auto.components.task.page.dart.use-dart-task-relationships.noDartboard',
+            'This task has no dartboard.'
+          )
+        }
+      }
+      return searchDartTasks(text, {
         sourceContext,
         ...(options?.thisDartboardOnly && dartboard ? { dartboard } : {})
-      }),
+      })
+    },
     [searchDartTasks, sourceContext, dartboard]
   )
 

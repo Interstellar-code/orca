@@ -18,6 +18,8 @@ export type DartBlockerPickerProps = {
   taskId: string
   excludeIds: readonly string[]
   disabled?: boolean
+  // True when the task has no dartboard to filter by: the toggle is off and locked.
+  dartboardOnlyUnavailable?: boolean
   searchTasks: DartRelationshipsApi['searchTasks']
   onPick: (task: DartTask) => void
 }
@@ -32,6 +34,7 @@ export function DartBlockerPicker({
   taskId,
   excludeIds,
   disabled,
+  dartboardOnlyUnavailable = false,
   searchTasks,
   onPick
 }: DartBlockerPickerProps): React.JSX.Element {
@@ -43,6 +46,7 @@ export function DartBlockerPicker({
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const spinnerTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const toggleId = useId()
+  const dartboardOnlyActive = thisDartboardOnly && !dartboardOnlyUnavailable
 
   const clearTimers = useCallback((): void => {
     if (debounceTimer.current) {
@@ -105,18 +109,33 @@ export function DartBlockerPicker({
       setSearch({ kind: 'idle' })
       return
     }
-    debounceTimer.current = setTimeout(() => void run(value, thisDartboardOnly), SEARCH_DEBOUNCE_MS)
+    // Old results do not match the new text, so they must not be selectable while the debounce waits.
+    setSearch({ kind: 'loading', slow: false })
+    debounceTimer.current = setTimeout(
+      () => void run(value, dartboardOnlyActive),
+      SEARCH_DEBOUNCE_MS
+    )
   }
 
   // A mode flip is a new query: it runs now, drops the old mode's results and any in-flight reply.
-  const changeMode = (next: boolean): void => {
-    setThisDartboardOnly(next)
-    abandon()
-    setSearch({ kind: 'idle' })
-    if (text.trim() !== '') {
-      void run(text, next)
+  const changeMode = useCallback(
+    (next: boolean): void => {
+      setThisDartboardOnly(next)
+      abandon()
+      setSearch({ kind: 'idle' })
+      if (text.trim() !== '') {
+        void run(text, next)
+      }
+    },
+    [abandon, run, text]
+  )
+
+  const forceDartboardOnlyOff = dartboardOnlyUnavailable && thisDartboardOnly
+  useEffect(() => {
+    if (forceDartboardOnlyOff) {
+      changeMode(false)
     }
-  }
+  }, [forceDartboardOnlyOff, changeMode])
 
   const pick = (task: DartTask): void => {
     setOpen(false)
@@ -167,20 +186,31 @@ export function DartBlockerPicker({
               ) : null
             }
           />
-          <div className="flex items-center gap-2 border-b border-border px-3 py-1.5">
-            <Switch
-              id={toggleId}
-              checked={thisDartboardOnly}
-              onCheckedChange={changeMode}
-              className="h-4 w-7"
-              thumbClassName="size-3 data-[state=checked]:translate-x-3"
-            />
-            <Label htmlFor={toggleId} variant="settings">
-              {translate(
-                'auto.components.task.page.dart.DartBlockerPicker.thisDartboardOnly',
-                'This dartboard only'
-              )}
-            </Label>
+          <div className="border-b border-border px-3 py-1.5">
+            <div className="flex items-center gap-2">
+              <Switch
+                id={toggleId}
+                checked={dartboardOnlyActive}
+                disabled={dartboardOnlyUnavailable}
+                onCheckedChange={changeMode}
+                className="h-4 w-7"
+                thumbClassName="size-3 data-[state=checked]:translate-x-3"
+              />
+              <Label htmlFor={toggleId} variant="settings">
+                {translate(
+                  'auto.components.task.page.dart.DartBlockerPicker.thisDartboardOnly',
+                  'This dartboard only'
+                )}
+              </Label>
+            </div>
+            {dartboardOnlyUnavailable ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                {translate(
+                  'auto.components.task.page.dart.DartBlockerPicker.dartboardOnlyUnavailable',
+                  'This task has no dartboard.'
+                )}
+              </p>
+            ) : null}
           </div>
           <CommandList>
             {search.kind === 'idle' ? (
@@ -207,7 +237,7 @@ export function DartBlockerPicker({
                   type="button"
                   variant="outline"
                   size="xs"
-                  onClick={() => void run(text, thisDartboardOnly)}
+                  onClick={() => void run(text, dartboardOnlyActive)}
                 >
                   {translate('auto.components.task.page.dart.DartBlockerPicker.retry', 'Retry')}
                 </Button>

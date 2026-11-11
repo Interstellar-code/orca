@@ -103,6 +103,8 @@ function BlockedByGroup({
   const { blockers, task, blocked, pending } = relationships
   const current = blockers.state === 'ready' ? (blockers.data ?? []) : null
   const write = (ids: readonly string[]): void => void relationships.onSetBlockers(ids)
+  // Write from Dart's id list, not the resolved rows: an unresolved id must not be dropped.
+  const blockerIds = task.relationships?.blockerIds ?? (current ?? []).map((entry) => entry.id)
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between gap-2">
@@ -148,9 +150,7 @@ function BlockedByGroup({
                       'Remove blocker {{title}}',
                       { title: blocker.title }
                     )}
-                    onClick={() =>
-                      write(current.filter((entry) => entry.id !== blocker.id).map((e) => e.id))
-                    }
+                    onClick={() => write(blockerIds.filter((id) => id !== blocker.id))}
                   >
                     <X className="size-3.5" />
                   </Button>
@@ -160,10 +160,13 @@ function BlockedByGroup({
           )}
           <DartBlockerPicker
             taskId={task.id}
-            excludeIds={current.map((blocker) => blocker.id)}
+            excludeIds={blockerIds}
             disabled={blocked}
+            dartboardOnlyUnavailable={!task.dartboard}
             searchTasks={relationships.searchTasks}
-            onPick={(picked) => write([...current.map((blocker) => blocker.id), picked.id])}
+            onPick={(picked) =>
+              write(blockerIds.includes(picked.id) ? blockerIds : [...blockerIds, picked.id])
+            }
           />
         </>
       )}

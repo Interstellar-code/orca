@@ -11,11 +11,13 @@ vi.mock('./DartBlockerPicker', () => ({
     taskId,
     excludeIds,
     disabled,
+    dartboardOnlyUnavailable,
     onPick
   }: {
     taskId: string
     excludeIds: readonly string[]
     disabled?: boolean
+    dartboardOnlyUnavailable?: boolean
     onPick: (task: DartTask) => void
   }) => (
     <button
@@ -23,6 +25,7 @@ vi.mock('./DartBlockerPicker', () => ({
       disabled={disabled}
       data-exclude={excludeIds.join(',')}
       data-task-id={taskId}
+      data-dartboard-unavailable={String(dartboardOnlyUnavailable)}
       onClick={() => onPick(task('newBlocker001', 'Picked task'))}
     >
       + Add blocker
@@ -95,6 +98,63 @@ describe('TaskDetailRelationships blockers', () => {
     fireEvent.click(add)
     expect(relationships.onSetBlockers).toHaveBeenCalledTimes(1)
     expect(relationships.onSetBlockers).toHaveBeenCalledWith(['blockerA0001', 'newBlocker001'])
+  })
+
+  it('tells the picker when the open task has no dartboard', () => {
+    const withBoard = api({ task: task('openTask0001', 'Open task', { dartboard: 'Board' }) })
+    renderIt(withBoard)
+    expect(
+      screen
+        .getByRole('button', { name: '+ Add blocker' })
+        .getAttribute('data-dartboard-unavailable')
+    ).toBe('false')
+    cleanup()
+    renderIt(api({ task: task('openTask0001', 'Open task', { dartboard: null }) }))
+    expect(
+      screen
+        .getByRole('button', { name: '+ Add blocker' })
+        .getAttribute('data-dartboard-unavailable')
+    ).toBe('true')
+  })
+
+  describe('with a blocker id the host did not resolve', () => {
+    const unresolvedId = 'blockerX0001'
+    const withUnresolved = () =>
+      api({
+        task: task('openTask0001', 'Open task', {
+          relationships: {
+            subtaskIds: [],
+            blockerIds: ['blockerA0001', unresolvedId, 'blockerB0001'],
+            blockingIds: [],
+            duplicateIds: [],
+            relatedIds: []
+          }
+        }),
+        blockers: ready([blockerA, blockerB])
+      })
+
+    it('keeps it when removing a resolved blocker', () => {
+      const relationships = withUnresolved()
+      renderIt(relationships)
+      fireEvent.click(screen.getByRole('button', { name: 'Remove blocker Fix the schema' }))
+      expect(relationships.onSetBlockers).toHaveBeenCalledTimes(1)
+      expect(relationships.onSetBlockers).toHaveBeenCalledWith([unresolvedId, 'blockerB0001'])
+    })
+
+    it('keeps it when adding a blocker and does not offer it again', () => {
+      const relationships = withUnresolved()
+      renderIt(relationships)
+      const add = screen.getByRole('button', { name: '+ Add blocker' })
+      expect(add.getAttribute('data-exclude')).toBe(`blockerA0001,${unresolvedId},blockerB0001`)
+      fireEvent.click(add)
+      expect(relationships.onSetBlockers).toHaveBeenCalledTimes(1)
+      expect(relationships.onSetBlockers).toHaveBeenCalledWith([
+        'blockerA0001',
+        unresolvedId,
+        'blockerB0001',
+        'newBlocker001'
+      ])
+    })
   })
 
   it('disables add and remove while the field is blocked', () => {

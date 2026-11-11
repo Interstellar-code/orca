@@ -309,6 +309,27 @@ describe('useDartTaskRelationships', () => {
     expect(searches[1]).toMatchObject({ title: 'beta', dartboard: 'Board 7' })
   })
 
+  it('refuses the this-dartboard search for a task without a dartboard instead of widening it', async () => {
+    const id = ids()
+    const hook = mountHook(seedHost(host, id.task, { dartboard: undefined }))
+    await waitFor(() => expect(hook.result.current?.state).toBe('known'))
+
+    let result: Awaited<ReturnType<NonNullable<typeof hook.result.current>['searchTasks']>> | null =
+      null
+    await act(async () => {
+      result = await hook.result.current!.searchTasks('x', { thisDartboardOnly: true })
+    })
+    await act(async () => {
+      await hook.result.current!.searchTasks('y')
+    })
+
+    expect(result).toEqual({ ok: false, error: 'This task has no dartboard.' })
+    const searches = host.requestsOf('dart.listTasks').filter((params) => params.title)
+    expect(searches).toHaveLength(1)
+    expect(searches[0]).toMatchObject({ title: 'y' })
+    expect(searches[0]).not.toHaveProperty('dartboard')
+  })
+
   it('drops the reply for a task that is no longer open', async () => {
     const first = ids()
     const second = ids()
