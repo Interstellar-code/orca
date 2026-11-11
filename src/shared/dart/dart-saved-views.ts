@@ -18,6 +18,8 @@ export type DartBoardFilters = {
   tag: string | null
   priority: string | null
   onHold: boolean
+  /** Absent = false. */
+  blockedOnHold?: boolean
 }
 
 export type DartSavedView = {
@@ -26,6 +28,8 @@ export type DartSavedView = {
   filters: DartBoardFilters
   layout: DartLayout
   showEmptyColumns: boolean
+  /** Absent = true. */
+  nestSubtasks?: boolean
 }
 
 export type DartSavedViewState = {
