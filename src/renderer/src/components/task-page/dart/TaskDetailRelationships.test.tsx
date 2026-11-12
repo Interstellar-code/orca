@@ -4,7 +4,11 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DartTask } from '../../../../../shared/dart/dart-types'
 import type { DartLoad, DartRelationshipsApi } from './dart-board-contracts'
-import { dartRelationshipsKnown, TaskDetailRelationships } from './TaskDetailRelationships'
+import {
+  dartRelationshipsKnown,
+  dartRelationshipsSectionShowsNotice,
+  TaskDetailRelationships
+} from './TaskDetailRelationships'
 
 vi.mock('./DartBlockerPicker', () => ({
   DartBlockerPicker: ({
@@ -188,6 +192,26 @@ describe('TaskDetailRelationships blockers', () => {
     )
     expect(screen.getByRole('status').textContent).toContain('The change may not have saved')
     expect(screen.getByRole('button', { name: 'Check again' })).toBeTruthy()
+  })
+
+  it('leaves the relationships notice to the detail view until links are known', () => {
+    const notice = {
+      notice: { kind: 'refused' as const, field: 'relationships', message: 'Dart refused it' },
+      dismissNotice: vi.fn(),
+      recheckNotice: vi.fn()
+    }
+    for (const state of ['notChecked', 'loading', 'error', 'known'] as const) {
+      const relationships = api({ state, notice })
+      const { unmount } = render(
+        <TaskDetailRelationships relationships={relationships} onOpenRelatedTask={vi.fn()} />
+      )
+      expect(screen.queryAllByText(/Dart refused it/).length > 0).toBe(
+        dartRelationshipsSectionShowsNotice(relationships)
+      )
+      unmount()
+    }
+    expect(dartRelationshipsSectionShowsNotice(api({ state: 'known' }))).toBe(true)
+    expect(dartRelationshipsSectionShowsNotice(api({ state: 'loading' }))).toBe(false)
   })
 
   it('ignores a notice for another field', () => {

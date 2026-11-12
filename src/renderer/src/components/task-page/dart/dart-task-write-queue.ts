@@ -185,10 +185,11 @@ export function enqueueDartTaskWrite(args: {
     tail: null,
     recheck: null,
     refresh,
-    patch
+    patches: new Set()
   }
   entry.refresh = refresh
-  entry.patch = patch
+  // Each write brings its own closure; repeated patches are idempotent.
+  entry.patches.add(patch)
   // `previous` is what the caller shows, so its queued and unreconciled fields are not server state.
   const shownOnly = [...entry.pending.flatMap((queued) => queued.fields), ...blocked]
   entry.confirmed = { ...previous, ...pickFields(entry.confirmed, shownOnly) }

@@ -57,7 +57,8 @@ export type TaskWrites = {
   tail: Promise<unknown> | null
   recheck: Promise<void> | null
   refresh: () => Promise<DartTaskRead>
-  patch: (patch: Partial<DartTask>) => void
+  /** Every queued write's callback, so a later field write does not drop an earlier one's cache patch. */
+  patches: Set<(patch: Partial<DartTask>) => void>
 }
 
 export const writes = new Map<string, TaskWrites>()
@@ -119,7 +120,9 @@ export function publish(
   patch: Partial<DartTask>
 ): void {
   if (Object.keys(patch).length > 0) {
-    guardDartQueueCallback(() => entry.patch(patch))
+    for (const apply of entry.patches) {
+      guardDartQueueCallback(() => apply(patch))
+    }
   }
   for (const listener of listeners.get(dartTaskIdentityKey(entry.identity)) ?? []) {
     guardDartQueueCallback(() => listener({ kind, patch }))
