@@ -66,8 +66,10 @@ export function DartTaskDetailView({
       <DartTaskDetailHeader {...edit} onUse={onUse} onClose={onClose} />
 
       <div className="min-h-0 flex-1 overflow-y-auto scrollbar-sleek">
-        {/* The description editor shows its own notices. */}
-        {notice.notice && notice.notice.field !== 'description' ? (
+        {/* The description editor and the Blocked by section show their own notices. */}
+        {notice.notice &&
+        notice.notice.field !== 'description' &&
+        !(notice.notice.field === 'relationships' && relationships && onOpenRelatedTask) ? (
           <div className="mx-4 mt-3">
             <DartTaskDetailNotice {...notice} />
           </div>

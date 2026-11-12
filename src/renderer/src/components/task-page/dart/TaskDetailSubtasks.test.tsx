@@ -68,6 +68,12 @@ describe('TaskDetailSubtasks', () => {
     expect(screen.queryByText(/of 340 done/)).toBeNull()
   })
 
+  it('shows only the partial count when a truncated lookup loads no subtasks', () => {
+    renderIt(api(load('ready', { tasks: [], total: 5, complete: false })))
+    expect(screen.getByText('Showing 0 of 5')).toBeTruthy()
+    expect(screen.queryByText('No subtasks')).toBeNull()
+  })
+
   it('shows empty, error with retry, and nothing when links were not returned', () => {
     const { unmount } = render(
       <TaskDetailSubtasks
