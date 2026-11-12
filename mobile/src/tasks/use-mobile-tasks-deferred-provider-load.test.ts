@@ -56,6 +56,7 @@ function mountFor(provider: 'dart' | 'linear') {
         setItems,
         setLoading: vi.fn(),
         setRefreshing: vi.fn(),
+        setTaskListSettled: vi.fn(),
         taskStateHydrated: true,
         tasksSupported: true
       })
