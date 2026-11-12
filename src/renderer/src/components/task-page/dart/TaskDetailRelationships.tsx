@@ -18,6 +18,11 @@ export function dartRelationshipsKnown(relationships: DartRelationshipsApi): boo
   return relationships.state !== 'notChecked'
 }
 
+/** The section renders the relationships notice only once links are known; other states leave it to the detail view. */
+export function dartRelationshipsSectionShowsNotice(relationships: DartRelationshipsApi): boolean {
+  return relationships.state === 'known'
+}
+
 export type TaskDetailRelationshipsProps = {
   relationships: DartRelationshipsApi
   onOpenRelatedTask: (task: DartTask) => void
@@ -272,7 +277,10 @@ export function TaskDetailRelationships({
       {isDartTaskOnHold(task) && openBlockers > 0 ? (
         <OnHoldBanner openBlockers={openBlockers} />
       ) : null}
-      {notice.notice?.field === 'relationships' ? <DartTaskDetailNotice {...notice} /> : null}
+      {notice.notice?.field === 'relationships' &&
+      dartRelationshipsSectionShowsNotice(relationships) ? (
+        <DartTaskDetailNotice {...notice} />
+      ) : null}
       {parent ? <ParentRow parent={parent} onOpen={onOpenRelatedTask} /> : null}
       <BlockedByGroup relationships={relationships} onOpen={onOpenRelatedTask} />
       <BlockingGroup blocking={relationships.blocking} onOpen={onOpenRelatedTask} />
