@@ -324,6 +324,7 @@
         "config/fork/README.md",
         "config/fork/rebuild-and-install.sh",
         "config/fork/install-built-app.sh",
+        "config/fork/swap-mac-app.sh",
         "config/fork/com.interstellar.orca-rebuild.plist"
       ],
       "commits": [
@@ -395,6 +396,26 @@
         "Windows installer is unsigned (SmartScreen warning); macOS app is self-signed (Gatekeeper warning on first open of a download).",
         "Linux tarball needs chrome-sandbox made setuid root after extracting.",
         "The local config/fork/rebuild-and-install.sh still builds without the orcad template."
+      ]
+    },
+    {
+      "id": "fork-upstream-sync-and-release-skills",
+      "title": "upstream-sync and release skills: guided upstream merge and one-command fork release",
+      "status": "active",
+      "summary": "Two project skills. upstream-sync lists the upstream releases the fork lacks, asks which to sync to, merges on a branch on Ubu, resolves conflicts against this registry, runs the gates and a live Dart check, reviews and merges the PR, then runs release. release publishes the GitHub Release (fork-release.yml: Mac, Linux, Windows downloads), builds and installs on Ubu, and builds the Mac app for a swap Rohit runs. config/fork/upstream-sync.sh holds the report, release-target, record-release and record-sync helpers; rebuild-and-install.sh now calls its record-release.",
+      "areas": ["tooling", "ci"],
+      "key_paths": [
+        ".claude/skills/upstream-sync/SKILL.md",
+        ".claude/skills/release/SKILL.md",
+        "config/fork/upstream-sync.sh",
+        "config/fork/swap-mac-app.sh"
+      ],
+      "commits": [],
+      "touches_upstream_files": [],
+      "sync_notes": "Upstream ignores /.claude/skills/ and docs/**, so these files are force-added; a sync never conflicts on them unless upstream starts tracking the same paths.",
+      "known_gaps": [
+        "Windows still builds on GitHub-hosted runners; the self-hosted Windows VM runner is not set up.",
+        "The Mac install needs Rohit to run the swap line, because auto mode blocks quitting Orca."
       ]
     }
   ]

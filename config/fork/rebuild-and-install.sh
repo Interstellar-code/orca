@@ -36,7 +36,8 @@ EOF
       ;;
     Linux)
       if command -v notify-send >/dev/null 2>&1; then
-        notify-send "$title" "${prefix}${body}"
+        # A headless host has notify-send but no D-Bus session; that must not fail the run.
+        notify-send "$title" "${prefix}${body}" 2>/dev/null || log 'WARN: notify-send failed; logged only'
       else
         log 'WARN: notify-send unavailable; logged only'
       fi
@@ -353,25 +354,9 @@ sync_main() {
 
 # Upstream cuts releases off main, so the newest release whose main point the fork holds names the fork's base.
 record_upstream_release() {
-  local file=config/fork/upstream-release tag point release=''
-  git fetch --quiet upstream 'refs/tags/v*:refs/tags/v*' 2>/dev/null || log 'WARN: could not fetch upstream tags'
-  while read -r tag; do
-    [[ $tag =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || continue
-    point=$(git merge-base "$tag" "$UPSTREAM_BRANCH" 2>/dev/null) || continue
-    if git merge-base --is-ancestor "$point" HEAD; then
-      release=${tag#v}
-      break
-    fi
-  done < <(git tag -l 'v*' --sort=-v:refname)
-  if [[ -z $release ]]; then
-    log 'WARN: no upstream release found in main; keeping the recorded upstream release'
-    return 0
-  fi
-  [[ $(cat "$file" 2>/dev/null) == "$release" ]] && return 0
-  printf '%s\n' "$release" >"$file"
-  git add "$file" && git commit --quiet -m "build(fork): record upstream release $release as the fork base" ||
-    fail "could not record upstream release $release"
-  log "fork base is now upstream release $release"
+  local line
+  config/fork/upstream-sync.sh record-release "$UPSTREAM_BRANCH" 2>&1 | while IFS= read -r line; do log "$line"; done ||
+    fail 'could not record the upstream release'
 }
 
 main() {

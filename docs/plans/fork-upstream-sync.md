@@ -1,6 +1,6 @@
 # Fork upstream sync skill
 
-Status: draft for Rohit's approval (2026-11-21). Owner: Rohit. Each task is written so it can be
+Status: T1, T1b and T2 built 2026-11-21; T3 (first real run) not started. Owner: Rohit. Each task is written so it can be
 pasted as a worker prompt.
 
 ## Goal
@@ -15,7 +15,7 @@ or a step would discard work.
 
 ## Where it lives
 
-In this repo, not in `orca-skills`: `.claude/skills/fork-upstream-sync/` (`SKILL.md` plus any
+In this repo, not in `orca-skills`: `.claude/skills/upstream-sync/` and `.claude/skills/release/` (`SKILL.md` plus any
 helper scripts). It is fork-only, so it gets an entry in `customization_registry.json`. Upstream
 tracks only `.claude/settings.json` under `.claude/`, so the folder will not conflict.
 
@@ -101,9 +101,9 @@ Make both read the same source so a release and an installed build of one commit
 
 ### T2. Write the skill
 
-`.claude/skills/fork-upstream-sync/SKILL.md` covering steps 1-11, plus a change-report script
-(`config/fork/upstream-change-report.sh`: commits, releases, registry overlap). Registry entry
-`fork-upstream-sync-skill`.
+`.claude/skills/upstream-sync/SKILL.md` and `.claude/skills/release/SKILL.md` covering steps 1-11, plus
+`config/fork/upstream-sync.sh` (report, release-target, record-release, record-sync). Registry entry
+`fork-upstream-sync-and-release-skills`.
 
 ### T3. First real run: today's sync
 
