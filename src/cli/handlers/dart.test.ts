@@ -291,7 +291,7 @@ describe('orca dart CLI', () => {
     await main(['dart', 'update', TASK_ID, '--tag', '--json'], '/tmp/repo')
 
     expect(process.exitCode).toBe(1)
-    expect(callMock).toHaveBeenCalledTimes(1)
+    expect(callMock).not.toHaveBeenCalled()
     expect(printedJson()).toMatchObject({
       ok: false,
       error: { code: 'invalid_argument', message: expect.stringContaining('requires a value') }

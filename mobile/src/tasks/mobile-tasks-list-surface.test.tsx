@@ -27,6 +27,9 @@ vi.mock('./mobile-tasks-provider-item-list', () => ({
   renderMobileTasksProviderItemList: () => 'ProviderItemList'
 }))
 vi.mock('../components/JiraConnectPrompt', () => ({ JiraConnectPrompt: 'JiraConnectPrompt' }))
+// The support-state renderer reaches native-only transport and component modules outside this branch test.
+vi.mock('./mobile-tasks-list-state', () => ({ renderMobileTasksSupportState: () => null }))
+vi.mock('../components/MobileStateView', () => ({ MobileStateView: 'MobileStateView' }))
 
 import { renderMobileTasksListSurface } from './mobile-tasks-list-surface'
 import type { ConnectionPresentationModel } from './use-mobile-tasks-connection-presentation'
