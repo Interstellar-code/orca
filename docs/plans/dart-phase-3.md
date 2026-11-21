@@ -1,6 +1,6 @@
 # Plan: Dart phase 3, a dartai-style board
 
-Status: final after review, 2026-11-07. Owner: Rohit. Delivery: fork `Interstellar-code/orca`, never upstream. Previous plan: `docs/plans/dart-phase-2.md`.
+Status: built and merged, 2026-11-11 (PR #12, fork `main` at `b60c0d4dd13`); installed on the Mac and Orca Ubu 7of9 (`1.4.247-fork…b60c0d4dd131` / `…6a3fd64e5af9`); Rohit's C checks pending (see "Delivery record"). Owner: Rohit. Delivery: fork `Interstellar-code/orca`, never upstream. Previous plan: `docs/plans/dart-phase-2.md`.
 
 How to use this plan: a worker prompt is "Rules for every worker" + "Decisions" + "Glossary" + the one task, and the worker reads this whole file once. The Decisions section is the only source of rules; the Changelog at the end is history, not instructions.
 
@@ -31,7 +31,7 @@ Out of scope: reorder inside a column (`POST /tasks/{id}/move`), drag across dar
 4. Live checks L1 to L5 are answered; their answers are recorded in the Decisions.
 5. Release B only: live checks L6 and L7 are answered before B1's second commit and before B2.0 (release B's contracts) is written. B1's first commit (shared types only) may land before them.
 
-State on 2026-11-07: 1 holds (PR #10 merged as `5fe2edc1cb3`, follow-up PR #11 as `6665c9c8d90`). 2 holds (Rohit accepted phase 2 on 2026-11-07; known non-blocking leftovers: PR #11's 3 low items, and a 429 never seen from the real Dart API). 3 holds (Orca Ubu 7of9 runs `1.4.214-local.1794049092976.f37650978e89`, the Mac `1.4.214-local.1794049848208.f37650978e89`, both phase 2 from fork `main` with no upstream merge; Rohit tested both). 4 holds. 5 is open.
+State on 2026-11-07: 1 holds (PR #10 merged as `5fe2edc1cb3`, follow-up PR #11 as `6665c9c8d90`). 2 holds (Rohit accepted phase 2 on 2026-11-07; known non-blocking leftovers: PR #11's 3 low items, and a 429 never seen from the real Dart API). 3 holds (Orca Ubu 7of9 runs `1.4.214-local.1794049092976.f37650978e89`, the Mac `1.4.214-local.1794049848208.f37650978e89`, both phase 2 from fork `main` with no upstream merge; Rohit tested both). 4 holds. 5 is open. Update 2026-11-12: 5 holds (L6 and L7 answered, see D14 and D15).
 
 Orchestrator step before the first lane of each release: re-read the phase 2 files named in "What exists" on the lane base commit and check every file and symbol name this plan uses. A mismatch is fixed in this plan before any lane starts.
 
@@ -185,6 +185,7 @@ Blocker writes (release B) take the same path with `write` = `setDartTaskBlocker
     2. Outcome 1, L6 shows list items carry `taskRelationships`: relationships come with the list rows. Every card and row with blockers gets the marker, with no extra reads. A card or row without `relationships` (no links data) shows "Blockers not checked" and the chip keeps it (Rohit, 2026-11-07). L6 also reports whether an item for a task with no links carries empty lists or omits the field; if Dart omits it, every unlinked card shows "Blockers not checked", which Rohit accepted. No relationship cache, no enrichment reads, no "Check" button.
     3. Outcome 2, list items do not carry them: after a read set is published, `readDartOnHoldRelationships` reads `getTask` for the first 20 on-hold tasks in read order, one after another; each read set reads them again. Results go to `dartRelationshipCache`, keyed by `dartTaskIdentityKey`, with states `known | loading | error | notChecked`. Only on-hold cards get markers. An on-hold task past the 20 cap or whose read failed is "not checked", never "not blocked": the chip keeps it, its card shows "Blockers not checked", and the count line shows "N on-hold tasks not checked" with a "Check" button that reads the next 20. These reads are outside the epoch window. A blocker write's optimistic change, rollback and `unknown` update `dartRelationshipCache` through the queue's `patch` callback, and the detail's fresh `getTask` read replaces the task's `dartRelationshipCache` entry, so opening a task refreshes its marker state.
     4. Not taken: a `getTask` per card (up to 1,050 reads per refresh).
+    5. Answered (L6, run through Dart's MCP server rather than the planned REST `GET /tasks/list`): list items carry no `taskRelationships`. Outcome 2 is built.
 15. D15, blocker writes (release B; outcome set by L7).
     1. Only "Blocked by" is editable, on the task open in the detail; "Blocking" is read-only with "change it on that task".
     2. New host method `dart.updateTaskBlockers { taskId, blockerIds }`, permission `workspace`, listed in `DART_UNVERIFIED_WRITE_METHODS`. Ids match the 12-character Dart id pattern, are unique, at most 100, and never equal `taskId`.
@@ -194,6 +195,7 @@ Blocker writes (release B) take the same path with `write` = `setDartTaskBlocker
     6. The write goes through phase 2's queue with field key `relationships`; `relationships` is added to `EDITABLE_DART_TASK_FIELDS` (the one non-additive phase 2 edit). The renderer client refuses with `notApplied` when the host lacks `dart.relationships.v1`, as `writesV2Refusal` does.
     7. Blocker search: `searchDartTasks(text, { sourceContext, dartboard? })` in `src/renderer/src/store/slices/dart/dart-read-actions.ts`, non-caching, sends `title`, `isCompleted: false` and `limit: 25`. The picker searches all dartboards by default, with a "This dartboard only" toggle.
     8. Not taken: add and remove operations (Dart has none); editing "Blocking" (it writes another task).
+    9. Answered (L7, run through Dart's MCP server rather than the planned REST `PUT`): a blockers-only update kept the other four lists. Outcome 2 is built anyway, because the REST path itself was not verified; it costs one extra `GET` per blocker write and is safe under either answer. C5 still confirms on the real build.
 
 ## Security
 
@@ -877,6 +879,18 @@ Risks:
 5. Board files are Dart copies of Jira's pattern (rule 13); keep them small and Dart-typed. Shared-file edits are checked with `git merge-tree` before each final merge (run sheet item 6).
 6. A5 is the longest release A lane (14 owned items) and the one serial bottleneck. Its saved-views hook and UI (items 5, 6 and the saved-view part of 13) could become a parallel lane; that needs a route from Rohit, so it is not split here.
 
+## Delivery record (2026-11-12)
+
+1. Built: A1-A7 and B1-B7, merged as PR #12 (`b60c0d4dd13`). An Opus read-only review against this plan (2026-11-12) found every task implemented and every specified user-facing string present; no new P1 or P2 bug. Unplanned addition: A4 adds a "no status" column.
+2. Review decisions during integration:
+   1. F2 is not a bug: a scope with 61 open tasks, 46 nested under parents, shows 16 top-level cards. Subtasks never show as cards (D13).
+   2. F6 fixed: the source chip names the paired server (and a user host label wins over the web client's pairing name) and the signed-in Dart account.
+3. Known P3s accepted in PR #12: an on-hold marker can read "Blockers not checked" after visiting an overlapping scope until refresh or Check; partial lookup understates the on-hold blocker count; relationship write notices render twice; an empty partial subtask lookup shows both "No subtasks" and "Showing 0 of N"; an obsolete response after three overtaken reads can overwrite the relationship cache; a later field write replaces the blocker cache patch callback; after a failed first child read, retry waits for the next refresh or Retry. A cleanup batch for the detail items and open item 5's comment follows separately.
+4. C checks (Rohit): C1-C7 not yet run; C7 partly (card counts only). Detail sections checked on one task only. C6 is the only evidence on board speed: there is no column virtualization yet, by design.
+5. Not yet built for Windows or Linux: Fork Release last ran 2026-11-03, before phase 3.
+6. Upstream sync: `git merge-tree` shows conflicts in `src/shared/work-items/task-source-runtime-capabilities.ts` and `src/renderer/src/runtime/workspace-links/runtime-workspace-attachment-capabilities.ts`; hand-merge them.
+7. Pre-existing gate failures on `main`, not from phase 3: `src/cli/handlers/dart.test.ts:294`, Mobile Checks (open item 4 was never fixed), `verify:skill-bundle-manifest`, `tests/e2e/cross-version-wire`.
+
 ## Changelog
 
 Not instructions; history only.
@@ -917,3 +931,4 @@ Rejected alternatives:
 9. Wording nits (history order, "honest", "feel like dartai"): fixed where this rewrite touched the text.
 10. Three releases (saved views separate): saved views have no live-API unknowns, so they ride with the board.
 11. Degraded board on old hosts, views per Dart account, an account-wide write subscription, capability probes cached once per target: replaced by D1.4, D9.1, D5.3 and D1.3.
+12. 2026-11-12, delivery: L6 and L7 answered (D14.5, D15.9), prerequisite 5 closed, status set to built, and the "Delivery record" section added from PR #12 and an Opus review against this plan.

@@ -62,11 +62,11 @@ export function TaskDetailSubtasks({
         />
       ) : page === null ? (
         <SkeletonLines />
-      ) : loaded.length === 0 ? (
+      ) : loaded.length === 0 && !truncated ? (
         <p className="text-xs text-muted-foreground">
           {translate('auto.components.task.page.dart.TaskDetailSubtasks.none', 'No subtasks')}
         </p>
-      ) : (
+      ) : loaded.length === 0 ? null : (
         <ul className="space-y-0.5">
           {loaded.map((subtask) => (
             <li key={subtask.id} className="flex items-center">

@@ -12,7 +12,7 @@ import {
   installFakeDartRuntime,
   type FakeDartHost
 } from '@/store/slices/dart/dart-fake-runtime.test-support'
-import { dartTaskIdentityKey } from '@/store/slices/dart/dart-task-identity'
+import { bumpDartEpochs, dartTaskIdentityKey } from '@/store/slices/dart/dart-task-identity'
 import { useDartTaskRelationships } from './use-dart-task-relationships'
 
 const VIEWER = { id: 'user-a', name: 'Alex Example' }
@@ -357,6 +357,25 @@ describe('useDartTaskRelationships', () => {
     expect(hook.result.current?.task.id).toBe(second.task)
     expect(hook.result.current?.task.relationships?.blockerIds).toEqual([second.blocker])
     expect(cacheEntry(first.task)).toBeUndefined()
+  })
+
+  it('never installs a read that three writes overtook', async () => {
+    const id = ids()
+    const opened = seedHost(host, id.task)
+    const identity = { hostKey: 'local', accountKey: VIEWER.id, taskId: id.task }
+    const fetchDartTask = useAppStore.getState().fetchDartTask
+    const overtaken: typeof fetchDartTask = async (...args) => {
+      bumpDartEpochs(identity)
+      return fetchDartTask(...args)
+    }
+    useAppStore.setState({ fetchDartTask: overtaken })
+
+    const hook = mountHook(opened)
+
+    await waitFor(() => expect(hook.result.current?.state).toBe('error'))
+    expect(host.count('dart.getTask')).toBe(3)
+    expect(cacheEntry(id.task)).toBeUndefined()
+    useAppStore.setState({ fetchDartTask })
   })
 
   it('searches and writes on the host the detail was opened from', async () => {

@@ -16,7 +16,11 @@ import { DartTaskDetailHeader } from './TaskDetailHeader'
 import { DartTaskDetailNotice } from './TaskDetailNotice'
 import { DartTaskDetailProperties } from './TaskDetailProperties'
 import { SectionHeading } from './TaskDetailSectionHeading'
-import { dartRelationshipsKnown, TaskDetailRelationships } from './TaskDetailRelationships'
+import {
+  dartRelationshipsKnown,
+  dartRelationshipsSectionShowsNotice,
+  TaskDetailRelationships
+} from './TaskDetailRelationships'
 import { TaskDetailSubtasks } from './TaskDetailSubtasks'
 
 export type DartDetailLoadState<T> =
@@ -66,8 +70,15 @@ export function DartTaskDetailView({
       <DartTaskDetailHeader {...edit} onUse={onUse} onClose={onClose} />
 
       <div className="min-h-0 flex-1 overflow-y-auto scrollbar-sleek">
-        {/* The description editor shows its own notices. */}
-        {notice.notice && notice.notice.field !== 'description' ? (
+        {/* The description editor and the Blocked by section show their own notices. */}
+        {notice.notice &&
+        notice.notice.field !== 'description' &&
+        !(
+          notice.notice.field === 'relationships' &&
+          relationships &&
+          onOpenRelatedTask &&
+          dartRelationshipsSectionShowsNotice(relationships)
+        ) ? (
           <div className="mx-4 mt-3">
             <DartTaskDetailNotice {...notice} />
           </div>

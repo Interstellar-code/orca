@@ -17,7 +17,7 @@ export type LinkedDartTasksResult = {
   error: { message: string; code?: string } | null
 }
 
-// Dart has no id-list query, so each linked task is read by id with bounded concurrency.
+// Each linked task is read by id with bounded concurrency, so each keeps its own source context.
 export async function readLinkedDartTasks(
   refs: readonly LinkedDartTaskRef[],
   fetchTask: FetchDartTask,

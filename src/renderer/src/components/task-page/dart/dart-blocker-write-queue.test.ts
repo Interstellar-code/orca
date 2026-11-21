@@ -70,15 +70,20 @@ async function openDetail() {
   const previous: DartTask = shown.task
 
   const refresh = () => store.getState().fetchDartTask(TASK_ID, { sourceContext, force: true })
+  const blockerPatches: Partial<DartTask>[] = []
   const base = {
     identity,
     refresh,
-    patch: (patch: Partial<DartTask>) => store.getState().patchDartTask(identity, patch),
+    patch: (patch: Partial<DartTask>) => {
+      blockerPatches.push(patch)
+      store.getState().patchDartTask(identity, patch)
+    },
     invalidateLists: () => store.getState().invalidateDartLists(identity)
   }
   return {
     host,
     taskId: TASK_ID,
+    blockerPatches,
     state: () => dartTaskWriteState(identity),
     setBlockers: (blockerIds: string[]) =>
       enqueueDartTaskWrite({
@@ -94,6 +99,7 @@ async function openDetail() {
         ...base,
         previous,
         optimistic: { status },
+        patch: (patch: Partial<DartTask>) => store.getState().patchDartTask(identity, patch),
         write: () => store.getState().updateDartTask(TASK_ID, { status }, { sourceContext })
       })
   }
@@ -141,6 +147,23 @@ describe('blocker writes through the write queue', () => {
       outcome: 'notApplied'
     })
     expect(page.host.count('dart.updateTaskBlockers')).toBe(1)
+  })
+
+  it('keeps the blocker write patch callback when a later status write is queued', async () => {
+    const page = await openDetail()
+    const release = page.host.hold('dart.updateTaskBlockers')
+
+    const blockers = page.setBlockers([BLOCKER_ID])
+    const status = page.setStatus('Doing')
+    release()
+    await Promise.all([blockers, status])
+
+    expect(
+      page.blockerPatches.some((patch) => patch.relationships?.blockerIds?.[0] === BLOCKER_ID)
+    ).toBe(true)
+    expect(
+      page.blockerPatches.every((patch) => 'relationships' in patch || 'status' in patch)
+    ).toBe(true)
   })
 
   it('sends a status write queued behind a blocker write only after it, on the same task', async () => {

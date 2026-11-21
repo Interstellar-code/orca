@@ -175,7 +175,7 @@ function seedUnknownNotice(): void {
     tail: null,
     recheck: null,
     refresh: () => Promise.resolve({ ok: false, error: 'offline' }),
-    patch: () => {}
+    patches: new Set()
   })
 }
 

@@ -113,8 +113,17 @@ export const useDartTaskRelationships: UseDartTaskRelationships = ({
       force: true,
       read: (forced) => fetchDartTask(identity.taskId, { sourceContext, scope, force: forced })
     })
-      .then(({ result }) => {
+      .then(({ result, current }) => {
         if (cancelled) {
+          return
+        }
+        // Every attempt was overtaken by a write; the result is obsolete and must not reach the cache.
+        if (result.ok && !current) {
+          settle({
+            state: 'error',
+            relationships: null,
+            error: taskProviderErrorText(undefined, 'dart.loadFailed')
+          })
           return
         }
         if (!result.ok) {
