@@ -5,7 +5,7 @@ import { dartUpdateRequiredMessage } from '@/runtime/runtime-dart-client'
 import { ORCA_DART_SKILL_NAME } from '@/lib/skills/installation/agent-feature-skill-names'
 import { TaskSourceShowInTasksStep } from './TaskSourceShowInTasksStep'
 import { TaskSourceStepRow } from './TaskSourceStepRow'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 
 type DartSetupStepsProps = {
   connected: boolean
@@ -28,6 +28,7 @@ export function DartSetupSteps({
   onConnected,
   onOpenIntegrations
 }: DartSetupStepsProps): React.JSX.Element {
+  const t = useTranslate()
   const [dialogOpen, setDialogOpen] = useState(false)
   const openIntegrationsInstead = connected || updateRequired
 
@@ -37,14 +38,11 @@ export function DartSetupSteps({
         <TaskSourceStepRow
           index={1}
           state={checking ? 'in-progress' : connected ? 'done' : 'pending'}
-          title={translate(
-            'auto.components.settings.TaskSourceDartSetup.connectTitle',
-            'Connect Dart'
-          )}
+          title={t('auto.components.settings.TaskSourceDartSetup.connectTitle', 'Connect Dart')}
           description={
             updateRequired
               ? dartUpdateRequiredMessage()
-              : translate(
+              : t(
                   'auto.components.settings.TaskSourceDartSetup.connectDescription',
                   'Paste your Dart authorization token so Orca can browse tasks.'
                 )
@@ -57,38 +55,32 @@ export function DartSetupSteps({
               onClick={openIntegrationsInstead ? onOpenIntegrations : () => setDialogOpen(true)}
             >
               {updateRequired
-                ? translate(
+                ? t(
                     'auto.components.settings.TaskSourceDartSetup.openIntegrations',
                     'Open Integrations'
                   )
                 : connected
-                  ? translate('auto.components.settings.TaskSourceDartSetup.manage', 'Manage token')
-                  : translate(
-                      'auto.components.settings.TaskSourceDartSetup.connect',
-                      'Connect Dart'
-                    )}
+                  ? t('auto.components.settings.TaskSourceDartSetup.manage', 'Manage token')
+                  : t('auto.components.settings.TaskSourceDartSetup.connect', 'Connect Dart')}
             </Button>
           }
         />
         <TaskSourceShowInTasksStep
           index={2}
-          providerLabel={translate('auto.components.settings.TasksPane.dartLabel', 'Dart')}
+          providerLabel={t('auto.components.settings.TasksPane.dartLabel', 'Dart')}
           visible={visible}
           canHide={canHide}
           onToggleVisible={onToggleVisible}
         />
       </ol>
       <p className="px-1 pt-2 text-xs text-muted-foreground">
-        {translate(
+        {t(
           'auto.components.settings.TaskSourceDartSetup.skillHint',
           'Optional: install the {{skill}} skill under Integrations so agents can read and update Dart tasks.',
           { skill: ORCA_DART_SKILL_NAME }
         )}{' '}
         <Button type="button" variant="link" size="xs" onClick={onOpenIntegrations}>
-          {translate(
-            'auto.components.settings.TaskSourceDartSetup.openIntegrations',
-            'Open Integrations'
-          )}
+          {t('auto.components.settings.TaskSourceDartSetup.openIntegrations', 'Open Integrations')}
         </Button>
       </p>
       <DartConnectDialog open={dialogOpen} onOpenChange={setDialogOpen} onConnected={onConnected} />

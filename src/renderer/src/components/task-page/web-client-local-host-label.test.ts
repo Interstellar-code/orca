@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildExecutionHostRegistry } from '../../../../shared/execution-host/execution-host-registry'
 
-const state = vi.hoisted(() => ({ web: false, name: null as string | null, throws: false }))
+const state = vi.hoisted((): { web: boolean; name: string | null; throws: boolean } => ({
+  web: false,
+  name: null,
+  throws: false
+}))
 vi.mock('@/app-shell/platform/web-client-location', () => ({
   isWebClientLocation: () => state.web
 }))

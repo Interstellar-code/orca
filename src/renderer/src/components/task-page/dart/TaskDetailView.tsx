@@ -2,7 +2,7 @@ import { Layers } from 'lucide-react'
 import type { DartComment, DartTask } from '../../../../../shared/dart/dart-types'
 import type { Worktree } from '../../../../../shared/worktree/types'
 import { Button } from '@/components/ui/button'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 import type { DartRelationshipsApi } from './dart-board-contracts'
 import type {
   DartDetailCommentsApi,
@@ -65,6 +65,7 @@ export function DartTaskDetailView({
   onRetry,
   onOpenWorkspace
 }: DartTaskDetailViewProps): React.JSX.Element {
+  const t = useTranslate()
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
       <DartTaskDetailHeader {...edit} onUse={onUse} onClose={onClose} />
@@ -104,14 +105,11 @@ export function DartTaskDetailView({
 
         <section className="space-y-2 border-t border-border/60 px-4 py-4">
           <SectionHeading>
-            {translate(
-              'auto.components.task.page.dart.TaskDetail.linkedWorkspaces',
-              'Linked workspaces'
-            )}
+            {t('auto.components.task.page.dart.TaskDetail.linkedWorkspaces', 'Linked workspaces')}
           </SectionHeading>
           {workspaces.length === 0 ? (
             <p className="text-xs text-muted-foreground">
-              {translate(
+              {t(
                 'auto.components.task.page.dart.TaskDetail.noLinkedWorkspaces',
                 'No workspace is linked to this task yet.'
               )}

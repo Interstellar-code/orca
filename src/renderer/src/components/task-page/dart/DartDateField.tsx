@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ImeInput } from '@/lib/text-input/ime/ime-text-field'
-import { getIntlLocale, translate } from '@/i18n/i18n'
+import { useIntlLocale, useTranslate } from '@/i18n/use-translate'
 import { dartCalendarDate, formatDartDate, isFinishedDateInput } from './dart-date-format'
 import { DartChipRow, useDartBlockedHint, type DartFieldState } from './DartPropertyChips'
 
@@ -20,13 +20,15 @@ export function DartDateField({
   state: DartFieldState
   onChange: (value: string | null) => void
 }): React.JSX.Element {
+  const intlLocale = useIntlLocale()
+  const t = useTranslate()
   const date = dartCalendarDate(value)
   const [draft, setDraft] = useState<string | null>(null)
   const reverting = useRef(false)
   const input = useRef<HTMLInputElement>(null)
   const { describedBy, hint } = useDartBlockedHint(state.blocked)
   if (!editable) {
-    return <span>{formatDartDate(value, getIntlLocale()) ?? '—'}</span>
+    return <span>{formatDartDate(value, intlLocale) ?? '—'}</span>
   }
   // A date input reports '' while only part of it is typed (`badInput`), so that is not a clear.
   const commit = (partial: boolean): void => {
@@ -80,11 +82,9 @@ export function DartDateField({
         aria-disabled={state.disabled || undefined}
         // Keeps the input focused, so pressing Clear does not blur and commit a draft first.
         onMouseDown={(event) => event.preventDefault()}
-        aria-label={translate(
-          'auto.components.task.page.dart.DartDateField.clear',
-          'Clear {{label}}',
-          { label }
-        )}
+        aria-label={t('auto.components.task.page.dart.DartDateField.clear', 'Clear {{label}}', {
+          label
+        })}
         onClick={() => {
           if (state.disabled) {
             return

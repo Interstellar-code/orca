@@ -1,6 +1,6 @@
 import type { DartTask } from '../../../../../shared/dart/dart-types'
 import type { Worktree } from '../../../../../shared/worktree/types'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 import { cn } from '@/lib/class-names'
 import type { DartNestedListModel } from './dart-board-contracts'
 import { TaskListNestedRows } from './TaskListNestedRows'
@@ -29,6 +29,7 @@ export function TaskPageDartTaskList({
   onOpenWorkspace,
   rowMarkers
 }: TaskPageDartTaskListProps): React.JSX.Element {
+  const t = useTranslate()
   const actions: DartListRowActions = {
     selectedTaskId,
     getTaskWorkspaces,
@@ -47,18 +48,14 @@ export function TaskPageDartTaskList({
           dartRowGridClass(showTags)
         )}
       >
-        <span>{translate('auto.components.task.page.dart.TaskList.columnTask', 'Task')}</span>
-        <span>{translate('auto.components.task.page.dart.TaskList.columnStatus', 'Status')}</span>
-        <span>
-          {translate('auto.components.task.page.dart.TaskList.columnPriority', 'Priority')}
-        </span>
-        <span>
-          {translate('auto.components.task.page.dart.TaskList.columnAssignee', 'Assignee')}
-        </span>
+        <span>{t('auto.components.task.page.dart.TaskList.columnTask', 'Task')}</span>
+        <span>{t('auto.components.task.page.dart.TaskList.columnStatus', 'Status')}</span>
+        <span>{t('auto.components.task.page.dart.TaskList.columnPriority', 'Priority')}</span>
+        <span>{t('auto.components.task.page.dart.TaskList.columnAssignee', 'Assignee')}</span>
         {showTags ? (
-          <span>{translate('auto.components.task.page.dart.TaskList.columnTags', 'Tags')}</span>
+          <span>{t('auto.components.task.page.dart.TaskList.columnTags', 'Tags')}</span>
         ) : null}
-        <span>{translate('auto.components.task.page.dart.TaskList.columnUpdated', 'Updated')}</span>
+        <span>{t('auto.components.task.page.dart.TaskList.columnUpdated', 'Updated')}</span>
         <span />
       </div>
       {nested ? (

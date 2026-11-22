@@ -1,6 +1,6 @@
 import type React from 'react'
 import { Button } from '@/components/ui/button'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 import { taskProviderErrorMessage } from '@/lib/work-items/task-provider-error-copy'
 import type { DartAttachmentUrlSource } from './use-dart-attachment-url-source'
 
@@ -11,15 +11,16 @@ export function WorkspaceAttachmentDartStatus({
   source: DartAttachmentUrlSource
   disabled: boolean
 }): React.JSX.Element {
+  const t = useTranslate()
   const message = source.invalidTaskUrl
     ? taskProviderErrorMessage({ errorCode: 'dart.invalidTaskUrl' })
     : (source.error ??
       (source.loading
-        ? translate(
+        ? t(
             'auto.components.sidebar.WorkspaceAttachmentDartStatus.loadingDart',
             'Loading Dart task…'
           )
-        : translate('workspace.links.inlineSearchHint', 'Select a result to attach it.')))
+        : t('workspace.links.inlineSearchHint', 'Select a result to attach it.')))
   return (
     <div
       role="status"
@@ -29,7 +30,7 @@ export function WorkspaceAttachmentDartStatus({
       <span>{message}</span>
       {source.error ? (
         <Button type="button" variant="link" size="xs" disabled={disabled} onClick={source.retry}>
-          {translate('workspace.links.retrySource', 'Retry')}
+          {t('workspace.links.retrySource', 'Retry')}
         </Button>
       ) : null}
     </div>

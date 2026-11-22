@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 import { LoaderCircle, Send } from 'lucide-react'
 import type { DartComment } from '../../../../../shared/dart/dart-types'
 import { Button } from '@/components/ui/button'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 import { ImeTextarea } from '@/lib/text-input/ime/ime-text-field'
 import { hasBoundedCommentBodyText } from '@/lib/source-control/review/comments/comment-body-submit-state'
 import { useDartCommentReplyEscape } from './use-dart-comment-reply-escape'
@@ -45,6 +45,7 @@ export function DartCommentComposer({
   onRetry?: () => void
   viewerEmail?: string | null
 }): React.JSX.Element {
+  const t = useTranslate()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
   const getSendState = useCallback(() => getDartCommentSendState(draftKey), [draftKey])
@@ -106,7 +107,7 @@ export function DartCommentComposer({
       {replyAuthor ? (
         <div className="flex items-center gap-2 text-2xs text-muted-foreground">
           <span className="min-w-0 truncate">
-            {translate(
+            {t(
               'auto.components.task.page.dart.DartCommentComposer.replyingTo',
               'Replying to {{author}}',
               { author: replyAuthor }
@@ -124,7 +125,7 @@ export function DartCommentComposer({
               textareaRef.current?.focus()
             }}
           >
-            {translate('auto.components.task.page.dart.DartCommentComposer.cancelReply', 'Cancel')}
+            {t('auto.components.task.page.dart.DartCommentComposer.cancelReply', 'Cancel')}
           </Button>
         </div>
       ) : null}
@@ -149,7 +150,7 @@ export function DartCommentComposer({
                 }
               }}
             >
-              {translate('auto.components.task.page.dart.DartCommentComposer.retry', 'Retry')}
+              {t('auto.components.task.page.dart.DartCommentComposer.retry', 'Retry')}
             </Button>
           ) : undefined
         }
@@ -165,7 +166,7 @@ export function DartCommentComposer({
           className="flex items-start justify-between gap-3 rounded-md border border-border/50 bg-muted/35 px-2.5 py-1.5 text-xs text-muted-foreground"
         >
           <p>
-            {translate(
+            {t(
               'auto.components.task.page.dart.DartCommentComposer.duplicate',
               'A matching comment is already posted'
             )}
@@ -177,10 +178,7 @@ export function DartCommentComposer({
             disabled={submitting}
             onClick={() => void submit({ postAnyway: true })}
           >
-            {translate(
-              'auto.components.task.page.dart.DartCommentComposer.postAnyway',
-              'Post anyway'
-            )}
+            {t('auto.components.task.page.dart.DartCommentComposer.postAnyway', 'Post anyway')}
           </Button>
         </div>
       ) : null}
@@ -198,12 +196,12 @@ export function DartCommentComposer({
             event.preventDefault()
             void submit({ postAnyway: false })
           }}
-          placeholder={translate(
+          placeholder={t(
             'auto.components.task.page.dart.DartCommentComposer.placeholder',
             'Add a comment…'
           )}
           rows={2}
-          aria-label={translate(
+          aria-label={t(
             'auto.components.task.page.dart.DartCommentComposer.commentLabel',
             'Comment'
           )}
@@ -214,10 +212,7 @@ export function DartCommentComposer({
           size="icon-sm"
           className="size-8 flex-none"
           disabled={!canSend || submitting || !!sendState.duplicate}
-          aria-label={translate(
-            'auto.components.task.page.dart.DartCommentComposer.send',
-            'Send comment'
-          )}
+          aria-label={t('auto.components.task.page.dart.DartCommentComposer.send', 'Send comment')}
           onClick={() => void submit({ postAnyway: false })}
         >
           {submitting ? (
@@ -228,7 +223,7 @@ export function DartCommentComposer({
         </Button>
       </div>
       <p className="text-2xs text-muted-foreground">
-        {translate(
+        {t(
           'auto.components.task.page.dart.DartCommentComposer.shortcutHint',
           '{{shortcut}} to send',
           { shortcut: submitShortcutLabel }

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Copy, ExternalLink } from 'lucide-react'
 import CommentMarkdown from '@/components/comment-markdown/CommentMarkdown'
 import { Button } from '@/components/ui/button'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 import { openAppHttpLink } from '@/lib/browser/navigation/app-http-link-open'
 import { copyDescriptionText } from './dart-description-copy'
 
@@ -14,6 +14,7 @@ export function DartDescriptionOpenInDart({
 }: {
   url: string | null
 }): React.JSX.Element | null {
+  const t = useTranslate()
   return url ? (
     <Button
       type="button"
@@ -22,7 +23,7 @@ export function DartDescriptionOpenInDart({
       onClick={(event) => openAppHttpLink(url, { event })}
     >
       <ExternalLink />
-      {translate('auto.components.task.page.dart.TaskDetail.openInDart', 'Open in Dart')}
+      {t('auto.components.task.page.dart.TaskDetail.openInDart', 'Open in Dart')}
     </Button>
   ) : null
 }
@@ -36,6 +37,7 @@ export function DartDescriptionReadOnly({
   openUrl: string | null
   supportsWritesV2: boolean
 }): React.JSX.Element {
+  const t = useTranslate()
   const [hintDue, setHintDue] = useState(false)
   useEffect(() => {
     const timer = setTimeout(() => setHintDue(true), UPDATE_HINT_DELAY_MS)
@@ -47,7 +49,7 @@ export function DartDescriptionReadOnly({
         <CommentMarkdown content={text} variant="document" />
       ) : (
         <p className="text-xs text-muted-foreground">
-          {translate(
+          {t(
             'auto.components.task.page.dart.DartDescription.noDescriptionYet',
             'No description yet. Add one in Dart.'
           )}
@@ -55,7 +57,7 @@ export function DartDescriptionReadOnly({
       )}
       {!supportsWritesV2 && hintDue ? (
         <p className="text-xs text-muted-foreground">
-          {translate(
+          {t(
             'auto.components.task.page.dart.DartDescription.updateServer',
             'Update the remote Orca server to edit descriptions.'
           )}
@@ -70,7 +72,7 @@ export function DartDescriptionReadOnly({
           onClick={() => void copyDescriptionText(text)}
         >
           <Copy />
-          {translate('auto.components.task.page.dart.DartDescription.copy', 'Copy')}
+          {t('auto.components.task.page.dart.DartDescription.copy', 'Copy')}
         </Button>
         <DartDescriptionOpenInDart url={openUrl} />
       </div>

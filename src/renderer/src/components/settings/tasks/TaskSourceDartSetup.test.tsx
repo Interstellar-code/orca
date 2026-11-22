@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DartSetupSteps } from './TaskSourceDartSetup'
 
-const mocks = vi.hoisted(() => ({ dialogOpen: [] as boolean[] }))
+const mocks = vi.hoisted((): { dialogOpen: boolean[] } => ({ dialogOpen: [] }))
 
 vi.mock('@/components/dart/dart-connect-dialog', () => ({
   DartConnectDialog: ({ open, onConnected }: { open: boolean; onConnected?: () => void }) => {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from 'react'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 import type { DartNoticeApi } from './dart-detail-contracts'
 
 /** The section's view of the task notice. While a save's outcome is unknown, each read is evidence: it can show the text the save intended, or an edit that opens the conflict dialog. */
@@ -11,6 +11,7 @@ export function useDartDescriptionUnknownNotice(args: {
   onConflict: (latest: string) => void
   onAcceptedIntended: (intended: string) => void
 }) {
+  const t = useTranslate()
   const { notice, shownText, base, intended, onConflict, onAcceptedIntended } = args
   const unknown =
     notice.notice?.field === 'description' && notice.notice.kind === 'unknown'
@@ -47,7 +48,7 @@ export function useDartDescriptionUnknownNotice(args: {
             unknown && intended !== null && shownText === intended
               ? {
                   ...unknown,
-                  message: translate(
+                  message: t(
                     'auto.components.task.page.dart.DartDescription.nowShowsYourText',
                     'Dart now shows your text.'
                   )

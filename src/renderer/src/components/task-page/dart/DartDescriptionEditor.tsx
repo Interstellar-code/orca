@@ -3,7 +3,7 @@ import { Copy } from 'lucide-react'
 import CommentMarkdown from '@/components/comment-markdown/CommentMarkdown'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 import { getShortcutPlatform } from '@/lib/keyboard/shortcut-platform'
 import { cn } from '@/lib/class-names'
 import { copyDescriptionText, descriptionLineageText } from './dart-description-copy'
@@ -18,6 +18,7 @@ export function DartDescriptionEditorActions({
 }: {
   editor: DartDescriptionEditorState
 }): React.JSX.Element {
+  const t = useTranslate()
   const pending = editor.savePending
   const [slow, setSlow] = useState(false)
   // A quick save stays clean; only a slow one gets the label swap.
@@ -33,7 +34,7 @@ export function DartDescriptionEditorActions({
   return (
     <>
       <Button type="button" variant="ghost" size="xs" disabled={pending} onClick={editor.cancel}>
-        {translate('auto.components.task.page.dart.DartDescription.cancel', 'Cancel')}
+        {t('auto.components.task.page.dart.DartDescription.cancel', 'Cancel')}
       </Button>
       <Button
         type="button"
@@ -48,13 +49,13 @@ export function DartDescriptionEditorActions({
             aria-hidden={showSaving}
             className={cn('col-start-1 row-start-1', showSaving && 'invisible')}
           >
-            {translate('auto.components.task.page.dart.DartDescription.save', 'Save')}
+            {t('auto.components.task.page.dart.DartDescription.save', 'Save')}
           </span>
           <span
             aria-hidden={!showSaving}
             className={cn('col-start-1 row-start-1', !showSaving && 'invisible')}
           >
-            {translate('auto.components.task.page.dart.DartDescription.saving', 'Saving…')}
+            {t('auto.components.task.page.dart.DartDescription.saving', 'Saving…')}
           </span>
         </span>
       </Button>
@@ -76,13 +77,14 @@ function UnresolvedHunks({
   lineage: DartDescriptionDraft
   editor: DartDescriptionEditorState
 }) {
+  const t = useTranslate()
   if (lineage.unresolved.length === 0) {
     return null
   }
   return (
     <div className="space-y-2 rounded-md border border-border/60 p-2.5">
       <p className="text-xs font-medium text-foreground">
-        {translate(
+        {t(
           'auto.components.task.page.dart.DartDescription.unresolvedTitle',
           "Changes Orca couldn't apply. Type what you want to keep into the text above."
         )}
@@ -99,10 +101,7 @@ function UnresolvedHunks({
                 disabled={editor.savePending}
                 onClick={() => editor.removeHunk(hunk.id)}
               >
-                {translate(
-                  'auto.components.task.page.dart.DartDescription.markResolved',
-                  'Mark resolved'
-                )}
+                {t('auto.components.task.page.dart.DartDescription.markResolved', 'Mark resolved')}
               </Button>
               <Button
                 type="button"
@@ -111,7 +110,7 @@ function UnresolvedHunks({
                 disabled={editor.savePending}
                 onClick={() => editor.removeHunk(hunk.id)}
               >
-                {translate(
+                {t(
                   'auto.components.task.page.dart.DartDescription.discardHunk',
                   'Discard this change'
                 )}
@@ -131,18 +130,19 @@ export function DartDescriptionEditor({
   lineage: DartDescriptionDraft
   editor: DartDescriptionEditorState
 }): React.JSX.Element {
-  const { preview } = editor
+  const t = useTranslate()
+  const { preview, textareaRef } = editor
   const isMac = getShortcutPlatform() === 'darwin'
   return (
     <div className="space-y-2">
       <FullDraftsWarning editor={editor} />
       {/* Stays mounted under the preview: the caret and undo history outlive the toggle. */}
       <Textarea
-        ref={editor.textareaRef}
+        ref={textareaRef}
         variant="code"
         rows={14}
         readOnly={editor.saving}
-        aria-label={translate(
+        aria-label={t(
           'auto.components.task.page.dart.DartDescription.editorLabel',
           'Description (Markdown)'
         )}
@@ -169,20 +169,20 @@ export function DartDescriptionEditor({
           aria-pressed={preview}
           onClick={editor.togglePreview}
         >
-          {translate('auto.components.task.page.dart.DartDescription.preview', 'Preview')}
+          {t('auto.components.task.page.dart.DartDescription.preview', 'Preview')}
         </Button>
         <p className="min-w-0 flex-1 text-2xs text-muted-foreground">
           {editor.saveBlocked
-            ? translate(
+            ? t(
                 'auto.components.task.page.dart.DartDescription.saveBlocked',
                 'Dart may have applied your last save. Check again or dismiss its notice to save again.'
               )
             : isMac
-              ? translate(
+              ? t(
                   'auto.components.task.page.dart.DartDescription.shortcutMac',
                   'Markdown · ⌘↵ to save'
                 )
-              : translate(
+              : t(
                   'auto.components.task.page.dart.DartDescription.shortcutOther',
                   'Markdown · Ctrl+Enter to save'
                 )}
@@ -198,6 +198,7 @@ export function DartDescriptionCopyMyText({
 }: {
   lineage: DartDescriptionDraft
 }): React.JSX.Element {
+  const t = useTranslate()
   return (
     <Button
       type="button"
@@ -206,7 +207,7 @@ export function DartDescriptionCopyMyText({
       onClick={() => void copyDescriptionText(descriptionLineageText(lineage))}
     >
       <Copy />
-      {translate('auto.components.task.page.dart.DartDescription.copyMyText', 'Copy my text')}
+      {t('auto.components.task.page.dart.DartDescription.copyMyText', 'Copy my text')}
     </Button>
   )
 }

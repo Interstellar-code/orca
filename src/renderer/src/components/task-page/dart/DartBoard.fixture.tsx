@@ -15,10 +15,10 @@ import { writes } from './dart-task-write-state'
 const HOST_KEY = 'local'
 const ACCOUNT_KEY = 'fixture-account'
 
-const baseTask = {
+const baseTask: Pick<DartTask, 'htmlUrl' | 'assignee' | 'tags'> = {
   htmlUrl: 'https://app.dartai.com/t/aB3dE5gH7jK9-example',
   assignee: 'Alex Example',
-  tags: [] as string[]
+  tags: []
 }
 
 function fixtureMeta(overrides: Partial<DartScopeMeta>): DartScopeMeta {

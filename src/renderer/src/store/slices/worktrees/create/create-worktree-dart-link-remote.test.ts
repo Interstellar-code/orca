@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AppState } from '../../../types'
+import { getDefaultSettings } from '../../../../../../shared/orca-profiles/constants'
 import {
   createCompatibleRuntimeStatusResponse,
   type RuntimeEnvironmentCallRequest
@@ -56,10 +56,10 @@ describe('Dart links on a paired runtime', () => {
   async function createDartLinkedWorktree(): Promise<void> {
     const store = createTestStore()
     store.setState({
-      settings: { activeRuntimeEnvironmentId: 'env-1' } as never,
+      settings: { ...getDefaultSettings('/tmp'), activeRuntimeEnvironmentId: 'env-1' },
       repos: [{ ...TEST_REPO, executionHostId: 'runtime:env-1' }],
       worktreesByRepo: { repo1: [] }
-    } as Partial<AppState>)
+    })
     const createWorktree = store.getState().createWorktree
     const args: Parameters<typeof createWorktree> = ['repo1', 'dart-link']
     args[25] = { linkedWorkItem, linkedTaskSourceContext }

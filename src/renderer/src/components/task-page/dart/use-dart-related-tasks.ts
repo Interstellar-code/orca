@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { DartTask, DartTaskRelationships } from '../../../../../shared/dart/dart-types'
 import type { TaskSourceContext } from '../../../../../shared/work-items/task-source-context'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 import {
   taskProviderErrorMessage,
   taskProviderErrorText
@@ -24,6 +24,10 @@ const IDLE_LOAD: DartLoad<DartTaskPage> = {
   data: null,
   error: null,
   retry: () => {}
+}
+
+function retryFor(linksFailed: boolean, retryLinks: () => void, own: () => void): () => void {
+  return linksFailed ? retryLinks : own
 }
 
 function orderedByIds(tasks: readonly DartTask[], ids: readonly string[]): DartTask[] {
@@ -114,6 +118,7 @@ export function useDartRelatedTasks(args: {
   blocking: DartLoad<readonly DartTask[]>
   subtasks: DartLoad<DartTaskPage>
 } {
+  const t = useTranslate()
   const { taskKey, parentId, relationships, linksFailed, retryLinks, sourceContext, scope } = args
   const read = { taskKey, sourceContext, scope }
   const parentIds = useMemo(() => (parentId ? [parentId] : null), [parentId])
@@ -121,7 +126,6 @@ export function useDartRelatedTasks(args: {
   const blockersRead = useDartTasksByIds({ ...read, ids: relationships?.blockerIds ?? null })
   const blockingRead = useDartTasksByIds({ ...read, ids: relationships?.blockingIds ?? null })
   const subtasksRead = useDartTasksByIds({ ...read, ids: relationships?.subtaskIds ?? null })
-  const retryFor = (own: () => void): (() => void) => (linksFailed ? retryLinks : own)
 
   const parent = useMemo<DartLoad<DartTask> | null>(() => {
     if (!parentIds) {
@@ -133,35 +137,32 @@ export function useDartRelatedTasks(args: {
       state: missing ? 'error' : parentRead.state,
       data: found,
       error: missing
-        ? translate(
+        ? t(
             'auto.components.task.page.dart.use-dart-task-relationships.parentMissing',
             'Dart did not return the parent task.'
           )
         : parentRead.error,
       retry: parentRead.retry
     }
-  }, [parentIds, parentRead])
+  }, [parentIds, parentRead, t])
   const blockers = useMemo<DartLoad<readonly DartTask[]>>(
     () => ({
       ...blockersRead,
       data: blockersRead.data?.tasks ?? null,
-      retry: retryFor(blockersRead.retry)
+      retry: retryFor(linksFailed, retryLinks, blockersRead.retry)
     }),
-    // oxlint-disable-next-line react-hooks/exhaustive-deps -- Why: retryFor only closes over linksFailed and retryLinks.
     [blockersRead, linksFailed, retryLinks]
   )
   const blocking = useMemo<DartLoad<readonly DartTask[]>>(
     () => ({
       ...blockingRead,
       data: blockingRead.data?.tasks ?? null,
-      retry: retryFor(blockingRead.retry)
+      retry: retryFor(linksFailed, retryLinks, blockingRead.retry)
     }),
-    // oxlint-disable-next-line react-hooks/exhaustive-deps -- Why: retryFor only closes over linksFailed and retryLinks.
     [blockingRead, linksFailed, retryLinks]
   )
   const subtasks = useMemo<DartLoad<DartTaskPage>>(
-    () => ({ ...subtasksRead, retry: retryFor(subtasksRead.retry) }),
-    // oxlint-disable-next-line react-hooks/exhaustive-deps -- Why: retryFor only closes over linksFailed and retryLinks.
+    () => ({ ...subtasksRead, retry: retryFor(linksFailed, retryLinks, subtasksRead.retry) }),
     [subtasksRead, linksFailed, retryLinks]
   )
   return { parent, blockers, blocking, subtasks }

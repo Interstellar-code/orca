@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useAppStore } from '@/store'
 import { taskProviderErrorMessage } from '@/lib/work-items/task-provider-error-copy'
 import { buildDartWorkspaceSource } from '../../../../../../shared/new-workspace/workspace-source'
@@ -68,6 +68,8 @@ export function useDartAttachmentUrlSource(args: {
   const generationRef = useRef(0)
   const scope = sourceContext ? getTaskSourceCacheScope(sourceContext) : ''
   const requestKey = parsed ? `${parsed.taskId}::${scope}::${retryGeneration}` : null
+  // sourceContext identity is covered by requestKey's scope, retryGeneration by its suffix.
+  const readOptions = useEffectEvent(() => ({ sourceContext, force: retryGeneration > 0 }))
 
   useEffect(() => {
     const generation = (generationRef.current += 1)
@@ -75,8 +77,9 @@ export function useDartAttachmentUrlSource(args: {
       return
     }
     const taskId = parsed.taskId
+    const options = readOptions()
     const timer = setTimeout(() => {
-      void fetchDartTask(taskId, { sourceContext, force: retryGeneration > 0 })
+      void fetchDartTask(taskId, options)
         .then((result) => {
           if (generationRef.current !== generation) {
             return
@@ -106,8 +109,6 @@ export function useDartAttachmentUrlSource(args: {
         })
     }, LOOKUP_DEBOUNCE_MS)
     return () => clearTimeout(timer)
-    // sourceContext identity is covered by requestKey's scope.
-    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchDartTask, parsed, requestKey])
 
   const retry = useCallback(() => setRetryGeneration((generation) => generation + 1), [])

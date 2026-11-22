@@ -117,10 +117,10 @@ async function callDart<T extends object>(
   target: RuntimeClientTarget,
   method: DartMethodName,
   params: unknown,
-  local: () => Promise<unknown>,
+  local: () => Promise<DartClientResult<T>>,
   timeoutMs = READ_TIMEOUT_MS
 ): Promise<DartClientResult<T>> {
-  let reply: unknown
+  let reply: DartClientResult<T>
   if (target.kind === 'environment') {
     // No local fallback: a host without the capability must be updated, not bypassed.
     if (
@@ -132,7 +132,7 @@ async function callDart<T extends object>(
     ) {
       return { ok: false, error: dartUpdateRequiredMessage() }
     }
-    reply = await callRuntimeRpc<unknown>(target, method, params, { timeoutMs })
+    reply = await callRuntimeRpc<DartClientResult<T>>(target, method, params, { timeoutMs })
   } else {
     reply = await local()
   }
@@ -142,8 +142,7 @@ async function callDart<T extends object>(
   if (!isRecord(reply) || reply.ok !== true) {
     return malformedReplyFailure()
   }
-  // SAFETY: the host replies with the DartResult<T> shape for this method; the checks above confirm ok: true.
-  return reply as { ok: true } & T
+  return reply
 }
 
 export async function dartStatusForTarget(

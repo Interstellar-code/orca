@@ -50,7 +50,7 @@ import { getProviderAccountScope } from '../../provider-accounts/provider-accoun
 import { ProviderHostScopeControl } from '../../provider-accounts/ProviderHostScopeControl'
 import { DART_INTEGRATION_SECTION_ID } from './task-provider-integration-section-ids'
 import { DartConnectedAccountRow } from './dart-connected-account-row'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 
 type VerificationResult = { state: 'ok' | 'error'; error?: string }
 
@@ -65,6 +65,7 @@ function DartDisconnectDraftsDialog({
   onCancel: () => void
   onDiscardAndDisconnect: () => void
 }): React.JSX.Element {
+  const t = useTranslate()
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
   const copyAll = (): void => {
     void window.api.ui
@@ -86,18 +87,18 @@ function DartDisconnectDraftsDialog({
         <DialogHeader>
           <DialogTitle>
             {count === 1
-              ? translate(
+              ? t(
                   'auto.components.settings.dart.integration.card.unsavedDraftsTitleOne',
                   'You have 1 unsaved Dart draft'
                 )
-              : translate(
+              : t(
                   'auto.components.settings.dart.integration.card.unsavedDraftsTitle',
                   'You have {{count}} unsaved Dart drafts',
                   { count }
                 )}
           </DialogTitle>
           <DialogDescription>
-            {translate(
+            {t(
               'auto.components.settings.dart.integration.card.unsavedDraftsBody',
               'Drafts are kept only in memory. Disconnecting discards the ones made on this host.'
             )}
@@ -105,7 +106,7 @@ function DartDisconnectDraftsDialog({
         </DialogHeader>
         {copyState === 'failed' ? (
           <p role="alert" className="text-xs text-destructive">
-            {translate(
+            {t(
               'auto.components.settings.dart.integration.card.copyDraftsFailed',
               'Could not copy the drafts. They are still saved here.'
             )}
@@ -113,18 +114,15 @@ function DartDisconnectDraftsDialog({
         ) : null}
         <DialogFooter>
           <Button variant="ghost" onClick={onCancel}>
-            {translate('auto.components.settings.dart.integration.card.cancelDisconnect', 'Cancel')}
+            {t('auto.components.settings.dart.integration.card.cancelDisconnect', 'Cancel')}
           </Button>
           <Button variant="outline" onClick={copyAll}>
             {copyState === 'copied'
-              ? translate('auto.components.settings.dart.integration.card.draftsCopied', 'Copied')
-              : translate(
-                  'auto.components.settings.dart.integration.card.copyAllDrafts',
-                  'Copy all'
-                )}
+              ? t('auto.components.settings.dart.integration.card.draftsCopied', 'Copied')
+              : t('auto.components.settings.dart.integration.card.copyAllDrafts', 'Copy all')}
           </Button>
           <Button variant="destructive" onClick={onDiscardAndDisconnect}>
-            {translate(
+            {t(
               'auto.components.settings.dart.integration.card.discardAndDisconnect',
               'Discard and disconnect'
             )}
@@ -136,6 +134,7 @@ function DartDisconnectDraftsDialog({
 }
 
 export function DartIntegrationCard(): React.JSX.Element {
+  const t = useTranslate()
   const dartStatus = useAppStore((s) => s.dartStatus)
   const dartStatusChecked = useAppStore((s) => s.dartStatusChecked)
   const dartStatusContextKey = useAppStore((s) => s.dartStatusContextKey)
@@ -221,11 +220,11 @@ export function DartIntegrationCard(): React.JSX.Element {
       name="Dart"
       description={
         checking
-          ? translate(
+          ? t(
               'auto.components.settings.dart.integration.card.descriptionChecking',
               'Checking Dart access before showing setup actions.'
             )
-          : translate(
+          : t(
               'auto.components.settings.dart.integration.card.description',
               'Browse Dart tasks and start workspaces from them.'
             )
@@ -234,21 +233,18 @@ export function DartIntegrationCard(): React.JSX.Element {
       statusTone={connected && !credentialError ? 'connected' : 'attention'}
       statusLabel={
         credentialError
-          ? translate(
+          ? t(
               'auto.components.settings.dart.integration.card.statusNeedsAttention',
               'Needs attention'
             )
           : connected
-            ? translate(
-                'auto.components.settings.dart.integration.card.statusConnected',
-                'Connected'
-              )
+            ? t('auto.components.settings.dart.integration.card.statusConnected', 'Connected')
             : updateRequired
-              ? translate(
+              ? t(
                   'auto.components.settings.dart.integration.card.statusUpdateRequired',
                   'Update required'
                 )
-              : translate(
+              : t(
                   'auto.components.settings.dart.integration.card.statusNotConnected',
                   'Not connected'
                 )
@@ -261,16 +257,10 @@ export function DartIntegrationCard(): React.JSX.Element {
             onClick={() => setDialogOpen(true)}
           >
             {credentialError
-              ? translate('auto.components.settings.dart.integration.card.reconnect', 'Reconnect')
+              ? t('auto.components.settings.dart.integration.card.reconnect', 'Reconnect')
               : connected
-                ? translate(
-                    'auto.components.settings.dart.integration.card.replaceToken',
-                    'Replace token'
-                  )
-                : translate(
-                    'auto.components.settings.dart.integration.card.connect',
-                    'Connect Dart'
-                  )}
+                ? t('auto.components.settings.dart.integration.card.replaceToken', 'Replace token')
+                : t('auto.components.settings.dart.integration.card.connect', 'Connect Dart')}
           </Button>
         ) : null
       }
@@ -278,13 +268,13 @@ export function DartIntegrationCard(): React.JSX.Element {
       <IntegrationCardDetails>
         <UnsealedCredentialNotice
           protection={contextMatches ? (dartStatus.credentialProtection ?? null) : null}
-          credentialName={translate(
+          credentialName={t(
             'auto.components.settings.dart.integration.card.dartTokenName',
             'Your Dart token'
           )}
         />
         <ProviderHostScopeControl
-          labelPrefix={translate(
+          labelPrefix={t(
             'auto.components.settings.task.tracker.integration.cards.account_scope_prefix',
             'Account scope'
           )}
@@ -298,7 +288,7 @@ export function DartIntegrationCard(): React.JSX.Element {
           >
             <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
             <p className="min-w-0 text-xs leading-snug">
-              {translate(
+              {t(
                 'auto.components.settings.dart.integration.card.updateRequiredBody',
                 '{{message}} Dart stays off for this host; nothing falls back to this computer.',
                 { message: dartUpdateRequiredMessage() }
@@ -329,13 +319,10 @@ export function DartIntegrationCard(): React.JSX.Element {
         ) : connected ? (
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" onClick={() => void checkDartConnection()}>
-              {translate(
-                'auto.components.settings.task.tracker.integration.cards.c90f2ef419',
-                'Re-check'
-              )}
+              {t('auto.components.settings.task.tracker.integration.cards.c90f2ef419', 'Re-check')}
             </Button>
             <Button variant="ghost" size="sm" onClick={requestDisconnect}>
-              {translate(
+              {t(
                 'auto.components.settings.task.tracker.integration.cards.disconnect_all',
                 'Disconnect'
               )}
@@ -344,16 +331,13 @@ export function DartIntegrationCard(): React.JSX.Element {
         ) : !checking && !updateRequired ? (
           <>
             <p className="text-xs text-muted-foreground">
-              {translate(
+              {t(
                 'auto.components.settings.dart.integration.card.connectHelp',
                 'Connect with your Dart authorization token. API access needs a Dart Premium plan or above.'
               )}
             </p>
             <Button variant="ghost" size="sm" onClick={() => void checkDartConnection()}>
-              {translate(
-                'auto.components.settings.task.tracker.integration.cards.c90f2ef419',
-                'Re-check'
-              )}
+              {t('auto.components.settings.task.tracker.integration.cards.c90f2ef419', 'Re-check')}
             </Button>
           </>
         ) : null}

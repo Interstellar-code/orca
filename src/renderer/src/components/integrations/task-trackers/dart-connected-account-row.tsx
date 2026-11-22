@@ -1,7 +1,7 @@
 import { AlertCircle, CheckCircle2, LoaderCircle, Unlink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 
 type DartViewer = { name: string; email?: string | null }
 
@@ -22,6 +22,7 @@ export function DartConnectedAccountRow({
   onDisconnect,
   className
 }: Props): React.JSX.Element {
+  const t = useTranslate()
   return (
     <div className={className}>
       <div className="min-w-0 flex-1">
@@ -29,7 +30,7 @@ export function DartConnectedAccountRow({
           {viewer.email ? `${viewer.name} (${viewer.email})` : viewer.name}
         </p>
         <p className="truncate text-xs text-muted-foreground">
-          {translate(
+          {t(
             'auto.components.settings.dart.integration.card.connectedAs',
             'Connected with an authorization token'
           )}
@@ -38,10 +39,7 @@ export function DartConnectedAccountRow({
       {testResult?.state === 'ok' ? (
         <span className="flex shrink-0 items-center gap-1 text-xs text-status-success">
           <CheckCircle2 className="size-3.5" />
-          {translate(
-            'auto.components.settings.task.tracker.integration.cards.a2c0015fb8',
-            'Verified'
-          )}
+          {t('auto.components.settings.task.tracker.integration.cards.a2c0015fb8', 'Verified')}
         </span>
       ) : null}
       {testResult?.state === 'error' ? (
@@ -54,13 +52,10 @@ export function DartConnectedAccountRow({
         {testing ? (
           <>
             <LoaderCircle className="size-3.5 mr-1.5 animate-spin" />
-            {translate(
-              'auto.components.settings.task.tracker.integration.cards.3e7c10d286',
-              'Testing...'
-            )}
+            {t('auto.components.settings.task.tracker.integration.cards.3e7c10d286', 'Testing...')}
           </>
         ) : (
-          translate('auto.components.settings.task.tracker.integration.cards.c24e56c532', 'Test')
+          t('auto.components.settings.task.tracker.integration.cards.c24e56c532', 'Test')
         )}
       </Button>
       <Tooltip>
@@ -68,7 +63,7 @@ export function DartConnectedAccountRow({
           <button
             type="button"
             onClick={onDisconnect}
-            aria-label={translate(
+            aria-label={t(
               'auto.components.settings.dart.integration.card.disconnect',
               'Disconnect Dart'
             )}
@@ -78,10 +73,7 @@ export function DartConnectedAccountRow({
           </button>
         </TooltipTrigger>
         <TooltipContent side="top" sideOffset={4}>
-          {translate(
-            'auto.components.settings.dart.integration.card.disconnect',
-            'Disconnect Dart'
-          )}
+          {t('auto.components.settings.dart.integration.card.disconnect', 'Disconnect Dart')}
         </TooltipContent>
       </Tooltip>
     </div>

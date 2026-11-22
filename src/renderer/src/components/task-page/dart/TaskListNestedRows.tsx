@@ -2,6 +2,7 @@ import { useId, useRef } from 'react'
 import type { DartTask } from '../../../../../shared/dart/dart-types'
 import { Button } from '@/components/ui/button'
 import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 import { openAppHttpLink } from '@/lib/browser/navigation/app-http-link-open'
 import { isDartTaskFinished } from './dart-board-columns'
 import type { DartNestedListModel, DartNestedListRow } from './dart-board-contracts'
@@ -38,6 +39,7 @@ function ChildGroupNotice({
   model: DartNestedListModel
   parent: DartTask
 }): React.JSX.Element | null {
+  const t = useTranslate()
   const load = model.children(parent.id)
   const openUrl = getDartTaskOpenUrl(parent)
   const noticeClass =
@@ -46,13 +48,10 @@ function ChildGroupNotice({
     return (
       <div className={noticeClass}>
         <span>
-          {translate(
-            'auto.components.task.page.dart.TaskList.subtasksFailed',
-            'Could not load subtasks.'
-          )}
+          {t('auto.components.task.page.dart.TaskList.subtasksFailed', 'Could not load subtasks.')}
         </span>
         <Button variant="ghost" size="xs" onClick={load.retry}>
-          {translate('auto.components.task.page.dart.TaskList.retry', 'Retry')}
+          {t('auto.components.task.page.dart.TaskList.retry', 'Retry')}
         </Button>
       </div>
     )
@@ -60,12 +59,12 @@ function ChildGroupNotice({
   if (load.state === 'loading' && !load.data?.tasks.length) {
     return (
       <div className={noticeClass}>
-        {translate('auto.components.task.page.dart.TaskList.subtasksLoading', 'Loading subtasks…')}
+        {t('auto.components.task.page.dart.TaskList.subtasksLoading', 'Loading subtasks…')}
       </div>
     )
   }
   if (load.data && load.data.total > CHILD_READ_LIMIT) {
-    const text = translate(
+    const text = t(
       'auto.components.task.page.dart.TaskList.subtasksTruncated',
       'Showing {{shown}} of {{total}} subtasks · Open in Dart',
       { shown: CHILD_READ_LIMIT, total: load.data.total }

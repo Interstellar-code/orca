@@ -5,7 +5,7 @@ import {
   MAX_DART_SAVED_VIEWS,
   type DartSavedView
 } from '../../../../../shared/dart/dart-saved-views'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -42,13 +42,14 @@ export function TaskPageDartSavedViews({
   model,
   disabled = false
 }: TaskPageDartSavedViewsProps): React.JSX.Element {
+  const t = useTranslate()
   const [popoverOpen, setPopoverOpen] = useState(false)
   const [draft, setDraft] = useState<SavedViewDraft | null>(null)
 
   if (!model.supported) {
     return (
       <p className="text-xs text-muted-foreground">
-        {translate(
+        {t(
           'auto.components.task.page.dart.TaskPageDartSavedViews.updateRequired',
           'Update the remote Orca server to save and reuse views.'
         )}
@@ -101,7 +102,7 @@ export function TaskPageDartSavedViews({
               <span className="truncate">
                 {activeView
                   ? activeView.name
-                  : translate(
+                  : t(
                       'auto.components.task.page.dart.TaskPageDartSavedViews.trigger',
                       'Saved views'
                     )}
@@ -111,10 +112,7 @@ export function TaskPageDartSavedViews({
           <PopoverContent align="start" sideOffset={6} className="w-72">
             <div className="border-b border-border/50 px-3 py-2">
               <p className="text-xs font-medium">
-                {translate(
-                  'auto.components.task.page.dart.TaskPageDartSavedViews.heading',
-                  'Saved views'
-                )}
+                {t('auto.components.task.page.dart.TaskPageDartSavedViews.heading', 'Saved views')}
               </p>
             </div>
             {model.load.state === 'error' ? (
@@ -123,16 +121,13 @@ export function TaskPageDartSavedViews({
                   {model.load.error}
                 </p>
                 <Button size="xs" variant="outline" onClick={model.load.retry}>
-                  {translate(
-                    'auto.components.task.page.dart.TaskPageDartSavedViews.retry',
-                    'Retry'
-                  )}
+                  {t('auto.components.task.page.dart.TaskPageDartSavedViews.retry', 'Retry')}
                 </Button>
               </div>
             ) : null}
             <Command>
               <CommandInput
-                placeholder={translate(
+                placeholder={t(
                   'auto.components.task.page.dart.TaskPageDartSavedViews.find',
                   'Find a saved view'
                 )}
@@ -140,14 +135,14 @@ export function TaskPageDartSavedViews({
               <CommandList className="max-h-72">
                 {model.views.length > 0 ? (
                   <CommandEmpty>
-                    {translate(
+                    {t(
                       'auto.components.task.page.dart.TaskPageDartSavedViews.noMatch',
                       'No matching views.'
                     )}
                   </CommandEmpty>
                 ) : (
                   <p className="px-2 py-4 text-center text-xs text-muted-foreground">
-                    {translate(
+                    {t(
                       'auto.components.task.page.dart.TaskPageDartSavedViews.empty',
                       'No saved views yet.'
                     )}
@@ -180,7 +175,7 @@ export function TaskPageDartSavedViews({
                         type="button"
                         variant="ghost"
                         size="icon-xs"
-                        aria-label={translate(
+                        aria-label={t(
                           'auto.components.task.page.dart.TaskPageDartSavedViews.edit',
                           'Edit {{value0}}',
                           { value0: view.name }
@@ -201,7 +196,7 @@ export function TaskPageDartSavedViews({
             <div className="border-t border-border/50 p-1">
               {viewLimitReached ? (
                 <p className="px-2 py-1 text-xs text-muted-foreground">
-                  {translate(
+                  {t(
                     'auto.components.task.page.dart.TaskPageDartSavedViews.limit',
                     'You can save up to {{value0}} views.',
                     { value0: MAX_DART_SAVED_VIEWS }
@@ -220,7 +215,7 @@ export function TaskPageDartSavedViews({
                     void model.apply(null)
                   }}
                 >
-                  {translate(
+                  {t(
                     'auto.components.task.page.dart.TaskPageDartSavedViews.clear',
                     'Stop using this view'
                   )}
@@ -236,11 +231,11 @@ export function TaskPageDartSavedViews({
               >
                 <Plus />
                 {activeView
-                  ? translate(
+                  ? t(
                       'auto.components.task.page.dart.TaskPageDartSavedViews.saveAsNew',
                       'Save as new'
                     )
-                  : translate(
+                  : t(
                       'auto.components.task.page.dart.TaskPageDartSavedViews.saveView',
                       'Save view'
                     )}
@@ -251,10 +246,7 @@ export function TaskPageDartSavedViews({
         {activeView && model.modified ? (
           <>
             <span className="text-xs text-muted-foreground">
-              {translate(
-                'auto.components.task.page.dart.TaskPageDartSavedViews.modified',
-                'Modified'
-              )}
+              {t('auto.components.task.page.dart.TaskPageDartSavedViews.modified', 'Modified')}
             </span>
             <Button
               type="button"
@@ -263,7 +255,7 @@ export function TaskPageDartSavedViews({
               disabled={busy}
               onClick={() => void model.saveCurrent()}
             >
-              {translate('auto.components.task.page.dart.TaskPageDartSavedViews.save', 'Save')}
+              {t('auto.components.task.page.dart.TaskPageDartSavedViews.save', 'Save')}
             </Button>
           </>
         ) : null}
@@ -274,22 +266,22 @@ export function TaskPageDartSavedViews({
           <DialogHeader>
             <DialogTitle>
               {draft?.mode === 'rename'
-                ? translate(
+                ? t(
                     'auto.components.task.page.dart.TaskPageDartSavedViews.renameTitle',
                     'Edit saved view'
                   )
-                : translate(
+                : t(
                     'auto.components.task.page.dart.TaskPageDartSavedViews.createTitle',
                     'Save view'
                   )}
             </DialogTitle>
             <DialogDescription>
               {draft?.mode === 'rename'
-                ? translate(
+                ? t(
                     'auto.components.task.page.dart.TaskPageDartSavedViews.renameDescription',
                     'Rename this view or delete it.'
                   )
-                : translate(
+                : t(
                     'auto.components.task.page.dart.TaskPageDartSavedViews.createDescription',
                     'Name the current filters and layout to reuse them later.'
                   )}
@@ -304,7 +296,7 @@ export function TaskPageDartSavedViews({
           >
             <div className="space-y-2">
               <Label htmlFor="dart-saved-view-name">
-                {translate('auto.components.task.page.dart.TaskPageDartSavedViews.name', 'Name')}
+                {t('auto.components.task.page.dart.TaskPageDartSavedViews.name', 'Name')}
               </Label>
               <Input
                 id="dart-saved-view-name"
@@ -321,7 +313,7 @@ export function TaskPageDartSavedViews({
               />
               {duplicateName ? (
                 <p role="alert" className="text-xs text-destructive">
-                  {translate(
+                  {t(
                     'auto.components.task.page.dart.TaskPageDartSavedViews.duplicate',
                     'A saved view with this name already exists.'
                   )}
@@ -342,26 +334,17 @@ export function TaskPageDartSavedViews({
                   }}
                 >
                   <Trash2 />
-                  {translate(
-                    'auto.components.task.page.dart.TaskPageDartSavedViews.delete',
-                    'Delete view'
-                  )}
+                  {t('auto.components.task.page.dart.TaskPageDartSavedViews.delete', 'Delete view')}
                 </Button>
               ) : null}
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="ghost" size="sm" onClick={() => setDraft(null)}>
-                  {translate(
-                    'auto.components.task.page.dart.TaskPageDartSavedViews.cancel',
-                    'Cancel'
-                  )}
+                  {t('auto.components.task.page.dart.TaskPageDartSavedViews.cancel', 'Cancel')}
                 </Button>
                 <Button type="submit" size="sm" disabled={busy || !canSubmit}>
                   {draft?.mode === 'rename'
-                    ? translate(
-                        'auto.components.task.page.dart.TaskPageDartSavedViews.rename',
-                        'Rename'
-                      )
-                    : translate(
+                    ? t('auto.components.task.page.dart.TaskPageDartSavedViews.rename', 'Rename')
+                    : t(
                         'auto.components.task.page.dart.TaskPageDartSavedViews.create',
                         'Save view'
                       )}

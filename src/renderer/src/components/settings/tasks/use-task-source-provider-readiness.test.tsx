@@ -7,7 +7,7 @@ import { useTaskSourceProviderReadiness } from './use-task-source-provider-readi
 
 type StoreState = Record<string, unknown>
 
-const mocks = vi.hoisted(() => ({ state: {} as StoreState }))
+const mocks = vi.hoisted((): { state: StoreState } => ({ state: {} }))
 
 vi.mock('@/store/index', () => ({
   useAppStore: (selector: (state: StoreState) => unknown) => selector(mocks.state)

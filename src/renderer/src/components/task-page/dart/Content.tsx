@@ -5,7 +5,7 @@ import type { Worktree } from '../../../../../shared/worktree/types'
 import { DartConnectDialog } from '@/components/dart/dart-connect-dialog'
 import { DartIcon } from '@/components/icons/DartIcon'
 import { Button } from '@/components/ui/button'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 import { taskProviderErrorText } from '@/lib/work-items/task-provider-error-copy'
 import { activateAndRevealWorktree } from '@/lib/workspace/activation/worktree-activation'
 import { dartUpdateRequiredMessage } from '@/runtime/runtime-dart-client'
@@ -40,6 +40,7 @@ export function TaskPageDartContent({
 }: {
   model: TaskPageComposerActionsModel
 }): React.JSX.Element | null {
+  const t = useTranslate()
   const {
     dartStatus,
     dartStatusReady,
@@ -78,7 +79,7 @@ export function TaskPageDartContent({
       }) === false
     ) {
       toast.error(
-        translate(
+        t(
           'auto.components.task.page.dart.Content.openWorkspaceFailed',
           'Unable to open the workspace linked to this Dart task.'
         )
@@ -95,14 +96,14 @@ export function TaskPageDartContent({
         <DartIcon className="mb-4 size-8 text-muted-foreground/60" />
         <p className="text-base font-medium text-foreground">{dartUpdateRequiredMessage()}</p>
         <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-          {translate(
+          {t(
             'auto.components.task.page.dart.Content.updateServerHint',
             'This remote server was built before Dart support. Update it, or switch to a different environment.'
           )}
         </p>
         <div className="mt-5">
           <Button variant="outline" onClick={() => hideTaskSource('dart', 'Dart')}>
-            {translate('auto.components.task.page.dart.Content.hideDart', 'Hide Dart')}
+            {t('auto.components.task.page.dart.Content.hideDart', 'Hide Dart')}
           </Button>
         </div>
       </CenteredState>
@@ -123,13 +124,10 @@ export function TaskPageDartContent({
         <CenteredState>
           <DartIcon className="mb-4 size-8 text-muted-foreground/60" />
           <p className="text-base font-medium text-foreground">
-            {translate(
-              'auto.components.task.page.dart.Content.connectTitle',
-              'Connect your Dart account'
-            )}
+            {t('auto.components.task.page.dart.Content.connectTitle', 'Connect your Dart account')}
           </p>
           <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-            {translate(
+            {t(
               'auto.components.task.page.dart.Content.connectBody',
               'Browse Dart tasks and start workspaces from them.'
             )}
@@ -141,10 +139,10 @@ export function TaskPageDartContent({
           ) : null}
           <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
             <Button onClick={() => setDartConnectOpen(true)}>
-              {translate('auto.components.task.page.dart.Content.connectDart', 'Connect Dart')}
+              {t('auto.components.task.page.dart.Content.connectDart', 'Connect Dart')}
             </Button>
             <Button variant="outline" onClick={() => hideTaskSource('dart', 'Dart')}>
-              {translate('auto.components.task.page.dart.Content.hideDart', 'Hide Dart')}
+              {t('auto.components.task.page.dart.Content.hideDart', 'Hide Dart')}
             </Button>
           </div>
         </CenteredState>
@@ -185,7 +183,7 @@ export function TaskPageDartContent({
     <div className="@container flex min-h-0 max-h-full flex-col overflow-hidden rounded-md rounded-t-none border border-t-0 border-border/50 bg-background shadow-sm">
       <div className="flex min-h-10 flex-none flex-wrap items-center justify-between gap-3 border-b border-border/50 bg-muted/35 px-3 py-1">
         <div className="min-w-0 text-2xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
-          {translate('auto.components.task.page.dart.Content.listTitle', 'Dart tasks')}
+          {t('auto.components.task.page.dart.Content.listTitle', 'Dart tasks')}
         </div>
         <div role="status" className="shrink-0 text-2xs text-muted-foreground">
           {hiddenSubtasksText ? <span className="mr-1">{hiddenSubtasksText} ·</span> : null}
@@ -196,13 +194,13 @@ export function TaskPageDartContent({
                 <>
                   {' '}
                   <button type="button" className="underline" onClick={refresh}>
-                    {translate('auto.components.task.page.dart.Content.countRefresh', 'Refresh')}
+                    {t('auto.components.task.page.dart.Content.countRefresh', 'Refresh')}
                   </button>
                 </>
               ) : null}
             </>
           ) : (
-            translate('auto.components.task.page.dart.Content.shownCount', '{{count}} shown', {
+            t('auto.components.task.page.dart.Content.shownCount', '{{count}} shown', {
               count: dartTasks.length
             })
           )}
@@ -211,7 +209,7 @@ export function TaskPageDartContent({
               {' · '}
               {notCheckedText}{' '}
               <Button type="button" variant="link" size="chip" onClick={checkMore}>
-                {translate('auto.components.task.page.dart.Content.checkMore', 'Check')}
+                {t('auto.components.task.page.dart.Content.checkMore', 'Check')}
               </Button>
             </>
           ) : null}
@@ -228,7 +226,7 @@ export function TaskPageDartContent({
           >
             <Info className="mt-0.5 size-3.5 flex-none" />
             <span>
-              {translate(
+              {t(
                 'auto.components.task.page.dart.Content.truncated',
                 'Showing first {{count}} of {{total}} tasks. Narrow the filters to see the rest.',
                 { count: dartTasks.length, total: dartTotalCount }
@@ -244,14 +242,14 @@ export function TaskPageDartContent({
           >
             <Info className="size-3.5 flex-none" />
             <span>
-              {translate(
+              {t(
                 'auto.components.task.page.dart.Content.readChanged',
                 'Tasks changed while loading. Refresh to try again.'
               )}
             </span>
             {dartLoadedCount === 0 ? (
               <Button type="button" variant="outline" size="xs" onClick={refresh}>
-                {translate('auto.components.task.page.dart.Content.readRetry', 'Retry')}
+                {t('auto.components.task.page.dart.Content.readRetry', 'Retry')}
               </Button>
             ) : null}
           </div>
@@ -266,7 +264,7 @@ export function TaskPageDartContent({
             <div className="min-w-0 flex-1">
               <div className="font-medium leading-5">
                 {dartError.message ||
-                  translate(
+                  t(
                     'auto.components.task.page.dart.Content.loadFailed',
                     'Failed to load Dart tasks.'
                   )}
@@ -279,7 +277,7 @@ export function TaskPageDartContent({
                   className="mt-2"
                   onClick={() => setDartConnectOpen(true)}
                 >
-                  {translate('auto.components.task.page.dart.Content.reconnect', 'Reconnect Dart')}
+                  {t('auto.components.task.page.dart.Content.reconnect', 'Reconnect Dart')}
                 </Button>
               ) : null}
             </div>
@@ -300,18 +298,15 @@ export function TaskPageDartContent({
         {showEmpty ? (
           <div className="px-4 py-10 text-center">
             <p className="text-sm font-medium text-foreground">
-              {translate(
-                'auto.components.task.page.dart.Content.emptyTitle',
-                'No Dart tasks found'
-              )}
+              {t('auto.components.task.page.dart.Content.emptyTitle', 'No Dart tasks found')}
             </p>
             <p className="mt-2 text-sm text-muted-foreground">
               {dartHasWorkspace
-                ? translate(
+                ? t(
                     'auto.components.task.page.dart.Content.emptyLinked',
                     'Link a Dart task to a workspace, or choose another view.'
                   )
-                : translate(
+                : t(
                     'auto.components.task.page.dart.Content.emptyFiltered',
                     'No tasks match these filters. Try All tasks or clear the search.'
                   )}
@@ -355,11 +350,8 @@ export function TaskPageDartContent({
               onClick={showMoreDone}
             >
               {doneMore.error
-                ? translate('auto.components.task.page.dart.Content.readRetry', 'Retry')
-                : translate(
-                    'auto.components.task.page.dart.Content.showMoreDone',
-                    'Show 50 more finished'
-                  )}
+                ? t('auto.components.task.page.dart.Content.readRetry', 'Retry')
+                : t('auto.components.task.page.dart.Content.showMoreDone', 'Show 50 more finished')}
             </Button>
           </div>
         ) : null}

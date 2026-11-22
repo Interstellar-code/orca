@@ -21,22 +21,26 @@ export function useDartWorkspaceConfig(args: {
     ownerKey: string
     config: DartWorkspaceConfig
   } | null>(null)
-  const [configError, setConfigError] = useState<string | null>(null)
+  const ownerKey = JSON.stringify([hostKey, accountViewerId])
+  // The account whose read last started, and that read's error.
+  const [read, setRead] = useState<{ ownerKey: string; error: string | null }>({
+    ownerKey,
+    error: null
+  })
   const fetchRef = useRef(fetchDartConfig)
   useEffect(() => {
     fetchRef.current = fetchDartConfig
   })
-  const ownerKey = JSON.stringify([hostKey, accountViewerId])
-  const ownerRef = useRef(ownerKey)
-  const isCurrent = ownerRef.current === ownerKey
+  const isCurrent = read.ownerKey === ownerKey
 
   useEffect(() => {
     if (!active) {
       return
     }
     let cancelled = false
-    ownerRef.current = ownerKey
-    setConfigError(null)
+    setRead((prev) =>
+      prev.ownerKey === ownerKey && prev.error === null ? prev : { ownerKey, error: null }
+    )
     void fetchRef
       .current({ force: refreshNonce > 0 })
       .then((result) => {
@@ -46,17 +50,18 @@ export function useDartWorkspaceConfig(args: {
         if (result.ok) {
           setLoaded({ ownerKey, config: result.config })
         } else {
-          setConfigError(taskProviderErrorMessage(result))
+          setRead({ ownerKey, error: taskProviderErrorMessage(result) })
         }
       })
       .catch(() => {
         if (!cancelled) {
-          setConfigError(
-            translate(
+          setRead({
+            ownerKey,
+            error: translate(
               'auto.components.task.page.dart.TaskCreateDialog.configFailed',
               'Could not load Dart configuration.'
             )
-          )
+          })
         }
       })
     return () => {
@@ -67,5 +72,5 @@ export function useDartWorkspaceConfig(args: {
   // A refresh keeps the last config of the same account on screen while it refetches.
   const shown = isCurrent && accountViewerId
   const config = loaded?.ownerKey === ownerKey ? loaded.config : null
-  return { dartConfig: shown ? config : null, dartConfigError: shown ? configError : null }
+  return { dartConfig: shown ? config : null, dartConfigError: shown ? read.error : null }
 }

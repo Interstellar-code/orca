@@ -26,7 +26,8 @@ import {
   malformedReplyFailure,
   sanitizeDartComment,
   sanitizeDartTask,
-  type DartClientFailure
+  type DartClientFailure,
+  type DartClientResult
 } from './runtime-dart-client'
 import { callRuntimeRpc } from './rpc/calls/runtime-rpc-call'
 import { runtimeEnvironmentSupportsCapability } from './rpc/compatibility/runtime-capability-proof'
@@ -134,10 +135,10 @@ async function callDartWrite<T extends object>(
   target: RuntimeClientTarget,
   method: DartMethodName,
   params: unknown,
-  local: () => Promise<unknown>
+  local: () => Promise<DartClientResult<T>>
 ): Promise<DartWriteResult<T>> {
   let requestSent = false
-  let reply: unknown
+  let reply: DartClientResult<T>
   try {
     if (target.kind === 'environment') {
       if (
@@ -149,7 +150,7 @@ async function callDartWrite<T extends object>(
       ) {
         return notApplied(dartUpdateRequiredMessage())
       }
-      reply = await callRuntimeRpc<unknown>(target, method, params, {
+      reply = await callRuntimeRpc<DartClientResult<T>>(target, method, params, {
         timeoutMs: DART_WRITE_TIMEOUT_MS,
         beforeSend: () => {
           requestSent = true
@@ -168,8 +169,7 @@ async function callDartWrite<T extends object>(
   if (!isRecord(reply) || reply.ok !== true) {
     return { ...malformedReplyFailure(), outcome: 'unknown' }
   }
-  // SAFETY: the host replies with the DartResult<T> shape for this method; the checks above confirm ok: true.
-  return reply as { ok: true } & T
+  return reply
 }
 
 // Contract inputs are `unknown` for text fields (the host schema coerces them); only strings can exceed a limit.

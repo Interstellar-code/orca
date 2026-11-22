@@ -266,32 +266,20 @@ export function useTaskPageComposerActions(model: TaskPageJiraListEffectsModel) 
     hasLinearProjectContext: Boolean(selectedLinearProject),
     hasLinearViewContext: Boolean(selectedLinearCustomView)
   })
-  const nextModel = model as typeof model & {
-    openComposerForLinearItem: typeof openComposerForLinearItem
-    handleUseLinearItem: typeof handleUseLinearItem
-    handleOpenOrUseLinearItem: typeof handleOpenOrUseLinearItem
-    handleLinearWorkspaceChange: typeof handleLinearWorkspaceChange
-    handleLinearTeamSelectionChange: typeof handleLinearTeamSelectionChange
-    handleLinearScopeOpen: typeof handleLinearScopeOpen
-    handleLinearAccessConnected: typeof handleLinearAccessConnected
-    openComposerForJiraItem: typeof openComposerForJiraItem
-    handleUseJiraItem: typeof handleUseJiraItem
-    openComposerForDartItem: typeof openComposerForDartItem
-    handleUseDartItem: typeof handleUseDartItem
-    taskPageListChromeHidden: typeof taskPageListChromeHidden
-  }
-  nextModel.openComposerForLinearItem = openComposerForLinearItem
-  nextModel.handleUseLinearItem = handleUseLinearItem
-  nextModel.handleOpenOrUseLinearItem = handleOpenOrUseLinearItem
-  nextModel.handleLinearWorkspaceChange = handleLinearWorkspaceChange
-  nextModel.handleLinearTeamSelectionChange = handleLinearTeamSelectionChange
-  nextModel.handleLinearScopeOpen = handleLinearScopeOpen
-  nextModel.handleLinearAccessConnected = handleLinearAccessConnected
-  nextModel.openComposerForJiraItem = openComposerForJiraItem
-  nextModel.handleUseJiraItem = handleUseJiraItem
-  nextModel.openComposerForDartItem = openComposerForDartItem
-  nextModel.handleUseDartItem = handleUseDartItem
-  nextModel.taskPageListChromeHidden = taskPageListChromeHidden
+  const nextModel = Object.assign(model, {
+    openComposerForLinearItem,
+    handleUseLinearItem,
+    handleOpenOrUseLinearItem,
+    handleLinearWorkspaceChange,
+    handleLinearTeamSelectionChange,
+    handleLinearScopeOpen,
+    handleLinearAccessConnected,
+    openComposerForJiraItem,
+    handleUseJiraItem,
+    openComposerForDartItem,
+    handleUseDartItem,
+    taskPageListChromeHidden
+  })
   return useTaskPageDartCreation(useTaskPageDartState(nextModel))
 }
 export type TaskPageComposerActionsModel = ReturnType<typeof useTaskPageComposerActions>

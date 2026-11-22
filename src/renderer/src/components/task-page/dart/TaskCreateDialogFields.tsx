@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 import { cn } from '@/lib/class-names'
 import type { DartCreateDraft } from './dart-detail-contracts'
 import { InlineError } from './TaskDetailLoadStates'
@@ -38,6 +38,7 @@ export function DartCreateFields({
   createSupportsWritesV2,
   blocked
 }: DartCreateFieldsProps): React.JSX.Element {
+  const t = useTranslate()
   const tagsId = useId()
   if (dartConfigError) {
     return <InlineError message={dartConfigError} onRetry={retryConfig} />
@@ -45,41 +46,38 @@ export function DartCreateFields({
   if (!dartConfig) {
     return (
       <p role="status" className="text-xs text-muted-foreground">
-        {translate(
-          'auto.components.task.page.dart.TaskCreateDialog.loadingConfig',
-          'Loading dartboards…'
-        )}
+        {t('auto.components.task.page.dart.TaskCreateDialog.loadingConfig', 'Loading dartboards…')}
       </p>
     )
   }
   const fields: { key: CreateFieldKey; label: string; options: string[] }[] = [
     {
       key: 'dartboard',
-      label: translate('auto.components.task.page.dart.TaskCreateDialog.dartboard', 'Dartboard'),
+      label: t('auto.components.task.page.dart.TaskCreateDialog.dartboard', 'Dartboard'),
       options: dartConfig.dartboards
     },
     ...(dartConfig?.types.length
       ? [
           {
             key: 'type' as const,
-            label: translate('auto.components.task.page.dart.TaskCreateDialog.type', 'Type'),
+            label: t('auto.components.task.page.dart.TaskCreateDialog.type', 'Type'),
             options: dartConfig.types
           }
         ]
       : []),
     {
       key: 'status',
-      label: translate('auto.components.task.page.dart.TaskCreateDialog.status', 'Status'),
+      label: t('auto.components.task.page.dart.TaskCreateDialog.status', 'Status'),
       options: dartConfig?.statuses ?? []
     },
     {
       key: 'priority',
-      label: translate('auto.components.task.page.dart.TaskCreateDialog.priority', 'Priority'),
+      label: t('auto.components.task.page.dart.TaskCreateDialog.priority', 'Priority'),
       options: dartConfig?.priorities ?? []
     },
     {
       key: 'assignee',
-      label: translate('auto.components.task.page.dart.TaskCreateDialog.assignee', 'Assignee'),
+      label: t('auto.components.task.page.dart.TaskCreateDialog.assignee', 'Assignee'),
       options: dartConfig?.assignees ?? []
     }
   ]
@@ -109,7 +107,7 @@ export function DartCreateFields({
             <SelectContent>
               {key !== 'dartboard' ? (
                 <SelectItem value="__unset__">
-                  {translate('auto.components.task.page.dart.TaskCreateDialog.default', 'Default')}
+                  {t('auto.components.task.page.dart.TaskCreateDialog.default', 'Default')}
                 </SelectItem>
               ) : null}
               {options.map((option) => (
@@ -123,7 +121,7 @@ export function DartCreateFields({
       ))}
       <div className="flex min-w-0 flex-col gap-1">
         <label className="text-2xs font-medium text-muted-foreground" htmlFor={tagsId}>
-          {translate('auto.components.task.page.dart.TaskCreateDialog.tags', 'Tags')}
+          {t('auto.components.task.page.dart.TaskCreateDialog.tags', 'Tags')}
         </label>
         <Popover>
           <PopoverTrigger asChild>
@@ -133,12 +131,12 @@ export function DartCreateFields({
               variant="outline"
               size="sm"
               disabled={blocked || !dartConfig?.tags.length}
-              aria-label={translate('auto.components.task.page.dart.TaskCreateDialog.tags', 'Tags')}
+              aria-label={t('auto.components.task.page.dart.TaskCreateDialog.tags', 'Tags')}
               className="justify-start"
             >
               <span className="truncate">
                 {createDraft.tags.join(', ') ||
-                  translate('auto.components.task.page.dart.TaskCreateDialog.noTags', 'No tags')}
+                  t('auto.components.task.page.dart.TaskCreateDialog.noTags', 'No tags')}
               </span>
             </Button>
           </PopoverTrigger>
@@ -171,7 +169,7 @@ export function DartCreateFields({
       {createSupportsWritesV2 || createDraft.dueAt ? (
         <div className="flex flex-col gap-1">
           <label className="text-2xs font-medium text-muted-foreground" htmlFor="dart-create-due">
-            {translate('auto.components.task.page.dart.TaskCreateDialog.dueDate', 'Due date')}
+            {t('auto.components.task.page.dart.TaskCreateDialog.dueDate', 'Due date')}
           </label>
           <Input
             id="dart-create-due"

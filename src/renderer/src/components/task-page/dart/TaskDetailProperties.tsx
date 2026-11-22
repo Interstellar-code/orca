@@ -1,5 +1,5 @@
 import type { DartDetailEditApi } from './dart-detail-contracts'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 import { cn } from '@/lib/class-names'
 import { DartDateField } from './DartDateField'
 import { DartSearchChip, DartSelectChip, dartFieldState } from './DartPropertyChips'
@@ -36,6 +36,7 @@ export function DartTaskDetailProperties({
   supportsWritesV2,
   viewerName
 }: DartDetailEditApi): React.JSX.Element {
+  const t = useTranslate()
   const state = (field: string) => dartFieldState(field, pendingFields, blockedFields)
   const noConfig = config === null
   const set = (
@@ -50,11 +51,9 @@ export function DartTaskDetailProperties({
   return (
     <>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3 border-b border-border/60 px-4 py-3 sm:grid-cols-4">
-        <MetadataItem
-          label={translate('auto.components.task.page.dart.TaskDetail.status', 'Status')}
-        >
+        <MetadataItem label={t('auto.components.task.page.dart.TaskDetail.status', 'Status')}>
           <DartSelectChip
-            label={translate('auto.components.task.page.dart.TaskDetail.status', 'Status')}
+            label={t('auto.components.task.page.dart.TaskDetail.status', 'Status')}
             value={task.status ?? null}
             options={config?.statuses ?? NO_OPTIONS}
             state={state('status')}
@@ -67,40 +66,33 @@ export function DartTaskDetailProperties({
             onChange={(status) => status && set({ status }, { status })}
           />
         </MetadataItem>
-        <MetadataItem
-          label={translate('auto.components.task.page.dart.TaskDetail.priority', 'Priority')}
-        >
+        <MetadataItem label={t('auto.components.task.page.dart.TaskDetail.priority', 'Priority')}>
           <DartSelectChip
-            label={translate('auto.components.task.page.dart.TaskDetail.priority', 'Priority')}
+            label={t('auto.components.task.page.dart.TaskDetail.priority', 'Priority')}
             value={task.priority ?? null}
             options={config?.priorities ?? NO_OPTIONS}
-            noneLabel={translate('auto.components.task.page.dart.TaskDetail.none', 'None')}
+            noneLabel={t('auto.components.task.page.dart.TaskDetail.none', 'None')}
             state={state('priority')}
             disabled={noConfig}
             onChange={(priority) => set({ priority }, { priority })}
           />
         </MetadataItem>
-        <MetadataItem
-          label={translate('auto.components.task.page.dart.TaskDetail.assignee', 'Assignee')}
-        >
+        <MetadataItem label={t('auto.components.task.page.dart.TaskDetail.assignee', 'Assignee')}>
           <DartSearchChip
-            label={translate('auto.components.task.page.dart.TaskDetail.assignee', 'Assignee')}
+            label={t('auto.components.task.page.dart.TaskDetail.assignee', 'Assignee')}
             valueLabel={
               task.assignee ??
-              translate('auto.components.task.page.dart.TaskDetail.unassigned', 'Unassigned')
+              t('auto.components.task.page.dart.TaskDetail.unassigned', 'Unassigned')
             }
             options={config?.assignees ?? NO_OPTIONS}
             selected={task.assignee ?? null}
-            clearLabel={translate(
-              'auto.components.task.page.dart.TaskDetail.unassigned',
-              'Unassigned'
-            )}
+            clearLabel={t('auto.components.task.page.dart.TaskDetail.unassigned', 'Unassigned')}
             extras={
               canAssignToMe
                 ? [
                     {
                       key: 'me',
-                      label: translate(
+                      label: t(
                         'auto.components.task.page.dart.TaskDetail.assignToMe',
                         'Assign to me'
                       ),
@@ -111,24 +103,21 @@ export function DartTaskDetailProperties({
             }
             state={state('assignee')}
             disabled={noConfig}
-            searchPlaceholder={translate(
+            searchPlaceholder={t(
               'auto.components.task.page.dart.TaskDetail.searchAssignees',
               'Search people'
             )}
-            emptyLabel={translate(
-              'auto.components.task.page.dart.TaskDetail.noPeople',
-              'No people found.'
-            )}
+            emptyLabel={t('auto.components.task.page.dart.TaskDetail.noPeople', 'No people found.')}
             onPick={(assignee) => set({ assignee }, { assignee })}
           />
         </MetadataItem>
-        <MetadataItem label={translate('auto.components.task.page.dart.TaskDetail.size', 'Size')}>
+        <MetadataItem label={t('auto.components.task.page.dart.TaskDetail.size', 'Size')}>
           {supportsWritesV2 ? (
             <DartSelectChip
-              label={translate('auto.components.task.page.dart.TaskDetail.size', 'Size')}
+              label={t('auto.components.task.page.dart.TaskDetail.size', 'Size')}
               value={size}
               options={config?.sizes ?? NO_OPTIONS}
-              noneLabel={translate('auto.components.task.page.dart.TaskDetail.none', 'None')}
+              noneLabel={t('auto.components.task.page.dart.TaskDetail.none', 'None')}
               state={state('size')}
               disabled={noConfig}
               onChange={(next) => set({ size: next }, { size: next })}
@@ -137,20 +126,20 @@ export function DartTaskDetailProperties({
             <span>{size ?? '—'}</span>
           )}
         </MetadataItem>
-        <MetadataItem label={translate('auto.components.task.page.dart.TaskDetail.start', 'Start')}>
+        <MetadataItem label={t('auto.components.task.page.dart.TaskDetail.start', 'Start')}>
           <DartDateField
             key={task.id}
-            label={translate('auto.components.task.page.dart.TaskDetail.start', 'Start')}
+            label={t('auto.components.task.page.dart.TaskDetail.start', 'Start')}
             value={task.startAt}
             editable={supportsWritesV2}
             state={state('startAt')}
             onChange={(startAt) => set({ startAt }, { startAt })}
           />
         </MetadataItem>
-        <MetadataItem label={translate('auto.components.task.page.dart.TaskDetail.due', 'Due')}>
+        <MetadataItem label={t('auto.components.task.page.dart.TaskDetail.due', 'Due')}>
           <DartDateField
             key={task.id}
-            label={translate('auto.components.task.page.dart.TaskDetail.due', 'Due')}
+            label={t('auto.components.task.page.dart.TaskDetail.due', 'Due')}
             value={task.dueAt}
             editable={supportsWritesV2}
             state={state('dueAt')}
@@ -158,21 +147,21 @@ export function DartTaskDetailProperties({
           />
         </MetadataItem>
         <MetadataItem
-          label={translate('auto.components.task.page.dart.TaskDetail.dartboard', 'Dartboard')}
+          label={t('auto.components.task.page.dart.TaskDetail.dartboard', 'Dartboard')}
           className="col-span-2"
         >
           <DartSearchChip
-            label={translate('auto.components.task.page.dart.TaskDetail.dartboard', 'Dartboard')}
+            label={t('auto.components.task.page.dart.TaskDetail.dartboard', 'Dartboard')}
             valueLabel={task.dartboard || '—'}
             options={config?.dartboards ?? NO_OPTIONS}
             selected={task.dartboard || null}
             state={state('dartboard')}
             disabled={noConfig}
-            searchPlaceholder={translate(
+            searchPlaceholder={t(
               'auto.components.task.page.dart.TaskDetail.searchDartboards',
               'Search dartboards'
             )}
-            emptyLabel={translate(
+            emptyLabel={t(
               'auto.components.task.page.dart.TaskDetail.noDartboards',
               'No dartboards found.'
             )}
@@ -191,7 +180,7 @@ export function DartTaskDetailProperties({
         />
         {noConfig && configFailed ? (
           <p className="pt-2 text-2xs text-muted-foreground">
-            {translate(
+            {t(
               'auto.components.task.page.dart.TaskDetail.noConfig',
               'Field options are not available from Dart right now, so these fields cannot be edited.'
             )}

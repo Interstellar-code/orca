@@ -3,7 +3,7 @@ import type { DartLayout } from '../../../../../shared/dart/dart-saved-views'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useNow } from '@/lib/window-activity/use-now'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 import { formatRelativeTime } from '../task-page-source-context'
 import type { DartLayoutSwitchDisabledReason } from './use-task-page-dart-state'
 
@@ -18,6 +18,7 @@ export function DartLayoutSwitch({
   disabled: boolean
   onChange: (layout: DartLayout) => void
 }): React.JSX.Element {
+  const t = useTranslate()
   const group = (
     <ToggleGroup
       type="single"
@@ -28,17 +29,17 @@ export function DartLayoutSwitch({
           onChange(value)
         }
       }}
-      aria-label={translate('auto.components.task.page.dart.Filters.layoutLabel', 'Dart layout')}
+      aria-label={t('auto.components.task.page.dart.Filters.layoutLabel', 'Dart layout')}
       variant="outline"
       size="sm"
     >
       <ToggleGroupItem value="list">
         <List />
-        {translate('auto.components.task.page.dart.Filters.layoutList', 'List')}
+        {t('auto.components.task.page.dart.Filters.layoutList', 'List')}
       </ToggleGroupItem>
       <ToggleGroupItem value="board">
         <Columns3 />
-        {translate('auto.components.task.page.dart.Filters.layoutBoard', 'Board')}
+        {t('auto.components.task.page.dart.Filters.layoutBoard', 'Board')}
       </ToggleGroupItem>
     </ToggleGroup>
   )
@@ -54,11 +55,11 @@ export function DartLayoutSwitch({
       </TooltipTrigger>
       <TooltipContent side="bottom" sideOffset={6}>
         {disabledReason === 'linked'
-          ? translate(
+          ? t(
               'auto.components.task.page.dart.Filters.boardLinkedOff',
               'Turn off linked tasks to use the board'
             )
-          : translate(
+          : t(
               'auto.components.task.page.dart.Filters.boardUpdateServer',
               'Update the remote Orca server to use the board'
             )}
@@ -72,6 +73,7 @@ export function DartUpdatedAgo({
 }: {
   fetchedAt: number | null
 }): React.JSX.Element | null {
+  const t = useTranslate()
   const now = useNow(30_000)
   if (!fetchedAt) {
     return null
@@ -80,7 +82,7 @@ export function DartUpdatedAgo({
   const time = formatRelativeTime(new Date(Math.min(fetchedAt, now)).toISOString())
   return (
     <span className="text-2xs text-muted-foreground">
-      {translate('auto.components.task.page.dart.Filters.updatedAgo', 'Updated {{time}}', {
+      {t('auto.components.task.page.dart.Filters.updatedAgo', 'Updated {{time}}', {
         time
       })}
     </span>

@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useEffectEvent,
   useRef,
   useState,
   type Dispatch,
@@ -103,11 +104,8 @@ export function useDartListRead(args: {
   const shownRowsKeyRef = useRef<string | null>(null)
   const lastRefreshNonceRef = useRef(refreshNonce)
 
-  useEffect(() => {
-    if (!active || !featuresReady) {
-      return
-    }
-    let cancelled = false
+  // Why: listKey/linkedRefsSignature fingerprint the filters and refs read here, so only they rerun the read.
+  const startRead = useEffectEvent((isCancelled: () => boolean): void => {
     clearPinsOnNewList(JSON.stringify([hostKey, listKey, hasWorkspace, refreshNonce, boardPath]))
     const refreshRequested = lastRefreshNonceRef.current !== refreshNonce
     lastRefreshNonceRef.current = refreshNonce
@@ -128,12 +126,12 @@ export function useDartListRead(args: {
       const features = hostFeatures ?? { board: false }
       void readPastDartWrites({
         captureEpoch: () => captureDartEpoch({ hostKey }),
-        cancelled: () => cancelled,
+        cancelled: isCancelled,
         force,
         read: () => actionsRef.current.readDartScope(serverFilters, { features, scope: pageScope })
       })
         .then(({ result, current }) => {
-          if (cancelled) {
+          if (isCancelled()) {
             return
           }
           actionsRef.current.publishDartScope(serverFilters, {
@@ -144,18 +142,16 @@ export function useDartListRead(args: {
           setDartError(result.failure ? { message: result.failure.message } : null)
         })
         .catch(() => {
-          if (!cancelled) {
+          if (!isCancelled()) {
             setDartError({ message: '' })
           }
         })
         .finally(() => {
-          if (!cancelled) {
+          if (!isCancelled()) {
             setDartLoading(false)
           }
         })
-      return () => {
-        cancelled = true
-      }
+      return
     }
     const rowsKey = JSON.stringify([hostKey, listKey, hasWorkspace, linkedRefsSignature])
     const listArgs = hasWorkspace ? null : buildDartListArgs(filters, viewerId)
@@ -197,11 +193,11 @@ export function useDartListRead(args: {
     }
     void readPastDartWrites({
       captureEpoch: () => captureDartEpoch({ hostKey }),
-      cancelled: () => cancelled,
+      cancelled: isCancelled,
       force,
       read: readList
     }).then(({ result, current }) => {
-      if (cancelled) {
+      if (isCancelled()) {
         return
       }
       setDartLoading(false)
@@ -219,10 +215,17 @@ export function useDartListRead(args: {
       }
       setDartError(result.error)
     })
+  })
+
+  useEffect(() => {
+    if (!active || !featuresReady) {
+      return
+    }
+    let cancelled = false
+    startRead(() => cancelled)
     return () => {
       cancelled = true
     }
-    // oxlint-disable-next-line react-hooks/exhaustive-deps -- Why: listKey/linkedRefsSignature fingerprint the filters and refs read here.
   }, [
     active,
     featuresReady,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { DartComment, DartTask } from '../../../../../shared/dart/dart-types'
 import type { TaskSourceContext } from '../../../../../shared/work-items/task-source-context'
 import {
@@ -75,7 +75,9 @@ export function useDartTaskDetailData(
     [hostKey, accountKey, taskId]
   )
   const identityRef = useRef(identity)
-  identityRef.current = identity
+  useLayoutEffect(() => {
+    identityRef.current = identity
+  })
   // Environments, not context keys: an explicit scope's key is `<env>::<prefix>` and never equals the page's.
   const onPageEnvironment =
     runtimeTargetEnvironmentId(scope.target) === runtimeTargetEnvironmentId(pageScope.target)

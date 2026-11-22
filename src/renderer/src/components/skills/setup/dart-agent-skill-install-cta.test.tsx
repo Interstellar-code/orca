@@ -6,18 +6,18 @@ import type { BundledSkillInstallActionState } from '@/hooks/skills/installation
 import { TooltipProvider } from '../../ui/tooltip'
 import { DartAgentSkillInstallCta } from './dart-agent-skill-install-cta'
 
-const mocks = vi.hoisted(() => ({
-  skill: {
-    installed: false,
-    loading: false,
-    error: null as string | null,
-    skills: [] as unknown[],
-    refresh: vi.fn(async () => true)
-  },
-  action: { kind: 'run' } as unknown,
-  useInstalledAgentSkillNames: vi.fn(),
-  plan: vi.fn()
-}))
+const mocks = vi.hoisted(() => {
+  const refresh = vi.fn(async () => true)
+  const skill: {
+    installed: boolean
+    loading: boolean
+    error: string | null
+    skills: unknown[]
+    refresh: typeof refresh
+  } = { installed: false, loading: false, error: null, skills: [], refresh }
+  const action: unknown = { kind: 'run' }
+  return { skill, action, useInstalledAgentSkillNames: vi.fn(), plan: vi.fn() }
+})
 
 vi.mock('@/hooks/skills/installation/use-bundled-skill-install-action', () => ({
   useBundledSkillInstallAction: () => mocks.action

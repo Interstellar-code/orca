@@ -9,7 +9,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
-import { getIntlLocale, translate } from '@/i18n/i18n'
+import { useIntlLocale, useTranslate } from '@/i18n/use-translate'
 import { writeDartBoardTaskDragData } from '@/lib/dart-board-drag-payload'
 import { cn } from '@/lib/class-names'
 import type { DartTaskIdentity } from '@/store/slices/dart/dart-task-identity'
@@ -48,6 +48,8 @@ export function DartBoardCard({
   moveButtonRef,
   cardRef
 }: DartBoardCardProps): React.JSX.Element {
+  const intlLocale = useIntlLocale()
+  const t = useTranslate()
   const { hostKey, accountKey } = model
   const identity = useMemo<DartTaskIdentity>(
     () => ({ hostKey, accountKey, taskId: task.id }),
@@ -55,7 +57,7 @@ export function DartBoardCard({
   )
   const writes = useDartTaskWriteState(identity)
   const statusLocked = writes.pendingFields.has('status') || writes.blockedFields.has('status')
-  const dueDate = formatDartDate(task.dueAt, getIntlLocale())
+  const dueDate = formatDartDate(task.dueAt, intlLocale)
   const shownTags = task.tags.slice(0, MAX_TAG_CHIPS)
   const extraTags = task.tags.length - shownTags.length
   const info = model.cardInfo(task.id)
@@ -106,7 +108,7 @@ export function DartBoardCard({
               variant="ghost"
               size="icon-xs"
               disabled={statusLocked}
-              aria-label={translate(
+              aria-label={t(
                 'auto.components.task.page.dart.DartBoardCard.moveTo',
                 'Move “{{title}}” to…',
                 { title: task.title }
@@ -147,7 +149,7 @@ export function DartBoardCard({
           ))}
           {extraTags > 0 ? (
             <Badge variant="referenceLabel">
-              {translate('auto.components.task.page.dart.DartBoardCard.moreTags', '+{{count}}', {
+              {t('auto.components.task.page.dart.DartBoardCard.moreTags', '+{{count}}', {
                 count: extraTags
               })}
             </Badge>

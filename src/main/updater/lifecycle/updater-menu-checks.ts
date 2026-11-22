@@ -7,7 +7,7 @@ import { UpdaterScheduling } from './updater-scheduling'
 
 export const FORK_BUILD_UPDATE_MESSAGE = 'This is a fork build; updates come from the rebuild job'
 
-// Matches the `local.<timestamp>.<commit>` suffix from config/scripts/build-mac-local.mjs; a release version never ends this way.
+// Matches the `local.<timestamp>.<commit>` suffix from config/scripts/desktop-distribution/macos/build-mac-local.mjs; a release version never ends this way.
 const FORK_BUILD_VERSION_PATTERN = /[-.]local\.\d+\.[0-9A-Za-z]+$/
 
 export abstract class UpdaterMenuChecks extends UpdaterScheduling {

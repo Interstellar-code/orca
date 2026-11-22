@@ -4,7 +4,7 @@ import type { DartDetailEditApi } from './dart-detail-contracts'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatUiRelativeTimeFromDate } from '@/i18n/relative-time-format'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 import { openAppHttpLink } from '@/lib/browser/navigation/app-http-link-open'
 import { dartFieldState } from './DartPropertyChips'
 import { DartTitleField } from './DartTitleField'
@@ -24,14 +24,13 @@ export function DartTaskDetailHeader({
   onUse: (task: DartTask) => void
   onClose: () => void
 }): React.JSX.Element {
+  const t = useTranslate()
   return (
     <div className="flex-none border-b border-border/50 bg-muted/30 px-4 py-3">
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-2xs text-muted-foreground">
-            <span>
-              {translate('auto.components.task.page.dart.TaskDetail.dartTasks', 'Dart tasks')}
-            </span>
+            <span>{t('auto.components.task.page.dart.TaskDetail.dartTasks', 'Dart tasks')}</span>
             {task.dartboard ? (
               <>
                 <span aria-hidden>/</span>
@@ -58,7 +57,7 @@ export function DartTaskDetailHeader({
             onClick={(event) => openAppHttpLink(openUrl, { event })}
           >
             <ExternalLink className="size-3.5" />
-            {translate('auto.components.task.page.dart.TaskDetail.openInDart', 'Open in Dart')}
+            {t('auto.components.task.page.dart.TaskDetail.openInDart', 'Open in Dart')}
           </Button>
         ) : null}
         <Button
@@ -67,7 +66,7 @@ export function DartTaskDetailHeader({
           className="hidden shrink-0 sm:inline-flex"
           onClick={() => onUse(task)}
         >
-          {translate('auto.components.task.page.dart.TaskDetail.startWorkspace', 'Start workspace')}
+          {t('auto.components.task.page.dart.TaskDetail.startWorkspace', 'Start workspace')}
           <ArrowRight className="size-4" />
         </Button>
         <Tooltip>
@@ -78,7 +77,7 @@ export function DartTaskDetailHeader({
               size="icon-sm"
               className="shrink-0"
               onClick={onClose}
-              aria-label={translate(
+              aria-label={t(
                 'auto.components.task.page.dart.TaskDetail.closeTask',
                 'Close Dart task preview'
               )}
@@ -87,7 +86,7 @@ export function DartTaskDetailHeader({
             </Button>
           </TooltipTrigger>
           <TooltipContent side="bottom" sideOffset={6}>
-            {translate('auto.components.task.page.dart.TaskDetail.close', 'Close')}
+            {t('auto.components.task.page.dart.TaskDetail.close', 'Close')}
           </TooltipContent>
         </Tooltip>
       </div>
@@ -97,7 +96,7 @@ export function DartTaskDetailHeader({
           className="mt-2 flex items-start gap-2 rounded-md border border-border/50 bg-muted/35 px-2.5 py-1.5 text-xs text-muted-foreground"
         >
           <Info className="mt-0.5 size-3.5 flex-none" />
-          {translate(
+          {t(
             'auto.components.task.page.dart.TaskDetail.invalidTaskUrl',
             'Dart sent a link for this task that Orca could not verify, so it is not shown.'
           )}

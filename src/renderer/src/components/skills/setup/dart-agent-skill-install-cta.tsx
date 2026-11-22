@@ -2,6 +2,7 @@ import { ORCA_DART_SKILL_NAME } from '@/lib/skills/installation/agent-feature-sk
 import type { LocalAgentRuntime } from '@/lib/skills/runtime/skill-runtime-command'
 import { BundledAgentSkillInstallRow } from './bundled-agent-skill-install-row'
 import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 
 const DART_AGENT_SKILL_NAMES = [ORCA_DART_SKILL_NAME] as const
 
@@ -31,12 +32,13 @@ function dartSkillRuntimeCopy(remote: boolean, agentRuntime: LocalAgentRuntime):
 export function DartAgentSkillInstallCta({
   settings
 }: DartAgentSkillInstallCtaProps): React.JSX.Element {
+  const t = useTranslate()
   return (
     <BundledAgentSkillInstallRow
       settings={settings}
       skillNames={DART_AGENT_SKILL_NAMES}
       displayName={ORCA_DART_SKILL_NAME}
-      description={translate(
+      description={t(
         'auto.components.settings.dart.agent.skill.install.cta.description',
         'Let agents read and update Dart tasks.'
       )}

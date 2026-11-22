@@ -72,14 +72,14 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
   )
   const patchSession = useAppStore((state) => state.patchDartCreateSession)
   const setDartCreateOwner = useAppStore((state) => state.setDartCreateOwner)
+  const activeKey = useRef(key)
   useLayoutEffect(() => {
+    activeKey.current = key
     if (ownerUserId && hasCurrentViewer()) {
       setDartCreateOwner(hostKey, ownerUserId, key)
       setTokenRejections((current) => clearDartCreateHostRejection(current, hostKey))
     }
   }, [hasCurrentViewer, hostKey, key, ownerUserId, setDartCreateOwner])
-  const activeKey = useRef(key)
-  activeKey.current = key
   const [openKey, setOpenKey] = useDartCreateOpenKey(key, hostKey, ownerUserId, unknownKey)
   const { createSupportsWritesV2, createWritesV2Pending } = useDartCreateCapabilities(
     model.taskSource,
@@ -266,7 +266,8 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
     openDartDetailPage
   )
   const { retryAccountCheck, accountCheckNotice } = useDartCreateAccountCheck()
-  return Object.assign({}, model, {
+  return {
+    ...model,
     createOpen: openKey === key,
     createSupportsWritesV2,
     createWritesV2Pending,
@@ -297,5 +298,5 @@ export function useTaskPageDartCreation<TModel extends TaskPageDartCreationInput
     createAnyway,
     claimCreateMatch,
     discardCreateDraft
-  })
+  }
 }

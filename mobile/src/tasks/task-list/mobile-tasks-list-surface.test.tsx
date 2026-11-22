@@ -20,8 +20,9 @@ vi.mock('./mobile-tasks-list-state', () => ({ renderMobileTasksSupportState: () 
 
 import { renderMobileTasksListSurface } from './mobile-tasks-list-surface'
 import type { ConnectionPresentationModel } from '../screen-state/use-mobile-tasks-connection-presentation'
+import type { MobileColorScheme } from '../../theme/mobile-theme'
 
-const colorScheme = 'light' as never
+const colorScheme: MobileColorScheme = 'light'
 
 function surfaceFor(provider: string): string[] {
   let renderer: ReactTestRenderer | null = null

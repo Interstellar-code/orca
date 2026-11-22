@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 import { useAppStore } from '@/store'
 import { dartDraftsFullWarning } from './dart-comment-send-state'
 import {
@@ -17,6 +17,7 @@ export function DartDraftsFullAlert({
   target: DartFullDraftTarget
   onDiscard: () => void
 }): React.JSX.Element {
+  const t = useTranslate()
   const warning = useAppStore((state) => dartDraftsFullWarning(state, target))
   return (
     <div
@@ -31,7 +32,7 @@ export function DartDraftsFullAlert({
           size="xs"
           onClick={() => void window.api.ui?.writeClipboardText(draftValueText(target.value))}
         >
-          {translate('auto.components.task.page.dart.DartCommentComposer.copyOldest', 'Copy')}
+          {t('auto.components.task.page.dart.DartCommentComposer.copyOldest', 'Copy')}
         </Button>
         {target.discardable ? (
           <Button
@@ -44,10 +45,7 @@ export function DartDraftsFullAlert({
               }
             }}
           >
-            {translate(
-              'auto.components.task.page.dart.DartCommentComposer.discardOldest',
-              'Discard it'
-            )}
+            {t('auto.components.task.page.dart.DartCommentComposer.discardOldest', 'Discard it')}
           </Button>
         ) : null}
       </span>

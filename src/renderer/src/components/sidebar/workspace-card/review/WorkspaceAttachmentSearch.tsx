@@ -140,6 +140,7 @@ export function WorkspaceAttachmentSearch({
       : parsedDirect
   const directLinked = direct ? isWorkspaceAttachmentLinked(props.items, direct) : false
   const scopeError = direct ? props.getScopeError(direct) : null
+  const showDartStatus = dartSource.intent && !props.error && !scopeError
   const directValue = direct ? `attachment-direct:${getWorkspaceAttachmentKey(direct)}` : ''
   const ambiguousNumber = /^#?\d+$/.test(query.trim())
   const taskUrlProvider =
@@ -324,7 +325,7 @@ export function WorkspaceAttachmentSearch({
       ) : null}
       {query.trim() ? (
         <div className="mt-2 flex shrink-0 items-center justify-between gap-3">
-          {dartSource.intent && !props.error && !scopeError ? (
+          {showDartStatus ? (
             <WorkspaceAttachmentDartStatus source={dartSource} disabled={props.disabled} />
           ) : (
             <WorkspaceAttachmentSourceStatus

@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 import { isScreenSubmitShortcut } from '@/lib/keyboard/screen-submit-shortcut'
 import { cn } from '@/lib/class-names'
 import { dartTextTooLargeMessage } from '@/runtime/runtime-dart-write-client'
@@ -50,6 +50,7 @@ export function TaskPageDartCreateDialog({
 }: {
   model: DartCreateDialogModel
 }): React.JSX.Element {
+  const t = useTranslate()
   const {
     createOpen,
     createSupportsWritesV2,
@@ -175,10 +176,10 @@ export function TaskPageDartCreateDialog({
       >
         <DialogHeader>
           <DialogTitle>
-            {translate('auto.components.task.page.dart.TaskCreateDialog.title', 'New Dart task')}
+            {t('auto.components.task.page.dart.TaskCreateDialog.title', 'New Dart task')}
           </DialogTitle>
           <DialogDescription>
-            {translate(
+            {t(
               'auto.components.task.page.dart.TaskCreateDialog.description',
               'Creates a task in the selected dartboard.'
             )}
@@ -190,7 +191,7 @@ export function TaskPageDartCreateDialog({
               className="text-2xs font-medium text-muted-foreground"
               htmlFor="dart-create-title"
             >
-              {translate('auto.components.task.page.dart.TaskCreateDialog.fieldTitle', 'Title')}
+              {t('auto.components.task.page.dart.TaskCreateDialog.fieldTitle', 'Title')}
             </label>
             <Input
               id="dart-create-title"
@@ -199,7 +200,7 @@ export function TaskPageDartCreateDialog({
               maxLength={DART_TITLE_MAX_LENGTH}
               aria-invalid={titleInvalid}
               disabled={blocked}
-              placeholder={translate(
+              placeholder={t(
                 'auto.components.task.page.dart.TaskCreateDialog.titlePlaceholder',
                 'Task title'
               )}
@@ -224,10 +225,7 @@ export function TaskPageDartCreateDialog({
               className="text-2xs font-medium text-muted-foreground"
               htmlFor="dart-create-description"
             >
-              {translate(
-                'auto.components.task.page.dart.TaskCreateDialog.fieldDescription',
-                'Description'
-              )}
+              {t('auto.components.task.page.dart.TaskCreateDialog.fieldDescription', 'Description')}
             </label>
             <Textarea
               id="dart-create-description"
@@ -235,7 +233,7 @@ export function TaskPageDartCreateDialog({
               value={createDraft.description}
               disabled={blocked}
               aria-invalid={!descriptionCheck.ok}
-              placeholder={translate(
+              placeholder={t(
                 'auto.components.task.page.dart.TaskCreateDialog.bodyPlaceholder',
                 'Add description…'
               )}
@@ -299,7 +297,7 @@ export function TaskPageDartCreateDialog({
             disabled={createSubmitting}
             onClick={closeCreate}
           >
-            {translate('auto.components.task.page.dart.TaskCreateDialog.cancel', 'Cancel')}
+            {t('auto.components.task.page.dart.TaskCreateDialog.cancel', 'Cancel')}
           </Button>
           <Button
             type="button"
@@ -313,15 +311,12 @@ export function TaskPageDartCreateDialog({
                 aria-hidden={showPending}
                 className={cn('col-start-1 row-start-1', showPending && 'invisible')}
               >
-                {translate('auto.components.task.page.dart.TaskCreateDialog.create', 'Create task')}
+                {t('auto.components.task.page.dart.TaskCreateDialog.create', 'Create task')}
               </span>
               {showPending ? (
                 <span className="col-start-1 row-start-1 flex items-center gap-1.5">
                   <LoaderCircle className="size-3.5 animate-spin motion-reduce:animate-none" />
-                  {translate(
-                    'auto.components.task.page.dart.TaskCreateDialog.creating',
-                    'Creating…'
-                  )}
+                  {t('auto.components.task.page.dart.TaskCreateDialog.creating', 'Creating…')}
                 </span>
               ) : null}
             </span>

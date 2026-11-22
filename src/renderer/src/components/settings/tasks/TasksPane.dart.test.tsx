@@ -2,6 +2,7 @@
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { getDefaultSettings } from '../../../../../shared/orca-profiles/constants'
 import type { GlobalSettings } from '../../../../../shared/settings/global-settings-types'
 import type { TaskProvider } from '../../../../../shared/work-items/task-providers'
 import type { TaskProviderReadiness } from './task-source-setup-state'
@@ -9,13 +10,17 @@ import { TasksPane } from './TasksPane'
 
 type DartSetupProps = { onOpenIntegrations: () => void; onConnected: () => void }
 
-const mocks = vi.hoisted(() => ({
-  readiness: {} as Record<TaskProvider, TaskProviderReadiness>,
-  dartSetupProps: [] as DartSetupProps[],
-  openSettingsPage: vi.fn(),
-  openSettingsTarget: vi.fn(),
-  checkDartConnection: vi.fn()
-}))
+const mocks = vi.hoisted(() => {
+  const readiness: Partial<Record<TaskProvider, TaskProviderReadiness>> = {}
+  const dartSetupProps: DartSetupProps[] = []
+  return {
+    readiness,
+    dartSetupProps,
+    openSettingsPage: vi.fn(),
+    openSettingsTarget: vi.fn(),
+    checkDartConnection: vi.fn()
+  }
+})
 
 vi.mock('./use-task-source-provider-readiness', () => ({
   useTaskSourceProviderReadiness: () => mocks.readiness
@@ -56,10 +61,11 @@ function selectState(selector: (state: Record<string, unknown>) => unknown): unk
 vi.mock('@/store/index', () => ({ useAppStore: selectState }))
 vi.mock('@/store/retained-views/app-state-view', () => ({ useAppStateValue: selectState }))
 
-const settings = {
+const settings: GlobalSettings = {
+  ...getDefaultSettings('/preview'),
   visibleTaskProviders: ['github', 'gitlab', 'linear', 'dart'],
   defaultTaskSource: 'github'
-} as GlobalSettings
+}
 
 function renderExpandedDart(dart: TaskProviderReadiness): void {
   mocks.readiness.dart = dart

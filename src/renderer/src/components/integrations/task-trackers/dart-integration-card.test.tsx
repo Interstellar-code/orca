@@ -48,8 +48,8 @@ type StoreState = {
   openSettingsTarget: (target: unknown) => void
 }
 
-const mocks = vi.hoisted(() => ({
-  store: { current: null as StoreState | null }
+const mocks = vi.hoisted((): { store: { current: StoreState | null } } => ({
+  store: { current: null }
 }))
 
 vi.mock('@/store', () => ({
@@ -481,9 +481,7 @@ describe('DartIntegrationCard', () => {
     expect(document.body.innerHTML).not.toContain(FAKE_TOKEN)
 
     fireEvent.click(screen.getByRole('button', { name: 'Connect Dart' }))
-    expect(((await screen.findByLabelText('Authorization token')) as HTMLInputElement).value).toBe(
-      ''
-    )
+    expect((await screen.findByLabelText<HTMLInputElement>('Authorization token')).value).toBe('')
   })
 
   it('does not submit an empty token', async () => {
@@ -493,9 +491,7 @@ describe('DartIntegrationCard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Connect Dart' }))
     await screen.findByLabelText('Authorization token')
 
-    expect((screen.getByRole('button', { name: 'Connect' }) as HTMLButtonElement).disabled).toBe(
-      true
-    )
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Connect' }).disabled).toBe(true)
     expect(state.connectDart).not.toHaveBeenCalled()
   })
 })
