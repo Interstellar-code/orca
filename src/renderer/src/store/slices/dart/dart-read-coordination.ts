@@ -13,7 +13,10 @@ import {
   runtimeEnvironmentIdFromContextKey
 } from '@/runtime/hosts/observations/provider-runtime-context'
 import { taskSourceRuntimeTarget } from '@/lib/work-items/task-source-runtime-target'
-import { getRuntimeTargetHostId, runtimeTargetEnvironmentId } from '@/runtime/rpc/targets/runtime-client-target'
+import {
+  getRuntimeTargetHostId,
+  runtimeTargetEnvironmentId
+} from '@/runtime/rpc/targets/runtime-client-target'
 import type { CacheEntry } from '../../github/cache/cache-model'
 import type { AppState } from '../../types'
 import type { DartSlice, DartSliceSet } from './dart-slice-contract'
