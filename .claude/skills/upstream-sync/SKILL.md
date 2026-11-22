@@ -1,6 +1,6 @@
 ---
 name: upstream-sync
-description: Bring stablyai/orca upstream into the Orca fork (Interstellar-code/orca) without breaking the fork's Dart work, then release it. Lists the upstream releases the fork lacks, asks Rohit which one to sync to, merges on a branch in the checkout of the machine it runs on, resolves conflicts with the customization registry, runs every gate plus a live Dart check, reviews, merges the PR, and hands off to the release skill. Use when Rohit says "upstream sync", "catch up with upstream", "merge upstream", or types /upstream-sync.
+description: Bring stablyai/orca upstream into the Orca fork (Interstellar-code/orca) without breaking the fork's Dart work, then release it. Lists the upstream releases the fork lacks, asks Rohit which one to sync to, merges on a branch in the checkout of the machine it runs on, resolves conflicts with the customization registry, runs every gate, reviews, merges the PR, hands off to the release skill, then does a live Dart check on the Ubu install. Use when Rohit says "upstream sync", "catch up with upstream", "merge upstream", or types /upstream-sync.
 ---
 
 # Upstream sync
@@ -62,7 +62,7 @@ confidence, a Dart check fails, or a step would discard work.
 - The merge spans thousands of upstream files, so run it with `-c merge.renameLimit=30000`, or git
   skips rename detection and turns upstream's directory moves into needless conflicts.
 - Ubu (release target only): SSH host `ubuntu-7of9`, Orca environment "Orca Ubu 7of9", web client
-  on port 6770.
+  `http://192.168.0.57:6770`.
 - Dart test paths: `src/main/dart`, `src/shared/dart`, `src/renderer/src/components/task-page/dart`,
   `src/cli/handlers/dart.test.ts`.
 
@@ -175,7 +175,7 @@ On the sync branch, right after the merge commit, in this order:
    installs on Ubu, and gives Rohit the Mac swap line.
 2. Live check, once the release runs on Ubu (Ubu only ever runs the installed release, so this is
    the first point where it serves the merged code): a headless Canary subagent on the Ubu web
-   client (`http://192.168.0.57:6770`): the Tasks page shows Dart tasks, the board columns render, a
+   client on port 6770 (see Facts): the Tasks page shows Dart tasks, the board columns render, a
    task detail page opens with its relationships section, the source chip names the server and Dart
    account. Read-only: no clicks that write. A failure is a Dart regression already released: stop,
    show Rohit what failed, and fix it in a follow-up PR on his go.
