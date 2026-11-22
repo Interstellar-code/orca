@@ -427,13 +427,15 @@
       "id": "fork-upstream-sync-and-release-skills",
       "title": "upstream-sync and release skills: guided upstream merge and one-command fork release",
       "status": "active",
-      "summary": "Two project skills. upstream-sync lists the upstream releases the fork lacks, asks which to sync to, merges on a branch in the invoking machine's own checkout, resolves conflicts against this registry, runs the gates, reviews and merges the PR, runs release, then a live Dart check on the Ubu install. release publishes the GitHub Release (fork-release.yml: Mac, Linux, Windows downloads), builds and installs on Ubu, and builds the Mac app for a swap Rohit runs. config/fork/upstream-sync.sh holds the report, release-target, record-release and record-sync helpers; rebuild-and-install.sh now calls its record-release.",
+      "summary": "Two project skills. upstream-sync lists the upstream releases the fork lacks, asks which to sync to, merges on a branch in the invoking machine's own checkout, resolves conflicts against this registry, runs the gates, reviews and merges the PR, runs release, then a live Dart check on the Ubu install. release publishes the GitHub Release (fork-release.yml: Mac, Linux, Windows downloads), builds and installs on Ubu, and builds the Mac app for a swap Rohit runs. config/fork/upstream-sync.sh holds the report, release-target, record-release and record-sync helpers; rebuild-and-install.sh now calls its record-release. config/fork/fork-test-suite.mjs selects and runs the fork's own tests (the step-6 gate instead of the full suite).",
       "areas": ["tooling", "ci"],
       "key_paths": [
         ".claude/skills/upstream-sync/SKILL.md",
         ".claude/skills/release/SKILL.md",
         "config/fork/upstream-sync.sh",
-        "config/fork/swap-mac-app.sh"
+        "config/fork/swap-mac-app.sh",
+        "config/fork/fork-test-suite.mjs",
+        "config/fork/check-fork-script-paths.mjs"
       ],
       "commits": [],
       "touches_upstream_files": [],

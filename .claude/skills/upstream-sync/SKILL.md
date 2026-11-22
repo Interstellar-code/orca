@@ -63,8 +63,9 @@ confidence, a Dart check fails, or a step would discard work.
   skips rename detection and turns upstream's directory moves into needless conflicts.
 - Ubu (release target only): SSH host `ubuntu-7of9`, Orca environment "Orca Ubu 7of9", web client
   `http://192.168.0.57:6770`.
-- Dart test paths: `src/main/dart`, `src/shared/dart`, `src/renderer/src/components/task-page/dart`,
-  `src/cli/handlers/dart.test.ts`.
+- Test gate: `config/fork/fork-test-suite.mjs` (`--list` previews the selection). Dart test paths it
+  covers: `src/main/dart`, `src/shared/dart`, `src/renderer/src/components/task-page/dart`,
+  `src/cli/dart`, and every `*.dart.test.*` file.
 
 ## Steps
 
@@ -146,10 +147,43 @@ On the sync branch, right after the merge commit, in this order:
 
 1. `pnpm install --frozen-lockfile` and `pnpm -C mobile install --frozen-lockfile`.
 2. `pnpm tc`.
-3. Dart tests: `pnpm test <Dart test paths> --maxWorkers=2`.
-4. `pnpm test --maxWorkers=2` (full suite).
-5. `pnpm lint`, then `pnpm check:changed`.
-6. A failure: check whether it also fails on the upstream target alone, in a separate worktree
+3. Fork test suite (replaces the full suite and the separate Dart test run; the full upstream suite is
+   not rerun here):
+   `node config/fork/fork-test-suite.mjs --also-related-from docs/plans/upstream-sync-<YYYY-MM-DD>.md`
+   (the report committed in step 5.3; it lists the files changed on both sides). Add `--list` first to
+   see what it selects. It runs the tests named in the registry, the Dart tests, and the tests related
+   to the fork's source files plus those changed-on-both-sides files, with `--maxWorkers=2`.
+   The report lists current names (a renamed file shows as `new (renamed from old)`), and the suite
+   follows any remaining old name through renames since the upstream merge base. The summary line is
+   `N listed, R resolved through renames, D deleted upstream, C non-code ignored, S skipped`.
+   Deleted-upstream paths (with the deleting commit) do not change the exit code: copy them into the
+   sync report. A skipped path (no rename, no deletion; usually a typo or a stale list) exits 1 and
+   must be fixed before going on; never ignore skipped-seed warnings.
+   Exit codes: 1 is a test failure, a skipped seed, a stale registry path or an empty selection;
+   2 is a usage error (for example a missing `--also-related` path).
+   Without the report, make the list with git: on the merge commit `M`,
+   `base=$(git merge-base M^1 M^2)`, then
+   `comm -12 <(git diff --name-only --no-renames $base M^1 | sort) <(git diff --name-only --no-renames $base M^2 | sort) > <file>`
+   (pre-merge names; the suite resolves them through renames) and pass `--also-related-from <file>`.
+   A non-zero exit that lists missing registry paths is a stale registry: fix it in step 7.
+4. `pnpm run build:mobile-web` (about 20 s). It runs upstream's bundle size check
+   (`verify-mobile-web-app-bundle.mjs`); fork code can push the merged bundle over the limit, and
+   no test catches that.
+5. One real package build of the branch for the current platform, in the background:
+   - Linux: `pnpm run build:desktop:assets && pnpm run ensure:electron-runtime && env -u CI pnpm exec electron-builder --config config/electron-builder.config.cjs --linux dir --x64 --publish never`,
+     with `ORCA_BUILD_COMMIT` (the short `HEAD` sha) and `ORCA_LOCAL_BUILD_VERSION` exported the way
+     `build_linux` in `config/fork/rebuild-and-install.sh` sets them.
+   - macOS: `config/fork/rebuild-and-install.sh --mode mac --no-upstream --no-push` from the build
+     clone, or `pnpm build:mac`.
+     A size-budget failure from upstream's own check is fixed by taking upstream's later raise of the
+     budget if one exists (cherry-pick with `-x`, and ask Rohit first), or by trimming fork code.
+6. `pnpm test --maxWorkers=2` (full suite) only when Rohit asks for it.
+7. `pnpm lint`, then `ORCA_CODE_QUALITY_BASE=<target> pnpm check:changed`. Scope it to the upstream
+   target: against `origin/main` the changed-file list is the whole upstream diff, the related unit
+   tests become a second full suite, and the code-quality step fails with `E2BIG`. For the same reason
+   `pnpm lint`'s own `check:code-quality:changed` step fails with `E2BIG` on a sync branch; the scoped
+   `check:changed` covers it.
+8. A failure: check whether it also fails on the upstream target alone, in a separate worktree
    (`git worktree add --detach ../upstream-target <target>`, a sibling folder of `<checkout>`; then `pnpm install --frozen-lockfile`
    there; remove it with `git worktree remove` afterwards). Fails there too: record it in the sync report as pre-existing, do not fix. Fails only
    on the merge: fix it on the branch (a builder round with the failure output), re-run the gates.
@@ -158,6 +192,9 @@ On the sync branch, right after the merge commit, in this order:
 ### 7. Registry check
 
 1. Every `key_paths` entry of every active customization still exists.
+2. Fork script paths still exist: `node config/fork/check-fork-script-paths.mjs`. It scans the fork
+   workflows, `config/fork` scripts and the skills for repo paths and `pnpm` script names; any
+   reported path was moved or removed upstream (no test runs those files), so fix the caller.
 
 ### 8. Review and merge
 
