@@ -1,6 +1,6 @@
 ---
 name: upstream-sync
-description: Bring stablyai/orca upstream into the Orca fork (Interstellar-code/orca) without breaking the fork's Dart work, then release it. Lists the upstream releases the fork lacks, asks Rohit which one to sync to, merges on a branch in the checkout of the machine it runs on, resolves conflicts with the customization registry, runs every gate, reviews, merges the PR, hands off to the release skill, then does a live Dart check on the Ubu install. Use when Rohit says "upstream sync", "catch up with upstream", "merge upstream", or types /upstream-sync.
+description: Bring stablyai/orca upstream into the Orca fork (Interstellar-code/orca) without breaking the fork's Dart work, then release it. Lists the upstream releases the fork lacks, asks Rohit which one to sync to, merges on a branch in the checkout of the machine it runs on, resolves conflicts with the customization registry, runs every gate, reviews, merges the PR, hands off to the release skill, then asks Rohit for a live Dart check in the Mac app. Use when Rohit says "upstream sync", "catch up with upstream", "merge upstream", or types /upstream-sync.
 ---
 
 # Upstream sync
@@ -51,8 +51,14 @@ confidence, a Dart check fails, or a step would discard work.
 - Orca CLI (`orca` in the steps means this binary): on macOS
   `/Applications/Orca.app/Contents/Resources/bin/orca`; on Linux outside an Orca terminal
   `orca-ide` (bare `orca` there is the GNOME screen reader).
-- On macOS `pnpm` is not on PATH: put a shim first on PATH, e.g. a scratchpad `bin/pnpm` containing
-  `exec corepack pnpm "$@"`.
+- If `command -v pnpm` is empty (a bare macOS shell), put a shim first on PATH, e.g. a scratchpad
+  `bin/pnpm` containing `exec corepack pnpm "$@"`.
+- Release runs: `fork-release.yml` fast-forwards `main` at its end, so never merge to `main` while one
+  is queued or running. Check first:
+  `gh run list --repo Interstellar-code/orca --workflow fork-release.yml --status in_progress` and the
+  same with `--status queued` and `--status pending` must all be empty; otherwise wait with `gh run watch <id>`.
+- `main` only moves through PRs: the workflow and `rebuild-and-install.sh` no longer merge upstream
+  unless asked (`merge_upstream=true`, `--upstream`); upstream reaches the fork through this skill.
 - `<label>`: the release tag (`vX.Y.Z`), or `main-<short sha>` for an unreleased target. Used in
   the branch name, commit message, task title and PR title.
 - The orchestrator commits. Builders never commit: after each builder round the orchestrator checks
@@ -173,16 +179,17 @@ On the sync branch, right after the merge commit, in this order:
    - Linux: `pnpm run build:desktop:assets && pnpm run ensure:electron-runtime && env -u CI pnpm exec electron-builder --config config/electron-builder.config.cjs --linux dir --x64 --publish never`,
      with `ORCA_BUILD_COMMIT` (the short `HEAD` sha) and `ORCA_LOCAL_BUILD_VERSION` exported the way
      `build_linux` in `config/fork/rebuild-and-install.sh` sets them.
-   - macOS: `config/fork/rebuild-and-install.sh --mode mac --no-upstream --no-push` from the build
-     clone, or `pnpm build:mac`.
+   - macOS: in `<checkout>` on the branch, `env -u CI -u GITHUB_ACTIONS pnpm build:mac dir --arm64`
+     (`--x64` on an Intel Mac), then check `dist/mac-arm64/Orca.app` exists. Never the rebuild script
+     here (it builds `main`, not the branch) and never bare `pnpm build:mac` (it also packages the other
+     slice, whose boot check fails locally).
      A size-budget failure from upstream's own check is fixed by taking upstream's later raise of the
      budget if one exists (cherry-pick with `-x`, and ask Rohit first), or by trimming fork code.
 6. `pnpm test --maxWorkers=2` (full suite) only when Rohit asks for it.
-7. `pnpm lint`, then `ORCA_CODE_QUALITY_BASE=<target> pnpm check:changed`. Scope it to the upstream
-   target: against `origin/main` the changed-file list is the whole upstream diff, the related unit
-   tests become a second full suite, and the code-quality step fails with `E2BIG`. For the same reason
-   `pnpm lint`'s own `check:code-quality:changed` step fails with `E2BIG` on a sync branch; the scoped
-   `check:changed` covers it.
+7. `ORCA_CODE_QUALITY_BASE=<target> pnpm check:changed` (it includes format and lint). Scope it to
+   the upstream target: against `origin/main` the changed-file list is the whole upstream diff, the
+   related unit tests become a second full suite, and the code-quality step fails with `E2BIG`. Never
+   run bare `pnpm lint` on a sync branch: its `check:code-quality:changed` step fails the same way.
 8. A failure: check whether it also fails on the upstream target alone, in a separate worktree
    (`git worktree add --detach ../upstream-target <target>`, a sibling folder of `<checkout>`; then `pnpm install --frozen-lockfile`
    there; remove it with `git worktree remove` afterwards). Fails there too: record it in the sync report as pre-existing, do not fix. Fails only
@@ -191,10 +198,15 @@ On the sync branch, right after the merge commit, in this order:
 
 ### 7. Registry check
 
-1. Every `key_paths` entry of every active customization still exists.
+1. Every `key_paths` entry of every active customization still exists (step 6.3 already exits 1 on
+   a missing one; fix the registry entry if it did).
 2. Fork script paths still exist: `node config/fork/check-fork-script-paths.mjs`. It scans the fork
    workflows, `config/fork` scripts and the skills for repo paths and `pnpm` script names; any
    reported path was moved or removed upstream (no test runs those files), so fix the caller.
+3. Finish the sync report: append to `<scratchpad>/upstream-sync-report.md` a "Deleted upstream"
+   section (the step 6.3 deleted-upstream paths with their commits), a "Pre-existing failures"
+   section (step 6.8) and a "Conflicts" section (each file and how it was resolved). Copy it over
+   `docs/plans/upstream-sync-<YYYY-MM-DD>.md` again and commit (`docs(sync): complete the report`).
 
 ### 8. Review and merge
 
@@ -204,22 +216,26 @@ On the sync branch, right after the merge commit, in this order:
    registry-owned file in the diff. Then a final review (Claude Fable, max effort) on the same.
    Findings go back to the builder (a fix round, see Facts); the orchestrator commits the fixes,
    re-runs the affected gates and pushes.
-3. `gh pr merge <number> --repo Interstellar-code/orca --merge`. Then `git switch main && git pull --ff-only` in `<checkout>`.
+3. Check no release run is queued or running (see Facts), then
+   `gh pr merge <number> --repo Interstellar-code/orca --merge`. Then `git switch main && git pull --ff-only` in `<checkout>`.
 
 ### 9. Release
 
-1. Run the `release` skill. It publishes the GitHub Release (Mac, Linux, Windows downloads),
-   installs on Ubu, and gives Rohit the Mac swap line.
-2. Live check, once the release runs on Ubu (Ubu only ever runs the installed release, so this is
-   the first point where it serves the merged code): a headless Canary subagent on the Ubu web
-   client on port 6770 (see Facts): the Tasks page shows Dart tasks, the board columns render, a
-   task detail page opens with its relationships section, the source chip names the server and Dart
-   account. Read-only: no clicks that write. A failure is a Dart regression already released: stop,
-   show Rohit what failed, and fix it in a follow-up PR on his go.
+1. Run the `release` skill through its step 5 (release check); its step 6 report is replaced by
+   step 10 here. It publishes the GitHub Release
+   (Mac, Linux, Windows downloads), installs on Ubu and builds the Mac app. Its Mac swap step comes
+   last, after step 10 here, because quitting Orca can end this session.
+2. Live check (Rohit, in the Mac app): after the swap, ask him to check the Tasks page shows Dart
+   tasks, the board columns render, a task detail page opens with its relationships section, and
+   the source chip names the server and Dart account. Never pair a headless browser or any other
+   client to Ubu (Rohit's rule; an extra client also makes the next server install skip its
+   restart). A failure is a Dart regression already released: show Rohit what failed and fix it in
+   a follow-up PR on his go.
 
 ### 10. Report
 
-To Rohit, in the status shape: the release synced, PR link, what conflicted and how each was
-resolved, pre-existing failures recorded, release link, installed versions on Mac and Ubu, the live check
-result (or why it is still open). Then
-delete the merged sync branch on the fork and in `<checkout>`.
+Before the Mac swap: delete the merged sync branch on the fork and in `<checkout>`, then report to
+Rohit in the status shape: the release synced, PR link, what conflicted and how each was resolved,
+pre-existing failures recorded, release link, Ubu installed version, and, under "What's yours", the
+Mac swap line (release skill step 7) followed by the live check (step 9.2). Ask him to tell you the
+result afterwards, since this session may end when Orca quits.
