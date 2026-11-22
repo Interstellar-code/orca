@@ -340,7 +340,7 @@
       "id": "fork-rebuild-install",
       "title": "Nightly fork rebuild and install scripts (config/fork)",
       "status": "active",
-      "summary": "Scripts and a launchd template that fast-forward the fork, merge upstream/main, run the Dart gates, build the fork, push and notify; a separate install command swaps the new app in (Mac) or the /opt/Orca server install with rollback. Builds take their version base from config/fork/upstream-release, applied by the upstream build-mac-local.mjs.",
+      "summary": "Scripts and a launchd template that fast-forward the fork (merging upstream/main only with --upstream, pushing only with --push), run the fork test suite, build the fork and notify; a separate install command swaps the new app in (Mac) or the /opt/Orca server install with rollback. Builds take their version base from config/fork/upstream-release, applied by the upstream build-mac-local.mjs.",
       "areas": ["tooling"],
       "key_paths": [
         "config/fork/README.md",
@@ -410,7 +410,7 @@
       "id": "fork-release-workflow",
       "title": "GitHub Actions fork release (merge, gates, build, publish)",
       "status": "active",
-      "summary": "Nightly and on-demand workflow that disables upstream workflows on the fork, merges stablyai/orca main into the fork-release/candidate branch, runs typecheck and Dart tests, qualifies the orcad server template, builds macOS arm64 (fork-signed), Linux x64 and Windows x64 with the -local fork version, then fast-forwards main and publishes a GitHub Release.",
+      "summary": "On-demand (dispatch-only) workflow that disables upstream workflows on the fork, optionally merges stablyai/orca main (merge_upstream, default false) into the fork-release/candidate branch, runs typecheck and the fork test suite, qualifies the orcad server template, builds macOS arm64 (fork-signed), Linux x64 and Windows x64 with the -local fork version, then fast-forwards main and publishes a GitHub Release.",
       "areas": ["ci", "tooling"],
       "key_paths": [".github/workflows/fork-release.yml"],
       "commits": [],
@@ -427,7 +427,7 @@
       "id": "fork-upstream-sync-and-release-skills",
       "title": "upstream-sync and release skills: guided upstream merge and one-command fork release",
       "status": "active",
-      "summary": "Two project skills. upstream-sync lists the upstream releases the fork lacks, asks which to sync to, merges on a branch in the invoking machine's own checkout, resolves conflicts against this registry, runs the gates, reviews and merges the PR, runs release, then a live Dart check on the Ubu install. release publishes the GitHub Release (fork-release.yml: Mac, Linux, Windows downloads), builds and installs on Ubu, and builds the Mac app for a swap Rohit runs. config/fork/upstream-sync.sh holds the report, release-target, record-release and record-sync helpers; rebuild-and-install.sh now calls its record-release. config/fork/fork-test-suite.mjs selects and runs the fork's own tests (the step-6 gate instead of the full suite).",
+      "summary": "Two project skills. upstream-sync lists the upstream releases the fork lacks, asks which to sync to, merges on a branch in the invoking machine's own checkout, resolves conflicts against this registry, runs the gates, reviews and merges the PR, runs release, then asks Rohit for a live Dart check in the Mac app. release publishes the GitHub Release (fork-release.yml: Mac, Linux, Windows downloads), builds and installs on Ubu, and builds the Mac app for a swap Rohit runs. config/fork/upstream-sync.sh holds the report, release-target, record-release and record-sync helpers; rebuild-and-install.sh now calls its record-release. config/fork/fork-test-suite.mjs selects and runs the fork's own tests (the step-6 gate instead of the full suite).",
       "areas": ["tooling", "ci"],
       "key_paths": [
         ".claude/skills/upstream-sync/SKILL.md",

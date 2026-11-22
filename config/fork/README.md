@@ -2,7 +2,7 @@
 
 `Interstellar-code/orca` is your fork of `stablyai/orca`. It carries the Dart task provider,
 which upstream does not have. This directory builds the fork on your Mac and on the remote
-server, keeps it level with upstream, and makes sure the packaged updater can never replace
+server (upstream arrives through the `upstream-sync` skill's reviewed PR), and makes sure the packaged updater can never replace
 it with a Stably release.
 
 On the Mac the rebuild job never touches `/Applications/Orca.app` or your
@@ -136,7 +136,7 @@ Resume by bootstrapping the same plist again.
 ~/.orca-fork-build/orca/config/fork/rebuild-and-install.sh --no-push   # builds, does not push
 ```
 
-Or wait for the nightly run. Either way you get "Fork build ready". Then:
+Or let the launchd job run, if you installed it. Either way you get "Fork build ready". Then:
 
 1. Quit Orca (Cmd-Q). The install refuses while Orca is running so live terminals and agents
    are not killed.
@@ -180,9 +180,7 @@ ORCA_FORK_FORCE_FAILURE=gate ~/.orca-fork-build/orca/config/fork/rebuild-and-ins
 ORCA_FORK_FORCE_FAILURE=build ~/.orca-fork-build/orca/config/fork/rebuild-and-install.sh --dry-run
 ```
 
-Pushing the merged `main` happens only after the build succeeds. That is the one standing
-approval this job needs; if you would rather push by hand, run with `--no-push` and push
-yourself.
+The job pushes only with `--push`, and then only after the build succeeds.
 
 ### What has been run for real
 

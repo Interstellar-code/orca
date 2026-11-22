@@ -47,7 +47,7 @@ swap need it; the GitHub Release and Ubu steps work from any host with `gh` and 
 1. Preflight (Mac): `git status --short` empty, on `main`, `git fetch origin` and `HEAD` equals
    `origin/main`. No release run already queued or running:
    `gh run list --repo Interstellar-code/orca --workflow fork-release.yml --status in_progress` and
-   `--status queued` both empty (otherwise wait for it, or ask Rohit). Note the `main` commit as
+   `--status queued` and `--status pending` all empty (otherwise wait for it, or ask Rohit). Note the `main` commit as
    `<sha>`; every later check compares against it. Merge nothing to `main` until step 5 passes. Ubu reachable: `ssh -o ConnectTimeout=8 ubuntu-7of9 true`. If Ubu is down, say so
    and continue with steps 2-3 and 5-7; do step 4 when it is back.
 2. GitHub Release, in the background:
@@ -60,13 +60,15 @@ swap need it; the GitHub Release and Ubu steps work from any host with `gh` and 
    If a release for this commit already exists the run skips the build; pass `force=true` only if
    Rohit asks for a rebuild.
 3. Mac build, in the background, in parallel with step 2:
-   `cd ~/.orca-fork-build/orca && PATH=<shim dir>:$PATH config/fork/rebuild-and-install.sh --mode mac`.
-   It fast-forwards the clone, runs the gates, builds and signs. If the fast-forward changed the
-   script, it re-runs the new copy once and logs "re-running the synced copy"; that is expected. Then check
+   `cd ~/.orca-fork-build/orca && PATH=<shim dir>:$PATH config/fork/rebuild-and-install.sh --mode mac --no-upstream --no-push`.
+   Always pass both flags: they are the default now, but a clone still holding an older script runs
+   that copy up to its sync, and the older copy merged upstream and pushed by default. It
+   fast-forwards the clone, runs the gates, builds and signs. If the fast-forward changed the script,
+   it re-runs the new copy once and logs "re-running the synced copy"; that is expected. Then check
    `defaults read ~/.orca-fork-build/orca/dist/mac-arm64/Orca.app/Contents/Info.plist CFBundleShortVersionString`
    ends in the `main` commit and `codesign --verify --deep --strict` passes.
 4. Ubu build and install, in the background, in parallel:
-   `ssh ubuntu-7of9 'cd ~/.orca-fork-build/orca && config/fork/rebuild-and-install.sh --mode server > /tmp/orca-server-build.log 2>&1; echo exit=$?; tail -5 /tmp/orca-server-build.log'`.
+   `ssh ubuntu-7of9 'cd ~/.orca-fork-build/orca && config/fork/rebuild-and-install.sh --mode server --no-upstream > /tmp/orca-server-build.log 2>&1; echo exit=$?; tail -5 /tmp/orca-server-build.log'`.
    If it built but did not install (clients connected, or an old copy of the script), run the same
    with `--install-only`. Verify on Ubu:
    `strings /opt/Orca/resources/app.asar | grep -m1 -oE "[0-9.]+-fork\.local\.[0-9]+\.[0-9a-f]+"` ends in the
@@ -80,7 +82,7 @@ swap need it; the GitHub Release and Ubu steps work from any host with `gh` and 
    tar.gz, Windows setup.exe and SHA256SUMS.
 6. Report to Rohit: release link and files, Ubu installed version, the built Mac version, anything
    skipped and why, and the step 7 line under "What's yours". When called from `upstream-sync`,
-   finish its step 10 first.
+   skip this step: that skill's step 10 report covers it.
 7. Mac install (Rohit, last): give him this exact line to paste, `!` first, nothing before it:
    `! nohup ~/.orca-fork-build/orca/config/fork/swap-mac-app.sh ~/Library/Logs/orca-swap.log >/dev/null 2>&1 &`.
    Orca quits, installs, reopens, and the backup is deleted; this session may end with it. If it

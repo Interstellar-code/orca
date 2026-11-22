@@ -56,7 +56,7 @@ confidence, a Dart check fails, or a step would discard work.
 - Release runs: `fork-release.yml` fast-forwards `main` at its end, so never merge to `main` while one
   is queued or running. Check first:
   `gh run list --repo Interstellar-code/orca --workflow fork-release.yml --status in_progress` and the
-  same with `--status queued` must both be empty; otherwise wait with `gh run watch <id>`.
+  same with `--status queued` and `--status pending` must all be empty; otherwise wait with `gh run watch <id>`.
 - `main` only moves through PRs: the workflow and `rebuild-and-install.sh` no longer merge upstream
   unless asked (`merge_upstream=true`, `--upstream`); upstream reaches the fork through this skill.
 - `<label>`: the release tag (`vX.Y.Z`), or `main-<short sha>` for an unreleased target. Used in
@@ -221,7 +221,8 @@ On the sync branch, right after the merge commit, in this order:
 
 ### 9. Release
 
-1. Run the `release` skill up to and including its report step. It publishes the GitHub Release
+1. Run the `release` skill through its step 5 (release check); its step 6 report is replaced by
+   step 10 here. It publishes the GitHub Release
    (Mac, Linux, Windows downloads), installs on Ubu and builds the Mac app. Its Mac swap step comes
    last, after step 10 here, because quitting Orca can end this session.
 2. Live check (Rohit, in the Mac app): after the swap, ask him to check the Tasks page shows Dart

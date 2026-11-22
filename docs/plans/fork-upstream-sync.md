@@ -71,7 +71,8 @@ flowchart TD
    (the paths `rebuild-and-install.sh` uses), `pnpm test` full suite, `pnpm lint`,
    `pnpm check:changed`. Failures that also fail on upstream `main` are recorded, not fixed.
 6. Registry check: every customization's key paths still exist and its behaviour test passes.
-   Live check: the Dart board, source chip and task detail on the Ubu web client (headless Canary).
+   Live check: Rohit checks the Dart board, source chip and task detail in the Mac app (superseded
+   2026-11-22: no headless client on Ubu).
 7. Review: a separate review subagent on the merge diff limited to registry files plus conflict
    resolutions. Then push, open a PR against the fork's `main`, merge it (allowed without asking
    once gates and review pass).

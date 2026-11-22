@@ -1,6 +1,7 @@
 name: Fork Release
 
-# Fork-only: merge stablyai/orca into a candidate branch, run the Dart gates, build macOS arm64,
+# Fork-only, dispatch only: optionally merge stablyai/orca (merge_upstream) into a candidate branch,
+# run the fork gates, build macOS arm64,
 # Linux x64 and Windows x64 with the fork's -local. version (so Stably's updater stays off),
 # then fast-forward main and publish a GitHub Release. See config/fork/README.md and
 # docs/plans/fork-releases.md.
@@ -163,8 +164,6 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ needs.prepare.outputs.sha }}
-          # The fork test suite follows renamed registry paths through history.
-          fetch-depth: 0
           persist-credentials: false
       - uses: pnpm/setup@v2
         with:
