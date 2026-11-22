@@ -275,7 +275,8 @@ SERVER_BUILD_STAMP=dist/fork-server-build
 
 build_mac() {
   mac_output
-  pnpm build:mac || fail 'pnpm build:mac failed'
+  # The config's dmg/zip targets list both slices and outrank a CLI arch; only an explicit target honors it.
+  pnpm build:mac dir "--$MAC_ARCH" || fail "pnpm build:mac dir --$MAC_ARCH failed"
   local app="dist/$MAC_DIR/Orca.app"
   [[ -d $app ]] || fail "build produced no $app"
   local archs
@@ -361,6 +362,9 @@ record_upstream_release() {
 
 main() {
   local clone=${ORCA_FORK_CLONE:-$HOME/.orca-fork-build/orca}
+  # Taken before the sync: when this runs from the clone, the fast-forward rewrites this very file.
+  local args=("$@") self_sum
+  self_sum=$(cksum <"${BASH_SOURCE[0]}")
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --mode) MODE=${2:?}; shift 2 ;;
@@ -385,7 +389,8 @@ main() {
     *) fail "unknown --mode: $MODE" ;;
   esac
   mkdir -p "$(dirname "$LOG_FILE")"
-  exec > >(tee -a "$LOG_FILE") 2>&1
+  # A re-exec inherits the parent's tee; a second one would log every line twice.
+  [[ -n ${ORCA_FORK_REEXEC:-} ]] || exec > >(tee -a "$LOG_FILE") 2>&1
 
   log "orca fork rebuild: mode=$MODE dry_run=$DRY_RUN push=$PUSH no_upstream=$NO_UPSTREAM install_only=$INSTALL_ONLY clone=$clone log=$LOG_FILE"
 
@@ -426,6 +431,14 @@ main() {
   fi
 
   sync_main
+
+  # The fast-forward may have changed this script; finish the run with the new copy.
+  local synced="$PWD/config/fork/rebuild-and-install.sh"
+  if [[ -z ${ORCA_FORK_REEXEC:-} && $(cksum <"$synced") != "$self_sum" ]]; then
+    log 'this script changed in the sync; re-running the synced copy'
+    # bash 3.2 treats an empty array as unbound under set -u; the last --clone wins, so a relative one is safe.
+    ORCA_FORK_REEXEC=1 exec bash "$synced" ${args[@]+"${args[@]}"} --clone "$PWD"
+  fi
 
   log 'installing dependencies (frozen lockfile)'
   # macOS packaging needs both slices' native variants (as `install:release` does); the server builds one Linux arch.
