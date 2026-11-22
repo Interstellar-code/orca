@@ -313,7 +313,7 @@ A `pnpm build:mac` build carries version `<package version>-local.<timestamp>.<c
   cannot push a Stably Linux package onto the server either.
 - A release build (version without the suffix) takes exactly the old code path.
 
-Covered by `src/main/updater/updater.fork-build-guard.test.ts`.
+Covered by `src/main/updater/lifecycle/updater-fork-build-guard.test.ts`.
 
 **Only `pnpm build:mac` and the rebuild script produce a protected fork build.** The guard
 keys on the `-local.` version suffix, which those two stamp. `pnpm build:linux` on a Mac, a
