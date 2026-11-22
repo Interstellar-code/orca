@@ -6,9 +6,10 @@ import {
   type DartSavedViewMutation,
   type DartSavedViewState
 } from '../../../../../shared/dart/dart-saved-views'
-import { createNonSecureContextUuid } from '../../../../../shared/non-secure-context-uuid'
-import type { RuntimeClientTarget } from '../../../../../shared/runtime-client-target'
+import { createNonSecureContextUuid } from '../../../../../shared/identifiers/non-secure-context-uuid'
+import type { RuntimeClientTarget } from '../../../../../shared/remote-runtime/host-catalog/runtime-client-target'
 import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 import {
   mutateDartSavedViews,
   readDartSavedViewState
@@ -49,6 +50,7 @@ export function useTaskPageDartSavedViews(args: {
   current: DartViewSnapshotValue
   applyView(view: DartSavedView | null): void
 }): DartSavedViewsModel {
+  const t = useTranslate()
   const { active, current } = args
   const environmentId = args.target.kind === 'environment' ? args.target.environmentId : null
   const target = useMemo<RuntimeClientTarget>(
@@ -125,11 +127,11 @@ export function useTaskPageDartSavedViews(args: {
                   )
           })
         }
-      } finally {
-        if (!cancelled && lifetimeRef.current === lifetime) {
-          lifetime.reading = false
-          setReadingOwner(null)
-        }
+      }
+      // No `finally` (React Compiler cannot compile it); the early return above has nothing to settle.
+      if (!cancelled && lifetimeRef.current === lifetime) {
+        lifetime.reading = false
+        setReadingOwner(null)
       }
     }
     void load()
@@ -174,26 +176,27 @@ export function useTaskPageDartSavedViews(args: {
       setSnapshot({ owner, state: result.state, supported: true })
       return result.state
     }
+    let applied = false
     try {
-      return await job(send)
+      applied = await job(send)
     } catch (reason) {
       if (lifetimeRef.current === lifetime) {
         toast.error(
           reason instanceof Error
             ? reason.message
-            : translate(
+            : t(
                 'auto.components.task.page.dart.TaskPageDartSavedViews.saveFailed',
                 'Could not save views.'
               )
         )
       }
-      return false
-    } finally {
-      lifetime.pending = false
-      if (lifetimeRef.current === lifetime) {
-        setPendingLifetime(null)
-      }
     }
+    // No `finally` (React Compiler cannot compile it); the catch never throws, so both paths get here.
+    lifetime.pending = false
+    if (lifetimeRef.current === lifetime) {
+      setPendingLifetime(null)
+    }
+    return applied
   }
 
   // Why: the host answers a refused change with the unchanged state, so acceptance is read from the reply.

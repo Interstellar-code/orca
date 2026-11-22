@@ -1,6 +1,5 @@
 import { defineFixture } from '../../../component-fixtures/component-fixture'
 import type { DartTask } from '../../../../../shared/dart/dart-types'
-import type { Worktree } from '../../../../../shared/worktree/types'
 import type {
   DartDetailCommentsApi,
   DartDetailDescriptionApi,
@@ -8,16 +7,9 @@ import type {
   DartNoticeApi,
   DartWriteNotice
 } from './dart-detail-contracts'
-import { fixtureComments, fixtureDetailTask } from './dart-task.mock'
+import { fixtureComments, fixtureDetailTask, fixtureLinkedWorkspace } from './dart-task.mock'
 import { getDartTaskOpenUrl } from './task-page-dart-list-model'
 import { DartTaskDetailView, type DartTaskDetailViewProps } from './TaskDetailView'
-
-const linkedWorkspace = {
-  id: 'wt-fix-search',
-  displayName: 'fix-search-ranking',
-  branch: 'fix-search-ranking',
-  path: '/work/fix-search-ranking'
-} as Worktree
 
 const noop = (): void => {}
 const noPending: ReadonlySet<string> = new Set()
@@ -88,7 +80,10 @@ export const loaded = defineFixture({
   width: 780,
   render: () => (
     <div className="h-[720px] bg-background text-foreground">
-      <DartTaskDetailView {...fixtureProps(fixtureDetailTask)} workspaces={[linkedWorkspace]} />
+      <DartTaskDetailView
+        {...fixtureProps(fixtureDetailTask)}
+        workspaces={[fixtureLinkedWorkspace]}
+      />
     </div>
   )
 })
@@ -121,7 +116,7 @@ export const unknownNotice = defineFixture({
             checkedAt: Date.UTC(2026, 10, 4, 12, 0, 0)
           }
         })}
-        workspaces={[linkedWorkspace]}
+        workspaces={[fixtureLinkedWorkspace]}
       />
     </div>
   )
@@ -139,7 +134,7 @@ export const refusedNotice = defineFixture({
             message: 'Dart did not accept this change.'
           }
         })}
-        workspaces={[linkedWorkspace]}
+        workspaces={[fixtureLinkedWorkspace]}
       />
     </div>
   )

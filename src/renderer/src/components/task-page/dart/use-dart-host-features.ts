@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { DartHostFeatures } from '../../../../../shared/dart/dart-types'
-import type { RuntimeClientTarget } from '../../../../../shared/runtime-client-target'
+import type { RuntimeClientTarget } from '../../../../../shared/remote-runtime/host-catalog/runtime-client-target'
 import { dartBoardFeaturesForTarget } from '@/runtime/runtime-dart-client'
 
 /** D1.3: probed on mount and on every target change, never cached; a verdict dies with its effect (D1.6). */

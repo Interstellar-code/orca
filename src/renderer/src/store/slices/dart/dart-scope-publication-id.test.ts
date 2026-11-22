@@ -5,7 +5,7 @@ import type {
   DartScopeReadResult,
   DartServerFilters
 } from '@/components/task-page/dart/dart-board-contracts'
-import { createTestStore } from '../store-test-helpers'
+import { createTestStore } from '@/store/testing/app-store-test-fixture'
 import { dartTaskFixture, installFakeDartRuntime } from './dart-fake-runtime.test-support'
 import { getDartReadScope } from './dart-read-coordination'
 import { dartScopeCacheKey } from './dart-scope-read-actions'

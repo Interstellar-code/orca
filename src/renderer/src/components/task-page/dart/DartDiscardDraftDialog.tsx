@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 
 type DartDiscardDraftDialogProps = {
   open: boolean
@@ -22,18 +22,19 @@ export function DartDiscardDraftDialog({
   onOpenChange,
   onDiscard
 }: DartDiscardDraftDialogProps): React.JSX.Element {
+  const t = useTranslate()
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent role="alertdialog" size="compact">
         <DialogHeader>
           <DialogTitle size="compact">
-            {translate(
+            {t(
               'auto.components.task.page.dart.TaskCreateDialog.confirmDiscardTitle',
               'Discard draft?'
             )}
           </DialogTitle>
           <DialogDescription size="compact">
-            {translate(
+            {t(
               'auto.components.task.page.dart.TaskCreateDialog.confirmDiscard',
               'Discard this draft? Dart may already have created the task.'
             )}
@@ -46,7 +47,7 @@ export function DartDiscardDraftDialog({
             disabled={submitting}
             onClick={() => onOpenChange(false)}
           >
-            {translate('auto.components.task.page.dart.TaskCreateDialog.cancel', 'Cancel')}
+            {t('auto.components.task.page.dart.TaskCreateDialog.cancel', 'Cancel')}
           </Button>
           <Button
             type="button"
@@ -57,10 +58,7 @@ export function DartDiscardDraftDialog({
               onDiscard()
             }}
           >
-            {translate(
-              'auto.components.task.page.dart.TaskCreateDialog.discardDraft',
-              'Discard draft'
-            )}
+            {t('auto.components.task.page.dart.TaskCreateDialog.discardDraft', 'Discard draft')}
           </Button>
         </DialogFooter>
       </DialogContent>

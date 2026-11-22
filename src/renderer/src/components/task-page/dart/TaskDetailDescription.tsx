@@ -1,5 +1,5 @@
 import { Pencil } from 'lucide-react'
-import CommentMarkdown from '@/components/sidebar/CommentMarkdown'
+import CommentMarkdown from '@/components/comment-markdown/CommentMarkdown'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 import type { DartDetailDescriptionApi } from './dart-detail-contracts'
 import { DartDescriptionConflictDialog } from './DartDescriptionConflictDialog'
 import {
@@ -35,12 +35,13 @@ function DiscardPrompt({
   onDecline: () => void
   onCloseAutoFocus: (event: Event) => void
 }): React.JSX.Element {
+  const t = useTranslate()
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onDecline()}>
       <DialogContent size="compact" showCloseButton={false} onCloseAutoFocus={onCloseAutoFocus}>
         <DialogHeader>
           <DialogTitle size="compact">
-            {translate(
+            {t(
               'auto.components.task.page.dart.DartDescription.discardPrompt',
               'Discard unsaved description changes?'
             )}
@@ -48,7 +49,7 @@ function DiscardPrompt({
         </DialogHeader>
         <DialogFooter>
           <Button type="button" variant="ghost" size="sm" onClick={onDecline}>
-            {translate('auto.components.task.page.dart.DartDescription.cancel', 'Cancel')}
+            {t('auto.components.task.page.dart.DartDescription.cancel', 'Cancel')}
           </Button>
           <Button
             type="button"
@@ -57,7 +58,7 @@ function DiscardPrompt({
             disabled={discardDisabled}
             onClick={onConfirm}
           >
-            {translate('auto.components.task.page.dart.DartDescription.discard', 'Discard')}
+            {t('auto.components.task.page.dart.DartDescription.discard', 'Discard')}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -69,9 +70,10 @@ function DescriptionSection({
   onRetry,
   ...api
 }: DartDetailDescriptionApi & { onRetry: () => void }): React.JSX.Element {
+  const t = useTranslate()
   const { description, openUrl, supportsWritesV2 } = api
   const editor = useDartDescriptionEditor(api)
-  const { lineage, conflict, editing } = editor
+  const { lineage, conflict, editing, editButtonRef } = editor
   const text = description.status === 'ready' ? description.value : null
   const canEdit = text !== null && text.trim() !== '' && supportsWritesV2
   const placeFocus = (event: Event): void => {
@@ -93,11 +95,11 @@ function DescriptionSection({
     >
       <div className="flex min-h-6 flex-wrap items-center gap-2">
         <SectionHeading>
-          {translate('auto.components.task.page.dart.TaskDetail.description', 'Description')}
+          {t('auto.components.task.page.dart.TaskDetail.description', 'Description')}
         </SectionHeading>
         {editing ? (
           <span className="text-2xs text-muted-foreground">
-            {translate(
+            {t(
               'auto.components.task.page.dart.DartDescription.editingHint',
               'Editing · only the parts you change are sent to Dart'
             )}
@@ -107,14 +109,14 @@ function DescriptionSection({
         {editing ? <DartDescriptionEditorActions editor={editor} /> : null}
         {!editing && canEdit ? (
           <Button
-            ref={editor.editButtonRef}
+            ref={editButtonRef}
             type="button"
             variant="outline"
             size="xs"
             onClick={() => editor.startEditing(text)}
           >
             <Pencil />
-            {translate('auto.components.task.page.dart.DartDescription.edit', 'Edit')}
+            {t('auto.components.task.page.dart.DartDescription.edit', 'Edit')}
           </Button>
         ) : null}
       </div>

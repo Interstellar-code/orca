@@ -1,5 +1,5 @@
-import { getRuntimeTargetHostId } from '@/runtime/runtime-client-target'
-import type { TaskSourceContext } from '../../../../../shared/task-source-context'
+import { getRuntimeTargetHostId } from '@/runtime/rpc/targets/runtime-client-target'
+import type { TaskSourceContext } from '../../../../../shared/work-items/task-source-context'
 import type { AppState } from '../../types'
 import type { DartReadScope } from './dart-read-coordination'
 

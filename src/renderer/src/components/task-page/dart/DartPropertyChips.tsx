@@ -16,9 +16,9 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
-import { LINEAR_EDIT_CHIP_CLASS } from '@/components/linear-item-drawer-edit-controls'
+import { LINEAR_EDIT_CHIP_CLASS } from '@/components/task-page/linear/item-drawer/linear-item-drawer-edit-controls'
 import { translate } from '@/i18n/i18n'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/class-names'
 
 const NONE_VALUE = '__dart-none__'
 

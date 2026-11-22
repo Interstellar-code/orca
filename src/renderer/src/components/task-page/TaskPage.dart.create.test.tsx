@@ -4,11 +4,11 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { GlobalSettings } from '../../../../shared/global-settings-types'
-import { getDefaultSettings } from '../../../../shared/constants'
+import type { GlobalSettings } from '../../../../shared/settings/global-settings-types'
+import { getDefaultSettings } from '../../../../shared/orca-profiles/constants'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { installAppKeyboardRouter } from '@/lib/app-keyboard-router'
-import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
+import { installAppKeyboardRouter } from '@/lib/keyboard/app-keyboard-router'
+import { getProviderRuntimeContextKey } from '@/runtime/hosts/observations/provider-runtime-context'
 import { useAppStore } from '@/store'
 import {
   installFakeDartRuntime,
@@ -16,9 +16,13 @@ import {
 } from '@/store/slices/dart/dart-fake-runtime.test-support'
 import TaskPage from './TaskPage'
 
-vi.mock('@/components/PullRequestPage', () => ({ default: () => null }))
-vi.mock('@/components/GitHubItemDialog', () => ({ default: () => null }))
-vi.mock('./github/List', () => ({ TaskPageGitHubList: () => <div data-testid="github-content" /> }))
+vi.mock('@/components/pull-request-page/page/surface', () => ({ default: () => null }))
+vi.mock('@/components/github-item-dialog/open-dialog/github-item-dialog', () => ({
+  default: () => null
+}))
+vi.mock('./github/listing/List', () => ({
+  TaskPageGitHubList: () => <div data-testid="github-content" />
+}))
 vi.mock('./jira/Content', () => ({ TaskPageJiraContent: () => <div data-testid="jira-content" /> }))
 vi.mock('./linear/Content', () => ({
   TaskPageLinearContent: () => <div data-testid="linear-content" />

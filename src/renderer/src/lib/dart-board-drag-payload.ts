@@ -1,4 +1,4 @@
-import { measureClipboardTextByteLength } from '../../../shared/clipboard-text'
+import { isClipboardTextByteLengthOverLimit } from '../../../shared/clipboard/clipboard-text'
 
 export const DART_BOARD_DRAG_TASK_MIME = 'application/x-orca-dart-task-ref'
 export const DART_BOARD_DRAG_TASK_REF_MAX_BYTES = 1024
@@ -75,10 +75,5 @@ function isDartBoardTaskDragRef(value: unknown): value is DartBoardTaskDragRef {
 }
 
 function isDartBoardTaskDragPayloadTooLarge(payload: string): boolean {
-  return (
-    payload.length > DART_BOARD_DRAG_TASK_REF_MAX_BYTES ||
-    measureClipboardTextByteLength(payload, {
-      stopAfterBytes: DART_BOARD_DRAG_TASK_REF_MAX_BYTES
-    }).exceededLimit
-  )
+  return isClipboardTextByteLengthOverLimit(payload, DART_BOARD_DRAG_TASK_REF_MAX_BYTES)
 }

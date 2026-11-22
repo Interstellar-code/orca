@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { getDefaultSettings } from '../../../../../shared/constants'
+import { getDefaultSettings } from '../../../../../shared/orca-profiles/constants'
 import type { DartWorkspaceConfig } from '../../../../../shared/dart/dart-types'
-import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
+import { getProviderRuntimeContextKey } from '@/runtime/hosts/observations/provider-runtime-context'
 import { useAppStore } from '@/store'
 import { installFakeDartRuntime } from '@/store/slices/dart/dart-fake-runtime.test-support'
 import { getDartReadScope } from '@/store/slices/dart/dart-read-coordination'

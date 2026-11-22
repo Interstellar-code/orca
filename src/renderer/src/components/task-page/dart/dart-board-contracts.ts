@@ -4,7 +4,7 @@ import type {
   DartTaskRelationships,
   DartWorkspaceConfig
 } from '../../../../../shared/dart/dart-types'
-import type { TaskSourceContext } from '../../../../../shared/task-source-context'
+import type { TaskSourceContext } from '../../../../../shared/work-items/task-source-context'
 import type { DartBoardFilters, DartSavedView } from '../../../../../shared/dart/dart-saved-views'
 import type { DartClientResult } from '@/runtime/runtime-dart-client'
 import type { DartWriteResult } from '@/runtime/runtime-dart-write-client'

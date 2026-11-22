@@ -1,9 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { buildExecutionHostRegistry } from '../../../../shared/execution-host-registry'
+import { buildExecutionHostRegistry } from '../../../../shared/execution-host/execution-host-registry'
 
-const state = vi.hoisted(() => ({ web: false, name: null as string | null, throws: false }))
-vi.mock('@/lib/web-client-location', () => ({ isWebClientLocation: () => state.web }))
-vi.mock('@/web/web-runtime-environment', () => ({
+const state = vi.hoisted((): { web: boolean; name: string | null; throws: boolean } => ({
+  web: false,
+  name: null,
+  throws: false
+}))
+vi.mock('@/app-shell/platform/web-client-location', () => ({
+  isWebClientLocation: () => state.web
+}))
+vi.mock('@/web/pairing/web-runtime-environment', () => ({
   readStoredWebRuntimeEnvironment: () => {
     if (state.throws) {
       throw new Error('storage blocked')

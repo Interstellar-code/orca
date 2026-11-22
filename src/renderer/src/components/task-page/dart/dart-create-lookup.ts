@@ -1,5 +1,5 @@
 import type { DartTask } from '../../../../../shared/dart/dart-types'
-import { taskProviderErrorMessage } from '@/lib/task-provider-error-copy'
+import { taskProviderErrorMessage } from '@/lib/work-items/task-provider-error-copy'
 import { translate } from '@/i18n/i18n'
 import { dartCreateMatches } from './dart-create-request'
 

@@ -13,10 +13,13 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { hasRemoteProviderRuntime } from '@/lib/provider-runtime-context'
-import { preventOutsideDismissWhenDirty } from '@/lib/outside-dismiss-guard'
-import { taskProviderErrorMessage, taskProviderErrorText } from '@/lib/task-provider-error-copy'
-import { translate } from '@/i18n/i18n'
+import { hasRemoteProviderRuntime } from '@/runtime/hosts/observations/provider-runtime-context'
+import { preventOutsideDismissWhenDirty } from '@/lib/overlay-interaction/outside-dismiss-guard'
+import {
+  taskProviderErrorMessage,
+  taskProviderErrorText
+} from '@/lib/work-items/task-provider-error-copy'
+import { useTranslate } from '@/i18n/use-translate'
 import { dartCredentialStorageCopy } from './dart-credential-storage-copy'
 
 type DartConnectDialogProps = {
@@ -35,6 +38,7 @@ export function DartConnectDialog({
   onConnected,
   elevated
 }: DartConnectDialogProps): React.JSX.Element {
+  const t = useTranslate()
   const connectDart = useAppStore((s) => s.connectDart)
   const settings = useAppStore((s) => s.settings)
   const remoteRuntime = hasRemoteProviderRuntime(settings)
@@ -108,10 +112,7 @@ export function DartConnectDialog({
         setConnectError(
           error instanceof Error
             ? taskProviderErrorText(error.message)
-            : translate(
-                'auto.components.dart.dart.connect.dialog.connectionFailed',
-                'Connection failed'
-              )
+            : t('auto.components.dart.dart.connect.dialog.connectionFailed', 'Connection failed')
         )
       }
     }
@@ -127,10 +128,10 @@ export function DartConnectDialog({
       >
         <DialogHeader>
           <DialogTitle>
-            {translate('auto.components.dart.dart.connect.dialog.title', 'Connect Dart')}
+            {t('auto.components.dart.dart.connect.dialog.title', 'Connect Dart')}
           </DialogTitle>
           <DialogDescription>
-            {translate(
+            {t(
               'auto.components.dart.dart.connect.dialog.description',
               'Paste your Dart authorization token. Orca checks it before saving.'
             )}
@@ -147,10 +148,7 @@ export function DartConnectDialog({
           <div className="flex flex-col gap-3">
             <div className="space-y-2">
               <Label htmlFor={tokenId}>
-                {translate(
-                  'auto.components.dart.dart.connect.dialog.tokenLabel',
-                  'Authorization token'
-                )}
+                {t('auto.components.dart.dart.connect.dialog.tokenLabel', 'Authorization token')}
               </Label>
               <Input
                 id={tokenId}
@@ -158,7 +156,7 @@ export function DartConnectDialog({
                 autoFocus
                 autoComplete="off"
                 spellCheck={false}
-                placeholder={translate(
+                placeholder={t(
                   'auto.components.dart.dart.connect.dialog.tokenPlaceholder',
                   'dsa_...'
                 )}
@@ -179,13 +177,13 @@ export function DartConnectDialog({
             ) : null}
             <div className="space-y-2 text-xs text-muted-foreground">
               <p>
-                {translate(
+                {t(
                   'auto.components.dart.dart.connect.dialog.tokenHelp',
                   'In Dart, open Settings > Account (your profile icon at the top left, then Account), scroll down and copy your Authorization token. It starts with dsa_.'
                 )}
               </p>
               <p>
-                {translate(
+                {t(
                   'auto.components.dart.dart.connect.dialog.premiumNote',
                   'API access needs a Dart Premium plan or above.'
                 )}
@@ -203,16 +201,16 @@ export function DartConnectDialog({
               onClick={() => closeAndClear(false)}
               disabled={connectState === 'connecting'}
             >
-              {translate('auto.components.dart.dart.connect.dialog.cancel', 'Cancel')}
+              {t('auto.components.dart.dart.connect.dialog.cancel', 'Cancel')}
             </Button>
             <Button type="submit" disabled={!canSubmit}>
               {connectState === 'connecting' ? (
                 <>
                   <LoaderCircle className="size-4 animate-spin" />
-                  {translate('auto.components.dart.dart.connect.dialog.verifying', 'Verifying…')}
+                  {t('auto.components.dart.dart.connect.dialog.verifying', 'Verifying…')}
                 </>
               ) : (
-                translate('auto.components.dart.dart.connect.dialog.connect', 'Connect')
+                t('auto.components.dart.dart.connect.dialog.connect', 'Connect')
               )}
             </Button>
           </DialogFooter>

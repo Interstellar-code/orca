@@ -12,7 +12,7 @@ import {
   type DartClientFailure,
   type DartClientResult
 } from '@/runtime/runtime-dart-client'
-import type { CacheEntry } from '../../github/cache-model'
+import type { CacheEntry } from '../../github/cache/cache-model'
 import { runDartRead, type InflightDartRead } from './dart-read-actions'
 import {
   evictDartListCache,

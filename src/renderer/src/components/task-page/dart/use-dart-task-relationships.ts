@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { DartTask, DartTaskRelationships } from '../../../../../shared/dart/dart-types'
 import { translate } from '@/i18n/i18n'
-import { taskProviderErrorMessage, taskProviderErrorText } from '@/lib/task-provider-error-copy'
+import {
+  taskProviderErrorMessage,
+  taskProviderErrorText
+} from '@/lib/work-items/task-provider-error-copy'
 import type { DartWriteFailure } from '@/runtime/runtime-dart-write-client'
 import { useAppStore } from '@/store'
 import {
@@ -206,7 +209,9 @@ export const useDartTaskRelationships: UseDartTaskRelationships = ({
     [task, relationships]
   )
   const shownTaskRef = useRef(shownTask)
-  shownTaskRef.current = shownTask
+  useLayoutEffect(() => {
+    shownTaskRef.current = shownTask
+  })
 
   const onSetBlockers = useCallback<DartRelationshipsApi['onSetBlockers']>(
     async (ids) => {

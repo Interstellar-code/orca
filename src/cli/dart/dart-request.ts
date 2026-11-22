@@ -6,16 +6,16 @@ import type {
   DartUpdateTaskArgs
 } from '../../shared/rpc-contract/dart-params'
 import { DART_LIST_PAGE_MAX } from '../../shared/rpc-contract/dart-params'
-import { readTextOrFileFlag } from '../command-body-input'
-import type { HandlerContext } from '../dispatch'
+import { readTextOrFileFlag } from '../arguments/command-body-input'
+import type { HandlerContext } from '../dispatch/dispatch'
 import {
   getOptionalNonNegativeIntegerFlag,
   getOptionalPositiveIntegerFlag,
   getOptionalStringFlag,
   getRepeatedStringFlag,
   getRequiredStringFlag
-} from '../flags'
-import { RuntimeClientError } from '../runtime-client'
+} from '../arguments/flags'
+import { RuntimeClientError } from '../runtime/connection/types'
 import { callDart } from './dart-call'
 
 const DART_DESCRIPTION_MAX_CHARACTERS = 100_000

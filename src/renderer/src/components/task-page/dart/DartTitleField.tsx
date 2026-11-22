@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { translate } from '@/i18n/i18n'
-import { cn } from '@/lib/utils'
-import { ImeTextarea } from '@/lib/ime-text-field'
+import { useTranslate } from '@/i18n/use-translate'
+import { cn } from '@/lib/class-names'
+import { ImeTextarea } from '@/lib/text-input/ime/ime-text-field'
 import { dartTextTooLargeMessage } from '@/runtime/runtime-dart-write-client'
 import { checkDartRequestText } from '../../../../../shared/dart/dart-text-limits'
 import {
@@ -22,6 +22,7 @@ export function DartTitleField({
   state: DartFieldState
   onSave: (title: string) => void
 }): React.JSX.Element {
+  const t = useTranslate()
   const [typed, setTyped] = useState<{ text: string; source: string } | null>(null)
   const [focused, setFocused] = useState(false)
   // An untouched draft follows Dart's title unless the user is in the field; an edited one is kept, and the user is told Dart moved on.
@@ -46,9 +47,7 @@ export function DartTitleField({
     }
     if (!next) {
       setTyped(null)
-      toast.error(
-        translate('auto.components.task.page.dart.DartTitleField.required', 'Title is required')
-      )
+      toast.error(t('auto.components.task.page.dart.DartTitleField.required', 'Title is required'))
       return
     }
     const check = checkDartRequestText('title', next)
@@ -78,7 +77,7 @@ export function DartTitleField({
         aria-disabled={state.disabled || undefined}
         aria-describedby={describedBy}
         data-dart-escape-local
-        aria-label={translate('auto.components.task.page.dart.DartTitleField.label', 'Title')}
+        aria-label={t('auto.components.task.page.dart.DartTitleField.label', 'Title')}
         onChange={(event) =>
           !state.disabled && setTyped({ text: event.target.value, source: draft?.source ?? title })
         }
@@ -102,7 +101,7 @@ export function DartTitleField({
       />
       {serverChanged ? (
         <p role="status" className="order-last w-full text-2xs text-muted-foreground">
-          {translate(
+          {t(
             'auto.components.task.page.dart.DartTitleField.changedInDart',
             'The title changed in Dart. Saving replaces it with yours.'
           )}

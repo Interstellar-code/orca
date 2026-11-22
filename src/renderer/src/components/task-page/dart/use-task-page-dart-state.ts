@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DartLayout } from '../../../../../shared/dart/dart-saved-views'
 import type { DartConnectionStatus, DartTask } from '../../../../../shared/dart/dart-types'
-import type { TaskProvider } from '../../../../../shared/task-providers'
-import type { TaskSourceContext } from '../../../../../shared/task-source-context'
+import type { TaskProvider } from '../../../../../shared/work-items/task-providers'
+import type { TaskSourceContext } from '../../../../../shared/work-items/task-source-context'
 import type { Worktree } from '../../../../../shared/worktree/types'
 import {
   buildDartTaskWorkspaceAttachmentIndex,
@@ -118,10 +118,9 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
     : featuresReady && !hostSupportsBoard
       ? 'oldHost'
       : null
-  const { server, client } = splitDartBoardFilters(dartFilters)
-  const serverFiltersKey = JSON.stringify(server)
-  // oxlint-disable-next-line react-hooks/exhaustive-deps -- Why: serverFiltersKey fingerprints the three server filters.
-  const serverFilters = useMemo(() => server, [serverFiltersKey])
+  const { client } = splitDartBoardFilters(dartFilters)
+  const { mine, dartboard, search } = dartFilters
+  const serverFilters = useMemo(() => ({ mine, dartboard, search }), [mine, dartboard, search])
   const clientFilters = useDartEffectiveClientFilters(client, relationshipsHost)
   const scopeKey = useMemo(
     () => (boardPath ? dartScopeCacheKey(pageScope, serverFilters) : null),
@@ -174,7 +173,7 @@ export function useTaskPageDartState<TModel extends TaskPageDartStateInput>(mode
   // Status is a server filter only on the list-only read path (D2.7, D11).
   const listKey = JSON.stringify(
     boardPath
-      ? [serverFiltersKey, viewerId]
+      ? [JSON.stringify(serverFilters), viewerId]
       : [dartFilters.mine, dartFilters.status, dartFilters.dartboard, searchKey, viewerId]
   )
   const { dartLoading, dartError } = useDartListRead({

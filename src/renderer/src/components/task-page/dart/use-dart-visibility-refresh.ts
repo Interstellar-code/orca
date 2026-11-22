@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { isWindowVisible } from '@/lib/window-visibility-interval'
+import { isWindowVisible } from '@/lib/window-activity/window-visibility-interval'
 
 const REFRESH_AFTER_MS = 2 * 60_000
 

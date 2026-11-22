@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 import { copyDescriptionText } from './dart-description-copy'
 import type { DartDescriptionDraftHunk } from './dart-draft-store'
 import { DartDescriptionHunkTexts } from './DartDescriptionHunkTexts'
@@ -36,6 +36,7 @@ export function DartDescriptionConflictDialog({
   onDiscard: () => void
   onCloseAutoFocus?: (event: Event) => void
 }): React.JSX.Element {
+  const t = useTranslate()
   const backToEditingRef = useRef<HTMLButtonElement | null>(null)
   return (
     <Dialog open onOpenChange={(open) => !open && onBackToEditing()}>
@@ -54,7 +55,7 @@ export function DartDescriptionConflictDialog({
           <div className="flex items-center gap-2">
             <AlertTriangle className="size-4 flex-none text-muted-foreground" />
             <DialogTitle size="compact">
-              {translate(
+              {t(
                 'auto.components.task.page.dart.DartDescriptionConflictDialog.title',
                 'This description changed in Dart while you were editing'
               )}
@@ -62,11 +63,11 @@ export function DartDescriptionConflictDialog({
           </div>
           <DialogDescription size="compact">
             {writeMayHaveLanded
-              ? translate(
+              ? t(
                   'auto.components.task.page.dart.DartDescriptionConflictDialog.bodyUnknown',
                   'Dart may have saved part of this change. Compare the texts below before continuing.'
                 )
-              : translate(
+              : t(
                   'auto.components.task.page.dart.DartDescriptionConflictDialog.body',
                   'Nothing was saved and nothing was overwritten. Your text is below so you can copy it.'
                 )}
@@ -74,7 +75,7 @@ export function DartDescriptionConflictDialog({
         </DialogHeader>
         <div className="min-w-0 space-y-1">
           <p className="text-xs font-medium text-muted-foreground">
-            {translate(
+            {t(
               'auto.components.task.page.dart.DartDescriptionConflictDialog.latest',
               'Now in Dart'
             )}
@@ -84,7 +85,7 @@ export function DartDescriptionConflictDialog({
         <div className="min-w-0 space-y-1">
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs font-medium text-muted-foreground">
-              {translate(
+              {t(
                 'auto.components.task.page.dart.DartDescriptionConflictDialog.yourText',
                 'Your text'
               )}
@@ -96,7 +97,7 @@ export function DartDescriptionConflictDialog({
               onClick={() => void copyDescriptionText(editorText)}
             >
               <Copy />
-              {translate('auto.components.task.page.dart.DartDescription.copy', 'Copy')}
+              {t('auto.components.task.page.dart.DartDescription.copy', 'Copy')}
             </Button>
           </div>
           <div className={PANEL_CLASS} data-testid="dart-description-conflict-editor-text">
@@ -106,7 +107,7 @@ export function DartDescriptionConflictDialog({
         {unresolved.length > 0 ? (
           <div className="min-w-0 space-y-1">
             <p className="text-xs font-medium text-muted-foreground">
-              {translate(
+              {t(
                 'auto.components.task.page.dart.DartDescriptionConflictDialog.unresolved',
                 "Changes Orca couldn't apply"
               )}
@@ -122,13 +123,13 @@ export function DartDescriptionConflictDialog({
         ) : null}
         <DialogFooter>
           <Button type="button" variant="ghost" size="sm" onClick={onDiscard}>
-            {translate(
+            {t(
               'auto.components.task.page.dart.DartDescriptionConflictDialog.discard',
               'Discard my changes'
             )}
           </Button>
           <Button ref={backToEditingRef} type="button" size="sm" onClick={onBackToEditing}>
-            {translate(
+            {t(
               'auto.components.task.page.dart.DartDescriptionConflictDialog.backToEditing',
               'Back to editing'
             )}

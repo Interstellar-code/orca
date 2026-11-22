@@ -2,9 +2,9 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DartTask } from '../../../../../shared/dart/dart-types'
-import type { TaskSourceContext } from '../../../../../shared/task-source-context'
+import type { TaskSourceContext } from '../../../../../shared/work-items/task-source-context'
 import type { DartServerFilters } from '@/components/task-page/dart/dart-board-contracts'
-import { createTestStore } from '../store-test-helpers'
+import { createTestStore } from '@/store/testing/app-store-test-fixture'
 import {
   dartTaskFixture,
   installFakeDartRuntime,

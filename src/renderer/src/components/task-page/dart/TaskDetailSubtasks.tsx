@@ -1,7 +1,7 @@
 import type { DartTask } from '../../../../../shared/dart/dart-types'
 import { Button } from '@/components/ui/button'
-import { openAppHttpLink } from '@/lib/app-http-link-open'
-import { translate } from '@/i18n/i18n'
+import { openAppHttpLink } from '@/lib/browser/navigation/app-http-link-open'
+import { useTranslate } from '@/i18n/use-translate'
 import { isDartTaskFinished } from './dart-board-columns'
 import type { DartRelationshipsApi } from './dart-board-contracts'
 import { DartRelatedTaskButton } from './DartRelatedTaskButton'
@@ -18,6 +18,7 @@ export function TaskDetailSubtasks({
   relationships,
   onOpenRelatedTask
 }: TaskDetailSubtasksProps): React.JSX.Element | null {
+  const t = useTranslate()
   const { subtasks, task, state } = relationships
   if (state === 'notChecked') {
     return null
@@ -31,17 +32,17 @@ export function TaskDetailSubtasks({
     <section className="space-y-2 border-t border-border/60 px-4 py-4">
       <div className="flex items-center justify-between gap-2">
         <SectionHeading>
-          {translate('auto.components.task.page.dart.TaskDetailSubtasks.heading', 'Subtasks')}
+          {t('auto.components.task.page.dart.TaskDetailSubtasks.heading', 'Subtasks')}
         </SectionHeading>
         {page && loaded.length > 0 ? (
           <span className="text-2xs text-muted-foreground">
             {truncated
-              ? translate(
+              ? t(
                   'auto.components.task.page.dart.TaskDetailSubtasks.loadedDone',
                   '{{done}} of {{loaded}} loaded done',
                   { done, loaded: loaded.length }
                 )
-              : translate(
+              : t(
                   'auto.components.task.page.dart.TaskDetailSubtasks.doneCount',
                   '{{done}} of {{total}} done',
                   { done, total: page.total }
@@ -53,10 +54,7 @@ export function TaskDetailSubtasks({
         <InlineError
           message={
             subtasks.error ??
-            translate(
-              'auto.components.task.page.dart.TaskDetailSubtasks.error',
-              'Could not load subtasks'
-            )
+            t('auto.components.task.page.dart.TaskDetailSubtasks.error', 'Could not load subtasks')
           }
           onRetry={subtasks.retry}
         />
@@ -64,7 +62,7 @@ export function TaskDetailSubtasks({
         <SkeletonLines />
       ) : loaded.length === 0 && !truncated ? (
         <p className="text-xs text-muted-foreground">
-          {translate('auto.components.task.page.dart.TaskDetailSubtasks.none', 'No subtasks')}
+          {t('auto.components.task.page.dart.TaskDetailSubtasks.none', 'No subtasks')}
         </p>
       ) : loaded.length === 0 ? null : (
         <ul className="space-y-0.5">
@@ -77,7 +75,7 @@ export function TaskDetailSubtasks({
       )}
       {truncated && page ? (
         <p className="flex flex-wrap items-center gap-x-1 text-xs text-muted-foreground">
-          {translate(
+          {t(
             'auto.components.task.page.dart.TaskDetailSubtasks.showing',
             'Showing {{loaded}} of {{total}}',
             { loaded: loaded.length, total: page.total }
@@ -91,17 +89,14 @@ export function TaskDetailSubtasks({
                 size="xs"
                 onClick={(event) => openAppHttpLink(openUrl, { event })}
               >
-                {translate(
-                  'auto.components.task.page.dart.TaskDetailSubtasks.openInDart',
-                  'Open in Dart'
-                )}
+                {t('auto.components.task.page.dart.TaskDetailSubtasks.openInDart', 'Open in Dart')}
               </Button>
             </>
           ) : null}
         </p>
       ) : null}
       <p className="text-xs text-muted-foreground">
-        {translate(
+        {t(
           'auto.components.task.page.dart.TaskDetailSubtasks.addLater',
           'Adding subtasks from Orca comes later.'
         )}

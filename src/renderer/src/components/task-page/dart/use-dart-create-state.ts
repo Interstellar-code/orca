@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Dispatch, RefObject, SetStateAction } from 'react'
 import type { DartTask } from '../../../../../shared/dart/dart-types'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 import { dartSupportsWritesV2ForTarget } from '@/runtime/runtime-dart-write-client'
 import { getDartReadScope, type DartReadScope } from '@/store/slices/dart/dart-read-coordination'
 import { dartScopeViewerId } from '@/store/slices/dart/dart-task-identity'
@@ -204,6 +204,7 @@ export function useDartCreateAccountCheck(): {
   retryAccountCheck(): Promise<void>
   accountCheckNotice: { kind: 'unknown'; message: string }
 } {
+  const t = useTranslate()
   const checkDartConnection = useAppStore((state) => state.checkDartConnection)
   const retryAccountCheck = useCallback(async (): Promise<void> => {
     await checkDartConnection()
@@ -212,7 +213,7 @@ export function useDartCreateAccountCheck(): {
     retryAccountCheck,
     accountCheckNotice: {
       kind: 'unknown',
-      message: translate(
+      message: t(
         'auto.components.task.page.dart.TaskCreateDialog.checkingAccount',
         'Checking your Dart account.'
       )

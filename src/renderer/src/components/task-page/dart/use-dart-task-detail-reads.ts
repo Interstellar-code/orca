@@ -14,8 +14,11 @@ import type {
   DartUser,
   DartWorkspaceConfig
 } from '../../../../../shared/dart/dart-types'
-import type { TaskSourceContext } from '../../../../../shared/task-source-context'
-import { taskProviderErrorMessage, taskProviderErrorText } from '@/lib/task-provider-error-copy'
+import type { TaskSourceContext } from '../../../../../shared/work-items/task-source-context'
+import {
+  taskProviderErrorMessage,
+  taskProviderErrorText
+} from '@/lib/work-items/task-provider-error-copy'
 import { dartStatusForTarget, type DartClientResult } from '@/runtime/runtime-dart-client'
 import { dartSupportsWritesV2ForTarget } from '@/runtime/runtime-dart-write-client'
 import { useAppStore } from '@/store'

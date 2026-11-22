@@ -1,17 +1,14 @@
-import type { Worktree } from '../../../../../shared/worktree/types'
 import { defineFixture } from '../../../component-fixtures/component-fixture'
 import { TaskPageDartFiltersView } from './Filters'
-import { fixtureConfig, fixtureHierarchyTasks, fixtureTasks } from './dart-task.mock'
+import {
+  fixtureConfig,
+  fixtureHierarchyTasks,
+  fixtureLinkedWorkspace,
+  fixtureTasks
+} from './dart-task.mock'
 import { TaskPageDartTaskList } from './TaskList'
 import { useStubNestedListModel } from './TaskList.nested.test-support'
 import { DEFAULT_DART_LIST_FILTERS } from './task-page-dart-list-model'
-
-const linkedWorkspace = {
-  id: 'wt-fix-search',
-  displayName: 'fix-search-ranking',
-  branch: 'fix-search-ranking',
-  path: '/work/fix-search-ranking'
-} as Worktree
 
 const nestedScope = [
   { ...fixtureHierarchyTasks[0], tags: ['billing'] },
@@ -57,7 +54,7 @@ function ListShell({
           tasks={nested ? nestedScope : fixtureTasks}
           nested={nested ? model : undefined}
           selectedTaskId={null}
-          getTaskWorkspaces={(task) => (task.id === 'aB3dE5gH7jK9' ? [linkedWorkspace] : [])}
+          getTaskWorkspaces={(task) => (task.id === 'aB3dE5gH7jK9' ? [fixtureLinkedWorkspace] : [])}
           onOpenTask={() => {}}
           onStartWorkspace={() => {}}
           onOpenWorkspace={() => {}}

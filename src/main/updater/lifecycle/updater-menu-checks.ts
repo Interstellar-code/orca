@@ -1,13 +1,13 @@
 import { app } from 'electron'
 import { isMacInstallRequested } from '../mac-install/updater-mac-install'
 import { recordUpdaterLifecycle } from '../updater-lifecycle-diagnostics'
-import type { UpdateCheckOptions } from '../../../shared/update-status-types'
-import type { ReleaseChannel } from '../../../shared/release-channel'
+import type { UpdateCheckOptions } from '../../../shared/updater/update-status-types'
+import type { ReleaseChannel } from '../../../shared/updater/release-channel'
 import { UpdaterScheduling } from './updater-scheduling'
 
 export const FORK_BUILD_UPDATE_MESSAGE = 'This is a fork build; updates come from the rebuild job'
 
-// Matches the `local.<timestamp>.<commit>` suffix from config/scripts/build-mac-local.mjs; a release version never ends this way.
+// Matches the `local.<timestamp>.<commit>` suffix from config/scripts/desktop-distribution/macos/build-mac-local.mjs; a release version never ends this way.
 const FORK_BUILD_VERSION_PATTERN = /[-.]local\.\d+\.[0-9A-Za-z]+$/
 
 export abstract class UpdaterMenuChecks extends UpdaterScheduling {
@@ -30,7 +30,9 @@ export abstract class UpdaterMenuChecks extends UpdaterScheduling {
     if (
       this.pendingQuitAndInstallTimer ||
       this.quitAndInstallInProgress ||
-      isMacInstallRequested()
+      isMacInstallRequested() ||
+      this.macInstallerStagingVersion !== null ||
+      this.currentStatus.state === 'downloading'
     ) {
       return
     }
@@ -54,10 +56,7 @@ export abstract class UpdaterMenuChecks extends UpdaterScheduling {
     if (this.localBuildSelectionInProgress || this.pinnedBuildSelectionInProgress) {
       return
     }
-    if (
-      this.activeUpdateSource !== 'release' &&
-      (this.currentStatus.state === 'checking' || this.currentStatus.state === 'downloading')
-    ) {
+    if (this.activeUpdateSource !== 'release' && this.currentStatus.state === 'checking') {
       return
     }
     this.restoreReleaseUpdateSource()

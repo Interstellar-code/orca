@@ -1,4 +1,4 @@
-import type { DartCreateSession } from '@/store/slices/task-creation-drafts'
+import type { DartCreateSession } from '@/store/slices/task-creation/task-creation-drafts'
 
 type DartCreateOwnerRecord = { activeOwner: string | null; keys: Record<string, string> }
 

@@ -15,7 +15,7 @@ import type {
   DartListTasksArgs,
   DartUpdateTaskDescriptionArgs
 } from '../../../../../shared/rpc-contract/dart-params'
-import type { TaskSourceContext } from '../../../../../shared/task-source-context'
+import type { TaskSourceContext } from '../../../../../shared/work-items/task-source-context'
 import type { DartClientResult } from '@/runtime/runtime-dart-client'
 import type { DartFieldUpdates, DartWriteResult } from '@/runtime/runtime-dart-write-client'
 import type {
@@ -24,7 +24,7 @@ import type {
   DartScopeReadResult,
   DartServerFilters
 } from '@/components/task-page/dart/dart-board-contracts'
-import type { CacheEntry } from '../../github/cache-model'
+import type { CacheEntry } from '../../github/cache/cache-model'
 import type { AppState } from '../../types'
 import type { DartReadScope } from './dart-read-coordination'
 import type { DartAccountIdentity, DartTaskIdentity } from './dart-task-identity'

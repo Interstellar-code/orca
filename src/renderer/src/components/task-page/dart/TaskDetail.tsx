@@ -1,14 +1,15 @@
 import { useEffect, useRef } from 'react'
 import * as VisuallyHidden from 'radix-ui/visually-hidden'
 import type { DartTask } from '../../../../../shared/dart/dart-types'
-import type { TaskSourceContext } from '../../../../../shared/task-source-context'
+import type { TaskSourceContext } from '../../../../../shared/work-items/task-source-context'
 import type { Worktree } from '../../../../../shared/worktree/types'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 import type { DartOpenTask } from './dart-board-contracts'
 import { DartTaskDetailView } from './TaskDetailView'
 import { useDartTaskDetailData } from './use-dart-task-detail-data'
 import { useDartTaskRelationships } from './use-dart-task-relationships'
+import { whileBusy } from './dart-busy-flag'
 
 export function TaskPageDartTaskDetail({
   task,
@@ -29,6 +30,7 @@ export function TaskPageDartTaskDetail({
   onOpenWorkspace: (workspace: Worktree) => void
   onOpenTask?: DartOpenTask
 }): React.JSX.Element {
+  const t = useTranslate()
   const data = useDartTaskDetailData(task, sourceContext, providerRuntimeContextKey)
   const { runCloseGuards } = data
   const displayed = data.task
@@ -49,16 +51,18 @@ export function TaskPageDartTaskDetail({
     if (closePendingRef.current) {
       return
     }
-    closePendingRef.current = true
     const openedFor = openTaskIdRef.current
-    try {
-      const allowed = await runCloseGuards().catch(() => false)
-      if (allowed && openTaskIdRef.current === openedFor) {
-        proceed()
+    await whileBusy(
+      (busy) => {
+        closePendingRef.current = busy
+      },
+      async () => {
+        const allowed = await runCloseGuards().catch(() => false)
+        if (allowed && openTaskIdRef.current === openedFor) {
+          proceed()
+        }
       }
-    } finally {
-      closePendingRef.current = false
-    }
+    )
   }
   const requestClose = (): Promise<void> => runGuarded(onClose)
   const requestOpenRelated = (related: DartTask): Promise<void> =>
@@ -85,12 +89,12 @@ export function TaskPageDartTaskDetail({
         <VisuallyHidden.Root asChild>
           <SheetTitle>
             {displayed?.title ??
-              translate('auto.components.task.page.dart.TaskDetail.sheetTitle', 'Dart task')}
+              t('auto.components.task.page.dart.TaskDetail.sheetTitle', 'Dart task')}
           </SheetTitle>
         </VisuallyHidden.Root>
         <VisuallyHidden.Root asChild>
           <SheetDescription>
-            {translate(
+            {t(
               'auto.components.task.page.dart.TaskDetail.sheetDescription',
               'Read the selected Dart task and start work from it.'
             )}

@@ -1,4 +1,4 @@
-import '../runtime/rpc/unused-default-rpc-methods.test-fixture'
+import '../runtime/rpc/dispatch/testing/unused-default-rpc-methods.test-fixture'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   FIXTURE_TOKEN,
@@ -37,8 +37,8 @@ async function transports() {
   host = await installDartHost()
   const { registerDartHandlers } = await import('../ipc/dart/register-handlers')
   const { RpcDispatcher } = await import('../runtime/rpc/dispatcher')
-  const { DART_METHODS } = await import('../runtime/rpc/methods/dart')
-  const { RuntimeDartCommands } = await import('../runtime/runtime-dart-commands')
+  const { DART_METHODS } = await import('../runtime/rpc/methods/integrations/dart/dart')
+  const { RuntimeDartCommands } = await import('../runtime/integrations/dart/runtime-dart-commands')
   registerDartHandlers()
   const dart = new RuntimeDartCommands()
   const runtime = {
@@ -626,8 +626,9 @@ describe('dart board page over both transports', () => {
 
   it('advertises the board and saved-view capabilities the host now serves', async () => {
     await transports()
-    const { RUNTIME_CAPABILITIES } = await import('../../shared/protocol-version')
-    const { DART_METHODS } = await import('../runtime/rpc/methods/dart')
+    const { RUNTIME_CAPABILITIES } =
+      await import('../../shared/remote-runtime/protocol/protocol-version')
+    const { DART_METHODS } = await import('../runtime/rpc/methods/integrations/dart/dart')
 
     expect(RUNTIME_CAPABILITIES).toEqual(
       expect.arrayContaining(['dart.board.v1', 'dart.savedViews.v1'])
@@ -673,8 +674,9 @@ describe('dart release B on a release A client and across accounts', () => {
 
   it('advertises relationships and accepts the blocker write, so a client without the capability never needs it', async () => {
     await transports()
-    const { RUNTIME_CAPABILITIES } = await import('../../shared/protocol-version')
-    const { DART_METHODS } = await import('../runtime/rpc/methods/dart')
+    const { RUNTIME_CAPABILITIES } =
+      await import('../../shared/remote-runtime/protocol/protocol-version')
+    const { DART_METHODS } = await import('../runtime/rpc/methods/integrations/dart/dart')
 
     expect(RUNTIME_CAPABILITIES).toContain('dart.relationships.v1')
     const blockers = DART_METHODS.find((method) => method.name === 'dart.updateTaskBlockers')

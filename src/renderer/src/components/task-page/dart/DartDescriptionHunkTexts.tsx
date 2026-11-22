@@ -1,4 +1,4 @@
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 import type { DartDescriptionDraftHunk } from './dart-draft-store'
 
 function HunkText({ label, text, empty }: { label: string; text: string; empty: string }) {
@@ -18,26 +18,21 @@ export function DartDescriptionHunkTexts({
 }: {
   hunk: DartDescriptionDraftHunk
 }): React.JSX.Element {
+  const t = useTranslate()
   return (
     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
       <HunkText
-        label={translate(
+        label={t(
           'auto.components.task.page.dart.DartDescriptionHunk.dartVersion',
           "Dart's version when you started"
         )}
         text={hunk.baseText}
-        empty={translate(
-          'auto.components.task.page.dart.DartDescriptionHunk.noText',
-          '(no text here)'
-        )}
+        empty={t('auto.components.task.page.dart.DartDescriptionHunk.noText', '(no text here)')}
       />
       <HunkText
-        label={translate(
-          'auto.components.task.page.dart.DartDescriptionHunk.yourVersion',
-          'Your version'
-        )}
+        label={t('auto.components.task.page.dart.DartDescriptionHunk.yourVersion', 'Your version')}
         text={hunk.userText}
-        empty={translate(
+        empty={t(
           'auto.components.task.page.dart.DartDescriptionHunk.removed',
           '(you removed this text)'
         )}

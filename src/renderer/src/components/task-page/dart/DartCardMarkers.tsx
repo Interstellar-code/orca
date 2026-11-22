@@ -1,8 +1,9 @@
 import { Ban, ListTree } from 'lucide-react'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 import type { DartCardInfo } from './dart-board-contracts'
 
 export function DartCardMarkers({ info }: { info: DartCardInfo }): React.JSX.Element | null {
+  const t = useTranslate()
   const blockedBy = info.blockedBy ?? 0
   const blocking = info.blocking ?? 0
   const subtaskCount = info.subtasks ? (info.subtasks.total ?? info.subtasks.loaded) : 0
@@ -16,7 +17,7 @@ export function DartCardMarkers({ info }: { info: DartCardInfo }): React.JSX.Ele
       {subtaskCount > 0 ? (
         <span
           className="flex items-center gap-1"
-          aria-label={translate(
+          aria-label={t(
             'auto.components.task.page.dart.DartBoardCard.subtasks',
             'Subtasks {{count}}',
             { count: subtaskCount }
@@ -30,7 +31,7 @@ export function DartCardMarkers({ info }: { info: DartCardInfo }): React.JSX.Ele
         <span
           role="img"
           className="flex items-center gap-1 text-foreground"
-          aria-label={translate(
+          aria-label={t(
             'auto.components.task.page.dart.DartBoardCard.blockedBy',
             'Blocked by {{count}}',
             { count: blockedBy }
@@ -44,7 +45,7 @@ export function DartCardMarkers({ info }: { info: DartCardInfo }): React.JSX.Ele
         <span
           role="img"
           className="flex items-center gap-1"
-          aria-label={translate(
+          aria-label={t(
             'auto.components.task.page.dart.DartBoardCard.blocking',
             'Blocking {{count}}',
             { count: blocking }
@@ -56,7 +57,7 @@ export function DartCardMarkers({ info }: { info: DartCardInfo }): React.JSX.Ele
       ) : null}
       {notChecked ? (
         <span>
-          {translate(
+          {t(
             'auto.components.task.page.dart.DartBoardCard.blockersNotChecked',
             'Blockers not checked'
           )}

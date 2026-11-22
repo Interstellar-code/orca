@@ -8,7 +8,7 @@ import {
 } from '@/runtime/runtime-dart-write-client'
 import { translate } from '@/i18n/i18n'
 import type { DartSlice, DartSliceGet, DartSliceSet } from './dart-slice-contract'
-import type { TaskSourceContext } from '../../../../../shared/task-source-context'
+import type { TaskSourceContext } from '../../../../../shared/work-items/task-source-context'
 import {
   beginDartMutation,
   currentDartConnectionGeneration,

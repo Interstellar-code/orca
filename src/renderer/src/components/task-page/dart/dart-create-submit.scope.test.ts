@@ -8,7 +8,7 @@ import {
 } from '@/store/slices/dart/dart-fake-runtime.test-support'
 import { getDartReadScope } from '@/store/slices/dart/dart-read-coordination'
 import { dartScopeHostKey } from '@/store/slices/dart/dart-task-identity'
-import type { DartCreateSession } from '@/store/slices/task-creation-drafts'
+import type { DartCreateSession } from '@/store/slices/task-creation/task-creation-drafts'
 import { submitDartCreate } from './dart-create-submit'
 
 const HOST_A = 'create-scope-host-a'

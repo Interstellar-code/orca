@@ -1,22 +1,25 @@
-import { localAiVaultScanRoots } from '../cached-session-list'
+import { localAiVaultScanRoots } from '../discovery/ai-vault-scan-roots'
 import type { SessionSearchHostScope } from '../../ai-vault-search/session-search-service'
 import { fork, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
+import { totalmem } from 'node:os'
 import type {
   AiVaultSearchRequest,
   AiVaultSearchResponse,
   AiVaultSearchStatus
-} from '../../../shared/ai-vault-search-types'
-import type { AiVaultListResult, AiVaultSubagentListResult } from '../../../shared/ai-vault-types'
+} from '../../../shared/ai-vault/search/ai-vault-search-types'
+import type {
+  AiVaultListResult,
+  AiVaultSubagentListResult,
+  AiVaultFirstUserPromptResult as ReadAiVaultFirstUserPromptResult
+} from '../../../shared/ai-vault/contracts/ai-vault-types'
 import type {
   AiVaultSessionTitleRequest,
   AiVaultSessionTitlesResult
-} from '../../../shared/ai-vault-session-title'
+} from '../../../shared/ai-vault/contracts/ai-vault-session-title'
 import { withSpan } from '../../observability/tracer'
-import type {
-  ReadAiVaultFirstUserPromptArgs,
-  ReadAiVaultFirstUserPromptResult
-} from '../session-first-user-prompt-read'
+import type { ReadAiVaultFirstUserPromptArgs } from '../prompts/session-first-user-prompt-read'
+
 import { sessionSearchServiceInit } from '../../ai-vault-search/session-search-service-init'
 import { getSessionParseCachePersistenceOptions } from '../parse-cache/session-parse-cache-persistence'
 import { buildAiVaultServiceEnv } from './session-scanner-service-env'
@@ -32,16 +35,36 @@ import type {
 import {
   requestLocalAiVaultScan,
   type LocalAiVaultScanProgressHandle
-} from '../ai-vault-local-scan-progress'
+} from '../scan-lifecycle/ai-vault-local-scan-progress'
 
-export function spawnAiVaultServiceProcess(): ChildProcess {
+const AI_VAULT_SERVICE_HEAP_MB = 384
+const AI_VAULT_SERVICE_HEAP_AFTER_OOM_MB = 1024
+
+// A history that exhausted the default heap would exhaust it again on every Refresh.
+function aiVaultServiceHeapMb(afterOutOfMemory: boolean): number {
+  if (!afterOutOfMemory) {
+    return AI_VAULT_SERVICE_HEAP_MB
+  }
+  // Small or containerized hosts give the scanner at most a quarter of their memory.
+  const constrained = process.constrainedMemory()
+  const memory = constrained > 0 ? Math.min(constrained, totalmem()) : totalmem()
+  const quarterOfMemoryMb = Math.floor(memory / 4 / 1024 ** 2)
+  return Math.max(
+    AI_VAULT_SERVICE_HEAP_MB,
+    Math.min(AI_VAULT_SERVICE_HEAP_AFTER_OOM_MB, quarterOfMemoryMb)
+  )
+}
+
+export function spawnAiVaultServiceProcess(
+  options: { afterOutOfMemory: boolean } = { afterOutOfMemory: false }
+): ChildProcess {
   const entryPath = getAiVaultServiceEntryPath()
   if (!existsSync(entryPath)) {
     throw new Error(`AI Vault service entry not found: ${entryPath}`)
   }
   const child = fork(entryPath, [], {
     stdio: ['ignore', 'ignore', 'pipe', 'ipc'],
-    execArgv: ['--max-old-space-size=384'],
+    execArgv: [`--max-old-space-size=${aiVaultServiceHeapMb(options.afterOutOfMemory)}`],
     env: buildAiVaultServiceEnv(),
     ...(process.platform === 'win32' ? { windowsHide: true } : {})
   })

@@ -1,4 +1,4 @@
-import type { HandlerGroup } from '../handler-group-manifest'
+import type { HandlerGroup } from '../dispatch/handler-group-manifest'
 
 export const DART_HANDLER_GROUP: HandlerGroup = {
   name: 'dart',
@@ -12,5 +12,5 @@ export const DART_HANDLER_GROUP: HandlerGroup = {
     'dart create',
     'dart update'
   ],
-  load: async () => (await import('../handlers/dart.js')).DART_HANDLERS
+  load: async () => (await import('./dart.js')).DART_HANDLERS
 }

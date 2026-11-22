@@ -19,14 +19,15 @@ import type {
   DartListTasksArgs,
   DartMethodName
 } from '../../../shared/rpc-contract/dart-params'
-import type { RuntimeClientTarget } from '../../../shared/runtime-client-target'
-import type { SecretAtRestProtection } from '../../../shared/secret-at-rest-protection'
+import type { RuntimeClientTarget } from '../../../shared/remote-runtime/host-catalog/runtime-client-target'
+import type { SecretAtRestProtection } from '../../../shared/secure-storage/secret-at-rest-protection'
 import {
   taskProviderFailure,
   type TaskProviderErrorCode
-} from '../../../shared/task-provider-failure'
+} from '../../../shared/work-items/task-provider-failure'
 import { translate } from '@/i18n/i18n'
-import { callRuntimeRpc, runtimeEnvironmentSupportsCapability } from './runtime-rpc-client'
+import { callRuntimeRpc } from './rpc/calls/runtime-rpc-call'
+import { runtimeEnvironmentSupportsCapability } from './rpc/compatibility/runtime-capability-proof'
 
 /** A contract failure, or the client's own "update the remote server" refusal (no error code). */
 export type DartClientFailure = { ok: false; error: string; errorCode?: TaskProviderErrorCode }
@@ -116,10 +117,10 @@ async function callDart<T extends object>(
   target: RuntimeClientTarget,
   method: DartMethodName,
   params: unknown,
-  local: () => Promise<unknown>,
+  local: () => Promise<DartClientResult<T>>,
   timeoutMs = READ_TIMEOUT_MS
 ): Promise<DartClientResult<T>> {
-  let reply: unknown
+  let reply: DartClientResult<T>
   if (target.kind === 'environment') {
     // No local fallback: a host without the capability must be updated, not bypassed.
     if (
@@ -131,7 +132,7 @@ async function callDart<T extends object>(
     ) {
       return { ok: false, error: dartUpdateRequiredMessage() }
     }
-    reply = await callRuntimeRpc<unknown>(target, method, params, { timeoutMs })
+    reply = await callRuntimeRpc<DartClientResult<T>>(target, method, params, { timeoutMs })
   } else {
     reply = await local()
   }
@@ -141,8 +142,7 @@ async function callDart<T extends object>(
   if (!isRecord(reply) || reply.ok !== true) {
     return malformedReplyFailure()
   }
-  // SAFETY: the host replies with the DartResult<T> shape for this method; the checks above confirm ok: true.
-  return reply as { ok: true } & T
+  return reply
 }
 
 export async function dartStatusForTarget(

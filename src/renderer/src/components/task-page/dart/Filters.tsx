@@ -14,8 +14,8 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { translate } from '@/i18n/i18n'
-import { shouldSuppressEnterSubmit } from '@/lib/new-workspace-enter-guard'
+import { useTranslate } from '@/i18n/use-translate'
+import { shouldSuppressEnterSubmit } from '@/lib/workspace/creation/new-workspace-enter-guard'
 import type { TaskPageComposerActionsModel } from '../use-task-page-composer-actions'
 import { hasDartOnHoldOption } from './dart-board-columns'
 import type { DartSavedViewsModel } from './dart-board-contracts'
@@ -114,6 +114,7 @@ export function TaskPageDartFiltersView({
   newTaskDisabled,
   board
 }: TaskPageDartFiltersProps): React.JSX.Element {
+  const t = useTranslate()
   const phase3Controls = board !== undefined && !board.listOnly
   const onHoldOffered = phase3Controls && config ? hasDartOnHoldOption(config) : false
   const relationshipsControls = phase3Controls && board.relationshipsHost
@@ -144,7 +145,7 @@ export function TaskPageDartFiltersView({
               disabled={!viewerAvailable || hasWorkspace}
               onClick={() => onFilterChange('mine', true)}
             >
-              {translate('auto.components.task.page.dart.Filters.assignedToMe', 'Assigned to me')}
+              {t('auto.components.task.page.dart.Filters.assignedToMe', 'Assigned to me')}
             </Button>
             <Button
               type="button"
@@ -154,27 +155,21 @@ export function TaskPageDartFiltersView({
               disabled={hasWorkspace}
               onClick={() => onFilterChange('mine', false)}
             >
-              {translate('auto.components.task.page.dart.Filters.allTasks', 'All tasks')}
+              {t('auto.components.task.page.dart.Filters.allTasks', 'All tasks')}
             </Button>
           </ButtonGroup>
           <FilterSelect
-            label={translate('auto.components.task.page.dart.Filters.statusFilter', 'Status')}
+            label={t('auto.components.task.page.dart.Filters.statusFilter', 'Status')}
             value={filters.status}
-            allLabel={translate(
-              'auto.components.task.page.dart.Filters.allStatuses',
-              'All statuses'
-            )}
+            allLabel={t('auto.components.task.page.dart.Filters.allStatuses', 'All statuses')}
             options={config?.statuses ?? []}
             disabled={serverFiltersDisabled}
             onChange={(value) => onFilterChange('status', value)}
           />
           <FilterSelect
-            label={translate('auto.components.task.page.dart.Filters.dartboardFilter', 'Dartboard')}
+            label={t('auto.components.task.page.dart.Filters.dartboardFilter', 'Dartboard')}
             value={filters.dartboard}
-            allLabel={translate(
-              'auto.components.task.page.dart.Filters.allDartboards',
-              'All dartboards'
-            )}
+            allLabel={t('auto.components.task.page.dart.Filters.allDartboards', 'All dartboards')}
             options={config?.dartboards ?? []}
             disabled={serverFiltersDisabled}
             onChange={(value) => onFilterChange('dartboard', value)}
@@ -182,20 +177,17 @@ export function TaskPageDartFiltersView({
           {phase3Controls ? (
             <>
               <FilterSelect
-                label={translate('auto.components.task.page.dart.Filters.tagFilter', 'Tag')}
+                label={t('auto.components.task.page.dart.Filters.tagFilter', 'Tag')}
                 value={filters.tag ?? null}
-                allLabel={translate('auto.components.task.page.dart.Filters.allTags', 'All tags')}
+                allLabel={t('auto.components.task.page.dart.Filters.allTags', 'All tags')}
                 options={config?.tags ?? []}
                 disabled={false}
                 onChange={(value) => onFilterChange('tag', value)}
               />
               <FilterSelect
-                label={translate(
-                  'auto.components.task.page.dart.Filters.priorityFilter',
-                  'Priority'
-                )}
+                label={t('auto.components.task.page.dart.Filters.priorityFilter', 'Priority')}
                 value={filters.priority ?? null}
-                allLabel={translate(
+                allLabel={t(
                   'auto.components.task.page.dart.Filters.allPriorities',
                   'All priorities'
                 )}
@@ -211,7 +203,7 @@ export function TaskPageDartFiltersView({
                   aria-pressed={Boolean(filters.onHold)}
                   onClick={() => onFilterChange('onHold', !filters.onHold)}
                 >
-                  {translate('auto.components.task.page.dart.Filters.onHold', 'On hold')}
+                  {t('auto.components.task.page.dart.Filters.onHold', 'On hold')}
                 </Button>
               ) : null}
               {onHoldOffered && relationshipsControls ? (
@@ -222,10 +214,7 @@ export function TaskPageDartFiltersView({
                   aria-pressed={Boolean(filters.blockedOnHold)}
                   onClick={() => onFilterChange('blockedOnHold', !filters.blockedOnHold)}
                 >
-                  {translate(
-                    'auto.components.task.page.dart.Filters.blockedOnHold',
-                    'Blocked (on hold)'
-                  )}
+                  {t('auto.components.task.page.dart.Filters.blockedOnHold', 'Blocked (on hold)')}
                 </Button>
               ) : null}
               {relationshipsControls ? (
@@ -236,7 +225,7 @@ export function TaskPageDartFiltersView({
                     onCheckedChange={board.onNestSubtasksChange}
                   />
                   <Label htmlFor="dart-nest-subtasks">
-                    {translate(
+                    {t(
                       'auto.components.task.page.dart.Filters.nestSubtasks',
                       'Show subtasks nested'
                     )}
@@ -251,7 +240,7 @@ export function TaskPageDartFiltersView({
                     onCheckedChange={board.onShowEmptyColumnsChange}
                   />
                   <Label htmlFor="dart-show-empty-columns">
-                    {translate(
+                    {t(
                       'auto.components.task.page.dart.Filters.showEmptyColumns',
                       'Show empty columns'
                     )}
@@ -272,7 +261,7 @@ export function TaskPageDartFiltersView({
                 onHasWorkspaceChange(!hasWorkspace)
               }}
             >
-              {translate('auto.components.task.page.dart.Filters.hasWorkspace', 'Has Workspace')}
+              {t('auto.components.task.page.dart.Filters.hasWorkspace', 'Has Workspace')}
             </Button>
           )}
         </div>
@@ -285,7 +274,7 @@ export function TaskPageDartFiltersView({
             disabled={newTaskDisabled}
             onClick={onNewTask}
           >
-            {translate('auto.components.task.page.dart.Filters.newTask', 'New task')}
+            {t('auto.components.task.page.dart.Filters.newTask', 'New task')}
           </Button>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -295,7 +284,7 @@ export function TaskPageDartFiltersView({
                 size="icon"
                 onClick={onRefresh}
                 disabled={loading}
-                aria-label={translate(
+                aria-label={t(
                   'auto.components.task.page.dart.Filters.refresh',
                   'Refresh Dart tasks'
                 )}
@@ -308,7 +297,7 @@ export function TaskPageDartFiltersView({
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom" sideOffset={6}>
-              {translate('auto.components.task.page.dart.Filters.refresh', 'Refresh Dart tasks')}
+              {t('auto.components.task.page.dart.Filters.refresh', 'Refresh Dart tasks')}
             </TooltipContent>
           </Tooltip>
         </div>
@@ -332,14 +321,11 @@ export function TaskPageDartFiltersView({
               onSearchApply(searchInput)
             }
           }}
-          aria-label={translate('auto.components.task.page.dart.Filters.searchLabel', 'Search')}
+          aria-label={t('auto.components.task.page.dart.Filters.searchLabel', 'Search')}
           placeholder={
             hasWorkspace
-              ? translate(
-                  'auto.components.task.page.dart.Filters.searchLinked',
-                  'Search linked tasks'
-                )
-              : translate(
+              ? t('auto.components.task.page.dart.Filters.searchLinked', 'Search linked tasks')
+              : t(
                   'auto.components.task.page.dart.Filters.searchTitles',
                   'Search task titles, then press Enter'
                 )
@@ -350,10 +336,7 @@ export function TaskPageDartFiltersView({
             type="button"
             variant="ghost"
             size="icon-sm"
-            aria-label={translate(
-              'auto.components.task.page.dart.Filters.clearSearch',
-              'Clear search'
-            )}
+            aria-label={t('auto.components.task.page.dart.Filters.clearSearch', 'Clear search')}
             onClick={() => {
               onSearchInputChange('')
               onSearchApply('')

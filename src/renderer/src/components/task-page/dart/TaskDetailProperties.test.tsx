@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DartTask, DartWorkspaceConfig } from '../../../../../shared/dart/dart-types'
 import { DART_WRITES_V2_RUNTIME_CAPABILITY } from '../../../../../shared/dart/dart-capabilities'
 import { dartSupportsWritesV2ForTarget } from '@/runtime/runtime-dart-write-client'
-import { createCompatibleRuntimeStatusResponse } from '@/runtime/runtime-compatibility-test-fixture'
+import { createCompatibleRuntimeStatusResponse } from '@/runtime/rpc/testing/runtime-compatibility-test-fixture'
 import type { FakeDartHost } from '@/store/slices/dart/dart-fake-runtime.test-support'
 import {
   dartDetailViewer,

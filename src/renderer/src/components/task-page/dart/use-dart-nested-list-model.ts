@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { DartTask } from '../../../../../shared/dart/dart-types'
 import { useAppStore } from '@/store'
 import { scopedDartCacheKey, type DartReadScope } from '@/store/slices/dart/dart-read-coordination'
@@ -65,11 +65,13 @@ export function useDartNestedListModel(args: {
   const reads = current?.reads ?? NO_READS
 
   const live = useRef({ scopeId, pageScope })
-  live.current = { scopeId, pageScope }
+  useLayoutEffect(() => {
+    live.current = { scopeId, pageScope }
+  })
   const inflight = useRef(new Set<string>())
   const readPublication = useRef(new Map<string, number | undefined>())
   const erroredEntry = useRef(new Map<string, unknown>())
-  const timers = useRef(new Set<ReturnType<typeof setTimeout>>())
+  const timers = useRef(new Set<number>())
   useEffect(() => {
     const pending = timers.current
     return () => {
@@ -106,7 +108,7 @@ export function useDartNestedListModel(args: {
       inflight.current.add(flight)
       readPublication.current.set(flight, publicationId)
       writeReads(readScope, (prev) => ({ ...prev, [parentId]: { phase: 'running' } }))
-      const timer = setTimeout(() => {
+      const timer = window.setTimeout(() => {
         timers.current.delete(timer)
         writeReads(readScope, (prev) =>
           prev[parentId]?.phase === 'running' ? { ...prev, [parentId]: { phase: 'slow' } } : prev

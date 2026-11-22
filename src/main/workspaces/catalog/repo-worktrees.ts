@@ -1,17 +1,20 @@
 import { preserveFolderUpgradeWorktreePath } from './folder-upgrade-worktree-path'
-import type { Repo } from '../../../shared/repo-types'
+import type { Repo } from '../../../shared/repository/repo-types'
 import type { GitWorktreeInfo } from '../../../shared/worktree/types'
 import {
   listWorktreeGraph,
   listWorktrees,
   listWorktreesSharedStrictAllowingTrueEmpty
-} from '../../git/worktree-scan-cache'
-import { listWorktreesStrict } from '../../git/worktree-listing'
-import { isFolderRepo } from '../../../shared/repo-kind'
-import { getRepoExecutionHostId, LOCAL_EXECUTION_HOST_ID } from '../../../shared/execution-host'
+} from '../../git/worktrees/catalog/worktree-scan-cache'
+import { listWorktreesStrict } from '../../git/worktrees/catalog/worktree-listing'
+import { isFolderRepo } from '../../../shared/repository/repo-kind'
+import {
+  getRepoExecutionHostId,
+  LOCAL_EXECUTION_HOST_ID
+} from '../../../shared/execution-host/execution-host'
 import { resolveGitRouteForHost } from '../../providers/execution-host-provider-dispatch'
-import { areWorktreePathsEqual } from '../../git/worktree-path-comparison'
-import { WorktreeCatalogUnavailableError } from '../../../shared/worktree/worktree-catalog-availability'
+import { areWorktreePathsEqual } from '../../git/worktrees/catalog/worktree-path-comparison'
+import { WorktreeCatalogUnavailableError } from '../../../shared/worktree/catalog/worktree-catalog-availability'
 
 type LocalRepoWorktreeListOptions = {
   wslDistro?: string

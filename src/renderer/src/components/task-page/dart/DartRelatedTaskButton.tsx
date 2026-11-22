@@ -1,6 +1,6 @@
 import type { DartTask } from '../../../../../shared/dart/dart-types'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/class-names'
 import { getDartStatusTone } from './task-page-dart-list-model'
 
 export function DartRelatedTaskButton({

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { TaskSourceContext } from '../../../../../shared/task-source-context'
-import { bumpProviderRuntimeSessionGeneration } from '@/lib/provider-runtime-context'
+import type { TaskSourceContext } from '../../../../../shared/work-items/task-source-context'
+import { bumpProviderRuntimeSessionGeneration } from '@/runtime/hosts/observations/provider-runtime-context'
 import { getDartReadScope } from './dart-read-coordination'
 import {
   aliasPrefixesFor,

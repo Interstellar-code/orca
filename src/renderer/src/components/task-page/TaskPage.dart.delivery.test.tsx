@@ -6,9 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import type { DartComment } from '../../../../shared/dart/dart-types'
 import type { Worktree } from '../../../../shared/worktree/types'
-import type { TaskSourceContext } from '../../../../shared/task-source-context'
-import { installAppKeyboardRouter } from '@/lib/app-keyboard-router'
-import { createCompatibleRuntimeStatusResponse } from '@/runtime/runtime-compatibility-test-fixture'
+import type { TaskSourceContext } from '../../../../shared/work-items/task-source-context'
+import { installAppKeyboardRouter } from '@/lib/keyboard/app-keyboard-router'
+import { createCompatibleRuntimeStatusResponse } from '@/runtime/rpc/testing/runtime-compatibility-test-fixture'
 import { useAppStore } from '@/store'
 import type { FakeDartHost } from '@/store/slices/dart/dart-fake-runtime.test-support'
 import { clearDartProviderVerdictCacheForTests } from '@/web/preload-api/web-dart-api'
@@ -26,20 +26,22 @@ import {
 import TaskPage from './TaskPage'
 
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
-vi.mock('@/components/PullRequestPage', () => ({ default: () => null }))
-vi.mock('@/components/GitHubItemDialog', () => ({ default: () => null }))
-vi.mock('./github/List', () => ({ TaskPageGitHubList: () => null }))
+vi.mock('@/components/pull-request-page/page/surface', () => ({ default: () => null }))
+vi.mock('@/components/github-item-dialog/open-dialog/github-item-dialog', () => ({
+  default: () => null
+}))
+vi.mock('./github/listing/List', () => ({ TaskPageGitHubList: () => null }))
 vi.mock('./jira/Content', () => ({ TaskPageJiraContent: () => null }))
 vi.mock('./linear/Content', () => ({ TaskPageLinearContent: () => null }))
 
-vi.mock('@/web/preload-api/web-runtime-calls', () => ({
+vi.mock('@/web/runtime/client/web-runtime-calls', () => ({
   getRemoteRuntimeStatus: async () => ({ capabilities: web.capabilities }),
   callRuntimeEnvelope: async (method: string, params: Parameters<FakeDartHost['handle']>[1]) =>
     web.methodNotFound
       ? { ok: false, error: { code: 'method_not_found', message: `Unknown method ${method}` } }
       : { ok: true, result: await web.host!.handle(method, params) }
 }))
-vi.mock('@/web/preload-api/web-runtime-session', () => ({
+vi.mock('@/web/runtime/client/web-runtime-session', () => ({
   requireActiveEnvironment: () => ({ id: 'web-env' }),
   assertActiveEnvironment: () => {}
 }))

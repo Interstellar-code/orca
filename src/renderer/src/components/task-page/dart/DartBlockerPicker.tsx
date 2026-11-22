@@ -5,8 +5,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import { translate } from '@/i18n/i18n'
-import { cn } from '@/lib/utils'
+import { useTranslate } from '@/i18n/use-translate'
+import { cn } from '@/lib/class-names'
 import type { DartTask } from '../../../../../shared/dart/dart-types'
 import type { DartRelationshipsApi } from './dart-board-contracts'
 import { getDartStatusTone } from './task-page-dart-list-model'
@@ -38,6 +38,7 @@ export function DartBlockerPicker({
   searchTasks,
   onPick
 }: DartBlockerPickerProps): React.JSX.Element {
+  const t = useTranslate()
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
   const [thisDartboardOnly, setThisDartboardOnly] = useState(false)
@@ -130,24 +131,22 @@ export function DartBlockerPicker({
     [abandon, run, text]
   )
 
-  const modeForcedOff = useRef(false)
+  const [modeForcedOff, setModeForcedOff] = useState(false)
   if (dartboardOnlyUnavailable && thisDartboardOnly) {
-    modeForcedOff.current = true
+    setModeForcedOff(true)
     setThisDartboardOnly(false)
   }
-  const textRef = useRef(text)
-  textRef.current = text
   useEffect(() => {
-    if (!modeForcedOff.current) {
+    if (!modeForcedOff) {
       return
     }
-    modeForcedOff.current = false
+    setModeForcedOff(false)
     abandon()
     setSearch({ kind: 'idle' })
-    if (textRef.current.trim() !== '') {
-      void run(textRef.current, false)
+    if (text.trim() !== '') {
+      void run(text, false)
     }
-  }, [dartboardOnlyUnavailable, abandon, run])
+  }, [modeForcedOff, text, abandon, run])
 
   const pick = (task: DartTask): void => {
     setOpen(false)
@@ -173,7 +172,7 @@ export function DartBlockerPicker({
       <PopoverTrigger asChild>
         <Button type="button" variant="ghost" size="xs" disabled={disabled}>
           <Plus />
-          {translate('auto.components.task.page.dart.DartBlockerPicker.add', 'Add blocker')}
+          {t('auto.components.task.page.dart.DartBlockerPicker.add', 'Add blocker')}
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80">
@@ -181,7 +180,7 @@ export function DartBlockerPicker({
           <CommandInput
             value={text}
             onValueChange={changeText}
-            placeholder={translate(
+            placeholder={t(
               'auto.components.task.page.dart.DartBlockerPicker.search',
               'Search tasks'
             )}
@@ -189,7 +188,7 @@ export function DartBlockerPicker({
               search.kind === 'loading' && search.slow ? (
                 <LoaderCircle
                   role="status"
-                  aria-label={translate(
+                  aria-label={t(
                     'auto.components.task.page.dart.DartBlockerPicker.searching',
                     'Searching'
                   )}
@@ -209,7 +208,7 @@ export function DartBlockerPicker({
                 thumbClassName="size-3 data-[state=checked]:translate-x-3"
               />
               <Label htmlFor={toggleId} variant="settings">
-                {translate(
+                {t(
                   'auto.components.task.page.dart.DartBlockerPicker.thisDartboardOnly',
                   'This dartboard only'
                 )}
@@ -217,7 +216,7 @@ export function DartBlockerPicker({
             </div>
             {dartboardOnlyUnavailable ? (
               <p className="mt-1 text-xs text-muted-foreground">
-                {translate(
+                {t(
                   'auto.components.task.page.dart.DartBlockerPicker.dartboardOnlyUnavailable',
                   'This task has no dartboard.'
                 )}
@@ -227,10 +226,7 @@ export function DartBlockerPicker({
           <CommandList>
             {search.kind === 'idle' ? (
               <PickerNote>
-                {translate(
-                  'auto.components.task.page.dart.DartBlockerPicker.hint',
-                  'Type to search tasks'
-                )}
+                {t('auto.components.task.page.dart.DartBlockerPicker.hint', 'Type to search tasks')}
               </PickerNote>
             ) : null}
             {search.kind === 'error' ? (
@@ -240,10 +236,7 @@ export function DartBlockerPicker({
               >
                 <span className="min-w-0">
                   {search.message ||
-                    translate(
-                      'auto.components.task.page.dart.DartBlockerPicker.error',
-                      'Search failed'
-                    )}
+                    t('auto.components.task.page.dart.DartBlockerPicker.error', 'Search failed')}
                 </span>
                 <Button
                   type="button"
@@ -251,16 +244,13 @@ export function DartBlockerPicker({
                   size="xs"
                   onClick={() => void run(text, dartboardOnlyActive)}
                 >
-                  {translate('auto.components.task.page.dart.DartBlockerPicker.retry', 'Retry')}
+                  {t('auto.components.task.page.dart.DartBlockerPicker.retry', 'Retry')}
                 </Button>
               </div>
             ) : null}
             {search.kind === 'results' && offered.length === 0 ? (
               <PickerNote>
-                {translate(
-                  'auto.components.task.page.dart.DartBlockerPicker.empty',
-                  'No matching tasks'
-                )}
+                {t('auto.components.task.page.dart.DartBlockerPicker.empty', 'No matching tasks')}
               </PickerNote>
             ) : null}
             {offered.map((task) => (

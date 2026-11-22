@@ -13,8 +13,8 @@ import type {
   DartConnectionStatus,
   DartTask
 } from '../../../../../shared/dart/dart-types'
-import { createCompatibleRuntimeStatusResponse } from '@/runtime/runtime-compatibility-test-fixture'
-import { clearRuntimeCompatibilityCacheForTests } from '@/runtime/runtime-rpc-client'
+import { createCompatibleRuntimeStatusResponse } from '@/runtime/rpc/testing/runtime-compatibility-test-fixture'
+import { clearRuntimeCompatibilityCache } from '@/runtime/rpc/compatibility/runtime-compatibility-cache'
 import { planBlockerWrite, selectFakeListRows } from './dart-fake-relationships.test-support'
 import type { Failure, RpcParams } from './dart-fake-rpc-params.test-support'
 import { toSavedViewMutation } from './dart-fake-saved-views.test-support'
@@ -261,7 +261,7 @@ export function dartTaskFixture(id: string, overrides: Partial<DartTask> = {}): 
 
 /** Puts a fake host behind the real runtime client: `local` behind `window.api.dart`, the rest behind the RPC call. */
 export function installFakeDartRuntime(): { host: (environmentId: string | null) => FakeDartHost } {
-  clearRuntimeCompatibilityCacheForTests()
+  clearRuntimeCompatibilityCache()
   const hosts = new Map<string, FakeDartHost>()
   const host = (environmentId: string | null): FakeDartHost => {
     const key = environmentId ?? 'local'

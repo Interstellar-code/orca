@@ -1,6 +1,6 @@
 import { RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 
 export function InlineError({
   message,
@@ -9,6 +9,7 @@ export function InlineError({
   message: string
   onRetry: () => void
 }): React.JSX.Element {
+  const t = useTranslate()
   return (
     <div
       role="alert"
@@ -17,7 +18,7 @@ export function InlineError({
       <span className="min-w-0 break-words">{message}</span>
       <Button type="button" variant="ghost" size="xs" onClick={onRetry}>
         <RefreshCw className="size-3" />
-        {translate('auto.components.task.page.dart.TaskDetail.retry', 'Retry')}
+        {t('auto.components.task.page.dart.TaskDetail.retry', 'Retry')}
       </Button>
     </div>
   )

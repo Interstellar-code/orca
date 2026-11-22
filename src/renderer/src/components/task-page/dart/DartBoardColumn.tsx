@@ -1,6 +1,7 @@
 import { Badge } from '@/components/ui/badge'
 import { translate } from '@/i18n/i18n'
-import { cn } from '@/lib/utils'
+import { useTranslate } from '@/i18n/use-translate'
+import { cn } from '@/lib/class-names'
 import type { DartBoardColumn as DartBoardColumnData } from './dart-board-contracts'
 
 export function dartColumnLabel(column: DartBoardColumnData): string {
@@ -26,11 +27,12 @@ export function DartBoardColumn({
   onDrop,
   children
 }: DartBoardColumnProps): React.JSX.Element {
+  const t = useTranslate()
   const label = dartColumnLabel(column)
   return (
     <section
       role="group"
-      aria-label={translate(
+      aria-label={t(
         'auto.components.task.page.dart.DartBoardColumn.groupLabel',
         '{{status}}, {{count}}',
         { status: label, count: column.count }
@@ -52,7 +54,7 @@ export function DartBoardColumn({
       <div className="min-h-16 space-y-2 p-2">
         {column.tasks.length === 0 ? (
           <div className="flex h-12 items-center justify-center rounded-md border border-dashed border-border/50 text-2xs text-muted-foreground">
-            {translate('auto.components.task.page.dart.DartBoardColumn.noTasks', 'No tasks')}
+            {t('auto.components.task.page.dart.DartBoardColumn.noTasks', 'No tasks')}
           </div>
         ) : null}
         {children}

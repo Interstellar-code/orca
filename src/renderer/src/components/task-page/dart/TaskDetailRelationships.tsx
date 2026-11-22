@@ -2,7 +2,8 @@ import { Ban, CornerLeftUp, X } from 'lucide-react'
 import type { DartTask } from '../../../../../shared/dart/dart-types'
 import { Button } from '@/components/ui/button'
 import { translate } from '@/i18n/i18n'
-import { cn } from '@/lib/utils'
+import { useTranslate } from '@/i18n/use-translate'
+import { cn } from '@/lib/class-names'
 import { isDartTaskFinished, isDartTaskOnHold } from './dart-board-columns'
 import type { DartLoad, DartRelationshipsApi } from './dart-board-contracts'
 import { DartBlockerPicker } from './DartBlockerPicker'
@@ -52,6 +53,7 @@ function titlesError(load: DartLoad<unknown>): React.JSX.Element {
 }
 
 function OnHoldBanner({ openBlockers }: { openBlockers: number }): React.JSX.Element {
+  const t = useTranslate()
   return (
     <p
       role="status"
@@ -59,11 +61,11 @@ function OnHoldBanner({ openBlockers }: { openBlockers: number }): React.JSX.Ele
     >
       <Ban className="size-3.5 flex-none" />
       {openBlockers === 1
-        ? translate(
+        ? t(
             'auto.components.task.page.dart.TaskDetailRelationships.onHoldOne',
             'On hold · waiting on 1 open blocker'
           )
-        : translate(
+        : t(
             'auto.components.task.page.dart.TaskDetailRelationships.onHoldMany',
             'On hold · waiting on {{count}} open blockers',
             { count: openBlockers }
@@ -79,10 +81,11 @@ function ParentRow({
   parent: DartLoad<DartTask>
   onOpen: (task: DartTask) => void
 }): React.JSX.Element {
+  const t = useTranslate()
   return (
     <div className="space-y-1">
       <GroupLabel>
-        {translate('auto.components.task.page.dart.TaskDetailRelationships.parent', 'Parent')}
+        {t('auto.components.task.page.dart.TaskDetailRelationships.parent', 'Parent')}
       </GroupLabel>
       {parent.state === 'ready' && parent.data ? (
         <div className="flex items-center gap-1">
@@ -105,6 +108,7 @@ function BlockedByGroup({
   relationships: DartRelationshipsApi
   onOpen: (task: DartTask) => void
 }): React.JSX.Element {
+  const t = useTranslate()
   const { blockers, task, blocked, pending } = relationships
   const current = blockers.state === 'ready' ? (blockers.data ?? []) : null
   const write = (ids: readonly string[]): void => void relationships.onSetBlockers(ids)
@@ -114,14 +118,11 @@ function BlockedByGroup({
     <div className="space-y-1">
       <div className="flex items-center justify-between gap-2">
         <GroupLabel>
-          {translate(
-            'auto.components.task.page.dart.TaskDetailRelationships.blockedBy',
-            'Blocked by'
-          )}
+          {t('auto.components.task.page.dart.TaskDetailRelationships.blockedBy', 'Blocked by')}
         </GroupLabel>
         {pending ? (
           <span role="status" className="text-2xs text-muted-foreground">
-            {translate('auto.components.task.page.dart.TaskDetailRelationships.saving', 'Saving…')}
+            {t('auto.components.task.page.dart.TaskDetailRelationships.saving', 'Saving…')}
           </span>
         ) : null}
       </div>
@@ -135,7 +136,7 @@ function BlockedByGroup({
         <>
           {current.length === 0 ? (
             <EmptyLine>
-              {translate(
+              {t(
                 'auto.components.task.page.dart.TaskDetailRelationships.noBlockers',
                 'No blockers'
               )}
@@ -150,7 +151,7 @@ function BlockedByGroup({
                     variant="ghost"
                     size="icon-xs"
                     disabled={blocked}
-                    aria-label={translate(
+                    aria-label={t(
                       'auto.components.task.page.dart.TaskDetailRelationships.removeBlocker',
                       'Remove blocker {{title}}',
                       { title: blocker.title }
@@ -186,15 +187,16 @@ function BlockingGroup({
   blocking: DartLoad<readonly DartTask[]>
   onOpen: (task: DartTask) => void
 }): React.JSX.Element {
+  const t = useTranslate()
   return (
     <div className="space-y-1">
       <GroupLabel>
-        {translate('auto.components.task.page.dart.TaskDetailRelationships.blocking', 'Blocking')}
+        {t('auto.components.task.page.dart.TaskDetailRelationships.blocking', 'Blocking')}
       </GroupLabel>
       {blocking.state === 'ready' ? (
         (blocking.data ?? []).length === 0 ? (
           <EmptyLine>
-            {translate(
+            {t(
               'auto.components.task.page.dart.TaskDetailRelationships.noBlocking',
               'Not blocking any task'
             )}
@@ -214,7 +216,7 @@ function BlockingGroup({
         <SkeletonLines />
       )}
       <EmptyLine>
-        {translate(
+        {t(
           'auto.components.task.page.dart.TaskDetailRelationships.blockingHint',
           'Read-only here: change it on that task.'
         )}
@@ -227,10 +229,11 @@ export function TaskDetailRelationships({
   relationships,
   onOpenRelatedTask
 }: TaskDetailRelationshipsProps): React.JSX.Element {
+  const t = useTranslate()
   const { state, task, blockers, parent, notice } = relationships
   const heading = (
     <SectionHeading>
-      {translate('auto.components.task.page.dart.TaskDetailRelationships.heading', 'Relationships')}
+      {t('auto.components.task.page.dart.TaskDetailRelationships.heading', 'Relationships')}
     </SectionHeading>
   )
   if (state === 'notChecked') {
@@ -241,7 +244,7 @@ export function TaskDetailRelationships({
           role="status"
           className="rounded-md border border-border/50 bg-muted/35 px-2.5 py-1.5 text-xs text-muted-foreground"
         >
-          {translate(
+          {t(
             'auto.components.task.page.dart.TaskDetailRelationships.notChecked',
             "Dart did not return this task's links"
           )}
@@ -257,7 +260,7 @@ export function TaskDetailRelationships({
           <SkeletonLines />
         ) : (
           <InlineError
-            message={translate(
+            message={t(
               'auto.components.task.page.dart.TaskDetailRelationships.linksError',
               "Could not load this task's links"
             )}
@@ -269,7 +272,7 @@ export function TaskDetailRelationships({
   }
   const openBlockers =
     blockers.state === 'ready'
-      ? (blockers.data ?? []).filter((t) => !isDartTaskFinished(t)).length
+      ? (blockers.data ?? []).filter((blocker) => !isDartTaskFinished(blocker)).length
       : 0
   return (
     <section className={cn(SECTION_CLASS, 'space-y-3')}>

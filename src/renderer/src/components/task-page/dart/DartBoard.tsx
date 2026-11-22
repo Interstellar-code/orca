@@ -2,6 +2,7 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { DartTask } from '../../../../../shared/dart/dart-types'
 import { Button } from '@/components/ui/button'
 import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 import { isDartBoardDragFromHost, readDartBoardTaskDragData } from '@/lib/dart-board-drag-payload'
 import type { DartBoardColumn as DartBoardColumnData, DartBoardProps } from './dart-board-contracts'
 import { DartBoardCard } from './DartBoardCard'
@@ -10,6 +11,7 @@ import { DartBoardColumn, dartColumnLabel } from './DartBoardColumn'
 type PendingFocus = { taskId: string; settled: boolean }
 
 export function DartBoard({ model, selectedTaskId }: DartBoardProps): React.JSX.Element {
+  const t = useTranslate()
   const rootRef = useRef<HTMLDivElement>(null)
   const pendingFocus = useRef<PendingFocus | null>(null)
   const [focusTick, setFocusTick] = useState(0)
@@ -115,7 +117,7 @@ export function DartBoard({ model, selectedTaskId }: DartBoardProps): React.JSX.
     }
     if (!column.inConfig) {
       announce(
-        translate(
+        t(
           'auto.components.task.page.dart.DartBoard.statusNotInConfig',
           'This status is not in the workspace settings'
         )
@@ -129,7 +131,7 @@ export function DartBoard({ model, selectedTaskId }: DartBoardProps): React.JSX.
     <div ref={rootRef} data-dart-board className="flex min-w-0 flex-col gap-2 p-3">
       {model.showEmptyColumns ? (
         <p className="text-xs text-muted-foreground">
-          {translate(
+          {t(
             'auto.components.task.page.dart.DartBoard.wholeWorkspaceHint',
             'Includes statuses from the whole workspace.'
           )}
@@ -137,7 +139,7 @@ export function DartBoard({ model, selectedTaskId }: DartBoardProps): React.JSX.
       ) : null}
       {boardEmpty ? (
         <p className="py-6 text-center text-sm text-muted-foreground">
-          {translate(
+          {t(
             'auto.components.task.page.dart.DartBoard.emptyFiltered',
             'No tasks match these filters.'
           )}
@@ -186,8 +188,8 @@ export function DartBoard({ model, selectedTaskId }: DartBoardProps): React.JSX.
             onClick={model.showMoreDone}
           >
             {model.doneMore.error
-              ? translate('auto.components.task.page.dart.DartBoard.retryMoreFinished', 'Retry')
-              : translate(
+              ? t('auto.components.task.page.dart.DartBoard.retryMoreFinished', 'Retry')
+              : t(
                   'auto.components.task.page.dart.DartBoard.showMoreFinished',
                   'Show 50 more finished'
                 )}

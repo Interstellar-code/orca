@@ -1,8 +1,8 @@
 import { useCallback, useSyncExternalStore } from 'react'
-import CommentMarkdown from '@/components/sidebar/CommentMarkdown'
+import CommentMarkdown from '@/components/comment-markdown/CommentMarkdown'
 import { Button } from '@/components/ui/button'
 import { formatUiRelativeTimeFromDate } from '@/i18n/relative-time-format'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 import type { DartComment } from '../../../../../shared/dart/dart-types'
 import { DartCommentComposer } from './DartCommentComposer'
 import { buildDartCommentThread } from './dart-comment-thread'
@@ -47,6 +47,7 @@ function DartTaskDetailCommentsForTask({
   viewerName: string | null
   viewerEmail?: string | null
 }): React.JSX.Element {
+  const t = useTranslate()
   // Item 9: the reply target rides the draft, so closing or switching restores it.
   const getReplyTo = useCallback((): DartComment | null => getDartReplyTarget(draftKey), [draftKey])
   const replyTo = useSyncExternalStore(subscribeDartReplyTargets, getReplyTo, getReplyTo)
@@ -62,12 +63,10 @@ function DartTaskDetailCommentsForTask({
     <section className="space-y-3 border-t border-border/60 px-4 py-4">
       <SectionHeading>
         {comments.status === 'ready'
-          ? translate(
-              'auto.components.task.page.dart.TaskDetail.commentsCount',
-              'Comments · {{count}}',
-              { count: comments.value.totalCount }
-            )
-          : translate('auto.components.task.page.dart.TaskDetail.comments', 'Comments')}
+          ? t('auto.components.task.page.dart.TaskDetail.commentsCount', 'Comments · {{count}}', {
+              count: comments.value.totalCount
+            })
+          : t('auto.components.task.page.dart.TaskDetail.comments', 'Comments')}
       </SectionHeading>
       {comments.status === 'loading' ? <SkeletonLines /> : null}
       {comments.status === 'error' ? (
@@ -75,7 +74,7 @@ function DartTaskDetailCommentsForTask({
       ) : null}
       {comments.status === 'ready' && comments.value.comments.length === 0 ? (
         <p className="text-xs text-muted-foreground">
-          {translate('auto.components.task.page.dart.TaskDetail.noComments', 'No comments yet.')}
+          {t('auto.components.task.page.dart.TaskDetail.noComments', 'No comments yet.')}
         </p>
       ) : null}
       {comments.status === 'ready'
@@ -112,10 +111,7 @@ function DartTaskDetailCommentsForTask({
                       }
                     }}
                   >
-                    {translate(
-                      'auto.components.right.sidebar.checks.panel.content.c1f6fc006a',
-                      'Reply'
-                    )}
+                    {t('auto.components.right.sidebar.checks.panel.content.c1f6fc006a', 'Reply')}
                   </Button>
                 </div>
                 <CommentMarkdown
@@ -129,7 +125,7 @@ function DartTaskDetailCommentsForTask({
         : null}
       {comments.status === 'ready' && comments.value.totalCount > comments.value.comments.length ? (
         <p className="text-2xs text-muted-foreground">
-          {translate(
+          {t(
             'auto.components.task.page.dart.TaskDetail.commentsTruncated',
             'Showing first {{shown}} of {{total}} comments.',
             {

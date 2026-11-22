@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DartTask } from '../../../../../shared/dart/dart-types'
 import { DartUpdateRequiredError } from '@/runtime/runtime-dart-client'
 import type * as DartClient from '@/runtime/runtime-dart-client'
-import { createTestStore } from '../store-test-helpers'
+import { createTestStore } from '@/store/testing/app-store-test-fixture'
 
 const clientMocks = vi.hoisted(() => ({
   dartStatusForTarget: vi.fn(),

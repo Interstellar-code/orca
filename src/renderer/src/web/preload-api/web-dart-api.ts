@@ -11,13 +11,16 @@ import {
   DART_WRITES_V2_RUNTIME_CAPABILITY
 } from '../../../../shared/dart/dart-capabilities'
 import type { DartHostFeatures } from '../../../../shared/dart/dart-types'
-import { taskProviderFailure } from '../../../../shared/task-provider-failure'
+import { taskProviderFailure } from '../../../../shared/work-items/task-provider-failure'
 import {
   DartUpdateRequiredError,
   dartUpdateRequiredMessage
 } from '../../runtime/runtime-dart-client'
-import { callRuntimeEnvelope, getRemoteRuntimeStatus } from './web-runtime-calls'
-import { assertActiveEnvironment, requireActiveEnvironment } from './web-runtime-session'
+import { callRuntimeEnvelope, getRemoteRuntimeStatus } from '../runtime/client/web-runtime-calls'
+import {
+  assertActiveEnvironment,
+  requireActiveEnvironment
+} from '../runtime/client/web-runtime-session'
 
 // The host allows 30s per Dart request; writes may read `/config` twice before the write.
 const DART_READ_TIMEOUT_MS = 45_000

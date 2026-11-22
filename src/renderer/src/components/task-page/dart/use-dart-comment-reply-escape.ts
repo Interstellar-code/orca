@@ -1,6 +1,6 @@
 import { useEffect, type RefObject } from 'react'
 import type { DartComment } from '../../../../../shared/dart/dart-types'
-import { isImeOwnedKeyboardEvent } from '@/lib/ime-composition-keyboard-event'
+import { isImeOwnedKeyboardEvent } from '@/lib/text-input/ime/ime-composition-keyboard-event'
 
 // Surfaces layered above the sheet own Escape first, exactly as the Tasks page treats them.
 const ESCAPE_OWNING_OVERLAY_SELECTOR =

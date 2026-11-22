@@ -2,15 +2,15 @@
 
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
+import { getProviderRuntimeContextKey } from '@/runtime/hosts/observations/provider-runtime-context'
 import { useAppStore } from '@/store'
 import {
   dartTaskFixture,
   installFakeDartRuntime
 } from '@/store/slices/dart/dart-fake-runtime.test-support'
 import { getDartReadScope } from '@/store/slices/dart/dart-read-coordination'
-import { makeWorktree } from '@/components/automations/automations-page-fixtures'
-import { toDartTaskAttachment } from '@/components/sidebar/use-dart-attachment-url-source'
+import { makeWorktree } from '@/store/slices/worktrees/worktree.test-fixture'
+import { toDartTaskAttachment } from '@/components/sidebar/workspace-card/review/use-dart-attachment-url-source'
 import { useTaskPageDartState, type TaskPageDartStateInput } from './use-task-page-dart-state'
 
 type PageInput = Omit<TaskPageDartStateInput, 'providerRuntimeContextKey' | 'dartStatus'>
@@ -141,6 +141,8 @@ describe('useTaskPageDartState list mode across a host switch', () => {
       runtime.host(HOST_A).addTask(dartTaskFixture(id))
     }
     const linked = makeWorktree({
+      id: 'workspace-1',
+      repoId: 'repo-1',
       linkedItems: ids.map((id) => toDartTaskAttachment(dartTaskFixture(id), null))
     })
     const releases = Array.from({ length: 6 }, () => runtime.host(HOST_A).hold('dart.getTask'))

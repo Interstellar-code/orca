@@ -15,7 +15,7 @@ import {
   type UpdateTaskBlockers,
   type UpdateTaskDescription
 } from '../../shared/rpc-contract/dart-params'
-import { taskProviderFailure } from '../../shared/task-provider-failure'
+import { taskProviderFailure } from '../../shared/work-items/task-provider-failure'
 import { noteRequestFailure, readConfig, readToken } from './client'
 import { isDartWriteOperation, toDartFailure, type DartOperation } from './dart-failure'
 import { DartApiError, dartRequest, type DartQueryValue } from './dart-request'
@@ -64,7 +64,7 @@ async function withToken<T extends object>(
   ) => Promise<({ ok: true } & T) | DartFailure>
 ): Promise<({ ok: true } & T) | DartFailure> {
   const isWrite = isDartWriteOperation(operation)
-  const token = readToken()
+  const token = await readToken()
   if ('failure' in token) {
     return isWrite ? { ...token.failure, outcome: 'notApplied' } : token.failure
   }

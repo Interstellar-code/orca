@@ -3,8 +3,8 @@
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DartTask, DartWorkspaceConfig } from '../../../../../shared/dart/dart-types'
-import type { TaskSourceContext } from '../../../../../shared/task-source-context'
-import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
+import type { TaskSourceContext } from '../../../../../shared/work-items/task-source-context'
+import { getProviderRuntimeContextKey } from '@/runtime/hosts/observations/provider-runtime-context'
 import { useAppStore } from '@/store'
 import type { DartClientResult } from '@/runtime/runtime-dart-client'
 import {

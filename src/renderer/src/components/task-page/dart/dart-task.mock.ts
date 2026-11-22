@@ -3,6 +3,7 @@ import type {
   DartTask,
   DartWorkspaceConfig
 } from '../../../../../shared/dart/dart-types'
+import type { Worktree } from '../../../../../shared/worktree/types'
 
 // Invented data only: fake people, fake board, 12-character fake ids.
 export const fixtureConfig: DartWorkspaceConfig = {
@@ -15,10 +16,30 @@ export const fixtureConfig: DartWorkspaceConfig = {
   assignees: []
 }
 
-const base = {
+const base: Pick<DartTask, 'htmlUrl' | 'assignee' | 'tags'> = {
   htmlUrl: 'https://app.dartai.com/t/aB3dE5gH7jK9-example',
   assignee: 'Alex Example',
-  tags: [] as string[]
+  tags: []
+}
+
+export const fixtureLinkedWorkspace: Worktree = {
+  id: 'wt-fix-search',
+  repoId: 'repo-example',
+  path: '/work/fix-search-ranking',
+  head: 'abc123',
+  branch: 'fix-search-ranking',
+  isBare: false,
+  isMainWorktree: false,
+  displayName: 'fix-search-ranking',
+  comment: '',
+  linkedIssue: null,
+  linkedPR: null,
+  linkedLinearIssue: null,
+  isArchived: false,
+  isUnread: false,
+  isPinned: false,
+  sortOrder: 0,
+  lastActivityAt: 0
 }
 
 export const fixtureTasks: DartTask[] = [

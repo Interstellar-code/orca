@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
-import { LINEAR_EDIT_CHIP_CLASS } from '@/components/linear-item-drawer-edit-controls'
+import { LINEAR_EDIT_CHIP_CLASS } from '@/components/task-page/linear/item-drawer/linear-item-drawer-edit-controls'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   Command,
@@ -9,7 +9,7 @@ import {
   CommandItem,
   CommandList
 } from '@/components/ui/command'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 import { DartChipRow, useDartBlockedHint, type DartFieldState } from './DartPropertyChips'
 
 /** Only tags the workspace already has can be chosen: an unknown name would create a tag in Dart. */
@@ -26,6 +26,7 @@ export function DartTagsPicker({
   disabled?: boolean
   onChange: (tags: string[]) => void
 }): React.JSX.Element {
+  const t = useTranslate()
   const [open, setOpen] = useState(false)
   const { describedBy, hint } = useDartBlockedHint(state.blocked)
   // A tag on the task that the config no longer lists stays visible and removable.
@@ -52,7 +53,7 @@ export function DartTagsPicker({
           <PopoverTrigger asChild>
             <button
               type="button"
-              aria-label={translate('auto.components.task.page.dart.DartTagsPicker.label', 'Tags')}
+              aria-label={t('auto.components.task.page.dart.DartTagsPicker.label', 'Tags')}
               aria-expanded={open}
               aria-describedby={describedBy}
               aria-disabled={state.disabled || undefined}
@@ -61,8 +62,8 @@ export function DartTagsPicker({
             >
               <span className="truncate">
                 {tags.length > 0
-                  ? translate('auto.components.task.page.dart.DartTagsPicker.edit', 'Edit tags')
-                  : translate('auto.components.task.page.dart.DartTagsPicker.add', 'Add tags')}
+                  ? t('auto.components.task.page.dart.DartTagsPicker.edit', 'Edit tags')
+                  : t('auto.components.task.page.dart.DartTagsPicker.add', 'Add tags')}
               </span>
               <ChevronDown className="size-3 shrink-0 opacity-55" />
             </button>
@@ -70,17 +71,14 @@ export function DartTagsPicker({
           <PopoverContent align="start" className="w-64">
             <Command>
               <CommandInput
-                placeholder={translate(
+                placeholder={t(
                   'auto.components.task.page.dart.DartTagsPicker.search',
                   'Search tags'
                 )}
               />
               <CommandList>
                 <CommandEmpty>
-                  {translate(
-                    'auto.components.task.page.dart.DartTagsPicker.empty',
-                    'No tags found.'
-                  )}
+                  {t('auto.components.task.page.dart.DartTagsPicker.empty', 'No tags found.')}
                 </CommandEmpty>
                 {choices.map((tag) => (
                   <CommandItem

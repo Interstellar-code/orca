@@ -1,14 +1,14 @@
 import { randomUUID } from 'node:crypto'
 import { observePtyForeground } from '../../pty/process-retirement/pty-master-foreground-observation'
 import type * as pty from 'node-pty'
-import type { IPtyProvider, PtySpawnOptions } from '../pty-provider-contract'
-import type { PtyProcessInfo } from '../pty-process-info'
-import type { PtySpawnResult } from '../pty-spawn-result'
+import type { IPtyProvider, PtySpawnOptions } from '../pty/provider-contract'
+import type { PtyProcessInfo } from '../pty/process-info'
+import type { PtySpawnResult } from '../pty/spawn-result'
 import {
   WRITE_ACCEPTED,
   writeRefused,
   type WriteSettlement
-} from '../../../shared/pty-write-settlement'
+} from '../../../shared/terminal/pty/lifecycle/pty-write-settlement'
 import {
   confirmLocalPtyForegroundProcess,
   confirmLocalPtyShellForeground,
@@ -17,12 +17,16 @@ import {
   inspectLocalPtyChildProcesses
 } from './local-pty-foreground-inspection'
 import type { LocalPtyProviderOptions } from './local-pty-provider-types'
-import type { PtyProcessInspection, PtyProcessInspectionOptions } from '../pty-process-inspection'
-import type { TerminalOscColorQueryReplyColors } from '../../../shared/terminal-osc-color-reply'
+import {
+  steadyPollJudgesByJobMembership,
+  type PtyProcessInspectionOptions
+} from '../pty/process-inspection'
+import type { TerminalProcessInspection as PtyProcessInspection } from '../../../shared/terminal/pty/lifecycle/terminal-process-inspection'
+import type { TerminalOscColorQueryReplyColors } from '../../../shared/terminal/protocol/queries/terminal-osc-color-reply'
 import {
   _resetPtyOwnerHostColorsForTest,
   setPtyOwnerHostColors
-} from '../../../shared/pty-owner-color-query-colors'
+} from '../../../shared/terminal/pty/ingress/pty-owner-color-query-colors'
 import {
   advanceLoadGeneration,
   clearPtyState,
@@ -184,7 +188,8 @@ export class LocalPtyProvider implements IPtyProvider {
     const childProcessEvidence = await inspectLocalPtyChildProcesses(
       id,
       options?.steadyState !== true,
-      options?.ignoreDetached === true
+      options?.ignoreDetached === true,
+      steadyPollJudgesByJobMembership(options, foregroundProcess)
     )
     // Neither asynchronous inspection may publish a replacement pane's identity.
     if (ptyProcesses.get(id) !== proc || ptyIncarnations.get(id) !== incarnation) {
@@ -221,8 +226,7 @@ export class LocalPtyProvider implements IPtyProvider {
   }
 
   async listProcesses(opts?: { ptyIds?: readonly string[] }): Promise<PtyProcessInfo[]> {
-    const rows = await listLocalPtyProcesses()
-    return opts?.ptyIds ? rows.filter((row) => opts.ptyIds?.includes(row.id)) : rows
+    return listLocalPtyProcesses(opts?.ptyIds)
   }
 
   getDefaultShell(): Promise<string> {

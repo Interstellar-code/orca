@@ -1,10 +1,10 @@
 import {
   JsonStringifyByteLimitError,
   stringifyJsonWithinByteLimit
-} from '../node-bounded-json-stringify'
-import { measureUtf8ByteLength } from '../utf8-byte-limits'
+} from '../json-stream/node-bounded-json-stringify'
+import { measureUtf8ByteLength } from '../text/utf8-byte-limits'
 import { RemoteRuntimeClientError } from './remote-runtime-client-error'
-import type { RuntimeOrchestrationEnvelope } from '../runtime-rpc-envelope'
+import type { RuntimeOrchestrationEnvelope } from './rpc/runtime-rpc-envelope'
 
 export const REMOTE_RUNTIME_MAX_OUTBOUND_JSON_BYTES = 4 * 1024 * 1024
 // Why: a host refuses a larger client frame by closing the socket (1009), failing every call on it.
@@ -15,6 +15,8 @@ const REMOTE_RUNTIME_MAX_SEALING_OVERHEAD_BYTES = 128
 export const REMOTE_RUNTIME_MAX_INBOUND_REQUEST_JSON_BYTES =
   Math.floor(REMOTE_RUNTIME_MAX_INBOUND_FRAME_BYTES / 4) * 3 -
   REMOTE_RUNTIME_MAX_SEALING_OVERHEAD_BYTES
+// Request id, device token, method name and JSON framing around a request's params.
+export const REMOTE_RUNTIME_REQUEST_ENVELOPE_RESERVE_BYTES = 1024
 // Why: sealing inflates a request by up to 4/3, so this much JSON-escaped content still fits a frame.
 export const REMOTE_RUNTIME_MAX_FILE_WRITE_CONTENT_BYTES = 720 * 1024
 export const REMOTE_RUNTIME_MAX_WEBSOCKET_FRAME_BYTES = 8 * 1024 * 1024 + 64
@@ -30,14 +32,17 @@ export const REMOTE_RUNTIME_MAX_READY_WAITERS =
   REMOTE_RUNTIME_MAX_PENDING_REQUESTS + REMOTE_RUNTIME_MAX_SUBSCRIPTIONS
 export const REMOTE_RUNTIME_MAX_OUTBOUND_BINARY_FRAME_BYTES = 8 * 1024 * 1024
 
-export function serializeRemoteRuntimePayload(value: unknown): string {
+export function serializeRemoteRuntimePayload(
+  value: unknown,
+  maxBytes = REMOTE_RUNTIME_MAX_OUTBOUND_JSON_BYTES
+): string {
   try {
-    return stringifyJsonWithinByteLimit(value, REMOTE_RUNTIME_MAX_OUTBOUND_JSON_BYTES).serialized
+    return stringifyJsonWithinByteLimit(value, maxBytes).serialized
   } catch (error) {
     if (error instanceof JsonStringifyByteLimitError) {
       throw new RemoteRuntimeClientError(
         'invalid_argument',
-        `Remote runtime JSON payload exceeds ${REMOTE_RUNTIME_MAX_OUTBOUND_JSON_BYTES} bytes.`
+        `Remote runtime JSON payload exceeds ${maxBytes} bytes.`
       )
     }
     const message = error instanceof Error ? error.message : String(error)
@@ -70,26 +75,40 @@ export function measureRemoteRuntimeSubscriptionParams(params: unknown): number 
   }
 }
 
-export function serializeRemoteRuntimeRpcRequest(args: {
+type RemoteRuntimeRpcRequestArgs = {
   requestId: string
   deviceToken: string
   method: string
   params: unknown
   envelope?: RuntimeOrchestrationEnvelope
-}): string {
-  const serialized = serializeRemoteRuntimePayload({
-    id: args.requestId,
-    deviceToken: args.deviceToken,
-    method: args.method,
-    params: args.params,
-    orchestrationCapability: args.envelope?.orchestrationCapability,
-    orchestrationContractVersion: args.envelope?.orchestrationContractVersion,
-    orchestrationRequestId: args.envelope?.orchestrationRequestId,
-    compatibilityInvocationId: args.envelope?.compatibilityInvocationId,
-    orchestrationCompatibilityEvidence: args.envelope?.orchestrationCompatibilityEvidence
-  })
+  maxBytes?: number
+}
+
+export function serializeRemoteRuntimeRpcRequest(args: RemoteRuntimeRpcRequestArgs): string {
+  const serialized = serializeUncheckedRemoteRuntimeRpcRequest(args)
   assertRemoteRuntimeRequestFitsHostFrame(serialized)
   return serialized
+}
+
+/** Skips the host-frame refusal so a preparation can measure an oversized candidate; the caller must check what it sends. */
+export function serializeUncheckedRemoteRuntimeRpcRequest(
+  args: RemoteRuntimeRpcRequestArgs
+): string {
+  return serializeRemoteRuntimePayload(
+    {
+      id: args.requestId,
+      deviceToken: args.deviceToken,
+      method: args.method,
+      params: args.params,
+      orchestrationCapability: args.envelope?.orchestrationCapability,
+      orchestrationContractVersion: args.envelope?.orchestrationContractVersion,
+      orchestrationRequestId: args.envelope?.orchestrationRequestId,
+      orchestrationPeerRun: args.envelope?.orchestrationPeerRun,
+      compatibilityInvocationId: args.envelope?.compatibilityInvocationId,
+      orchestrationCompatibilityEvidence: args.envelope?.orchestrationCompatibilityEvidence
+    },
+    args.maxBytes
+  )
 }
 
 const REMOTE_RUNTIME_REQUEST_TOO_LARGE_PREFIX = 'Remote runtime request exceeds'

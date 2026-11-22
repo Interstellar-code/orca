@@ -10,9 +10,9 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { translate } from '@/i18n/i18n'
-import { openAppHttpLink } from '@/lib/app-http-link-open'
-import { cn } from '@/lib/utils'
+import { useTranslate } from '@/i18n/use-translate'
+import { openAppHttpLink } from '@/lib/browser/navigation/app-http-link-open'
+import { cn } from '@/lib/class-names'
 import { formatRelativeTime } from '../task-page-source-context'
 import { getDartStatusTone, getDartTaskOpenUrl } from './task-page-dart-list-model'
 
@@ -56,7 +56,8 @@ function DartLinkedWorkspaceAction({
   onOpenWorkspace: (workspace: Worktree) => void
   onStartWorkspace: (task: DartTask) => void
 }): React.JSX.Element {
-  const label = translate(
+  const t = useTranslate()
+  const label = t(
     'auto.components.task.page.dart.TaskList.linkedWorkspaceCount',
     '{{count}} workspaces linked to this task',
     {
@@ -87,7 +88,7 @@ function DartLinkedWorkspaceAction({
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => onStartWorkspace(task)}>
           <ArrowRight className="size-3.5" />
-          {translate(
+          {t(
             'auto.components.task.page.dart.TaskList.startAnotherWorkspace',
             'Start new workspace'
           )}
@@ -126,6 +127,7 @@ export function DartTaskRow({
   onStartWorkspace: (task: DartTask) => void
   onOpenWorkspace: (workspace: Worktree) => void
 }): React.JSX.Element {
+  const t = useTranslate()
   const openUrl = getDartTaskOpenUrl(task)
   const status = task.status ?? '—'
   return (
@@ -173,12 +175,12 @@ export function DartTaskRow({
             aria-controls={expand.controlsId}
             aria-label={
               expand.expanded
-                ? translate(
+                ? t(
                     'auto.components.task.page.dart.TaskList.collapseSubtasks',
                     'Collapse subtasks of {{value0}}',
                     { value0: task.title }
                   )
-                : translate(
+                : t(
                     'auto.components.task.page.dart.TaskList.expandSubtasks',
                     'Expand subtasks of {{value0}}',
                     { value0: task.title }
@@ -238,8 +240,7 @@ export function DartTaskRow({
         {task.priority ?? '—'}
       </span>
       <span className="truncate text-xs text-foreground @max-3xl:hidden">
-        {task.assignee ??
-          translate('auto.components.task.page.dart.TaskList.unassigned', 'Unassigned')}
+        {task.assignee ?? t('auto.components.task.page.dart.TaskList.unassigned', 'Unassigned')}
       </span>
       {showTags ? (
         <span className="truncate text-xs text-muted-foreground @max-3xl:hidden">
@@ -268,7 +269,7 @@ export function DartTaskRow({
                   event.stopPropagation()
                   onStartWorkspace(task)
                 }}
-                aria-label={translate(
+                aria-label={t(
                   'auto.components.task.page.dart.TaskList.startWorkspaceFrom',
                   'Start workspace from {{value0}}',
                   { value0: task.title }
@@ -278,10 +279,7 @@ export function DartTaskRow({
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom" sideOffset={6}>
-              {translate(
-                'auto.components.task.page.dart.TaskList.startWorkspace',
-                'Start workspace'
-              )}
+              {t('auto.components.task.page.dart.TaskList.startWorkspace', 'Start workspace')}
             </TooltipContent>
           </Tooltip>
         )}
@@ -295,7 +293,7 @@ export function DartTaskRow({
                   event.stopPropagation()
                   openAppHttpLink(openUrl, { event })
                 }}
-                aria-label={translate(
+                aria-label={t(
                   'auto.components.task.page.dart.TaskList.openInDartNamed',
                   'Open {{value0}} in Dart',
                   { value0: task.title }
@@ -305,7 +303,7 @@ export function DartTaskRow({
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom" sideOffset={6}>
-              {translate('auto.components.task.page.dart.TaskList.openInDart', 'Open in Dart')}
+              {t('auto.components.task.page.dart.TaskList.openInDart', 'Open in Dart')}
             </TooltipContent>
           </Tooltip>
         ) : null}

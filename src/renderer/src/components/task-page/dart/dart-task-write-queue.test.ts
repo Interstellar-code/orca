@@ -3,12 +3,12 @@
 import { toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DartTask } from '../../../../../shared/dart/dart-types'
-import type { TaskSourceContext } from '../../../../../shared/task-source-context'
+import type { TaskSourceContext } from '../../../../../shared/work-items/task-source-context'
 import {
   dartTaskFixture,
   installFakeDartRuntime
 } from '@/store/slices/dart/dart-fake-runtime.test-support'
-import { bumpProviderRuntimeSessionGeneration } from '@/lib/provider-runtime-context'
+import { bumpProviderRuntimeSessionGeneration } from '@/runtime/hosts/observations/provider-runtime-context'
 import { getDartReadScope } from '@/store/slices/dart/dart-read-coordination'
 import {
   dartAccountIdentity,
@@ -16,7 +16,7 @@ import {
   captureDartEpoch,
   isDartEpochCurrent
 } from '@/store/slices/dart/dart-task-identity'
-import { createTestStore } from '@/store/slices/store-test-helpers'
+import { createTestStore } from '@/store/testing/app-store-test-fixture'
 import {
   dartTaskWriteState,
   dismissDartTaskNotice,

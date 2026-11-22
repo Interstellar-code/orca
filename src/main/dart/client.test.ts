@@ -130,7 +130,7 @@ describe('dart connection', () => {
     routeSignedIn(host)
     await client.connect({ apiToken: FIXTURE_TOKEN })
 
-    expect(client.disconnect()).toEqual({ ok: true })
+    await expect(client.disconnect()).resolves.toEqual({ ok: true })
 
     await expect(client.getStatus()).resolves.toMatchObject({ connected: false, viewer: null })
     await expect(client.getConfig()).resolves.toMatchObject({ errorCode: 'dart.notConnected' })

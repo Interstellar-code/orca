@@ -2,7 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DartTask } from '../../../../../shared/dart/dart-types'
-import type { TaskSourceContext } from '../../../../../shared/task-source-context'
+import type { TaskSourceContext } from '../../../../../shared/work-items/task-source-context'
 import { relationshipsFixture } from '@/store/slices/dart/dart-fake-relationships.test-support'
 import {
   dartTaskFixture,
@@ -10,7 +10,7 @@ import {
 } from '@/store/slices/dart/dart-fake-runtime.test-support'
 import { getDartReadScope } from '@/store/slices/dart/dart-read-coordination'
 import { dartTaskIdentity } from '@/store/slices/dart/dart-task-identity'
-import { createTestStore } from '@/store/slices/store-test-helpers'
+import { createTestStore } from '@/store/testing/app-store-test-fixture'
 import { dartTaskWriteState, enqueueDartTaskWrite } from './dart-task-write-queue'
 
 const BLOCKER_ID = 'blocker00001'

@@ -7,9 +7,9 @@ import {
   type DartSavedView,
   type DartSavedViewMutation
 } from '../../../shared/dart/dart-saved-views'
-import { createCompatibleRuntimeStatusResponse } from './runtime-compatibility-test-fixture'
+import { createCompatibleRuntimeStatusResponse } from './rpc/testing/runtime-compatibility-test-fixture'
 import { mutateDartSavedViews, readDartSavedViewState } from './runtime-dart-saved-view-state'
-import { clearRuntimeCompatibilityCacheForTests } from './runtime-rpc-client'
+import { clearRuntimeCompatibilityCache } from './rpc/compatibility/runtime-compatibility-cache'
 
 const getLocal = vi.fn()
 const mutateLocal = vi.fn()
@@ -68,7 +68,7 @@ function rpcMethods(): string[] {
 }
 
 beforeEach(() => {
-  clearRuntimeCompatibilityCacheForTests()
+  clearRuntimeCompatibilityCache()
   vi.stubGlobal('window', {
     api: {
       ui: { getDartSavedViews: getLocal, mutateDartSavedViews: mutateLocal },

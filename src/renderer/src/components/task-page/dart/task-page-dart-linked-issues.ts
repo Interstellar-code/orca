@@ -1,9 +1,9 @@
 import type { DartTask } from '../../../../../shared/dart/dart-types'
-import type { TaskSourceContext } from '../../../../../shared/task-source-context'
+import type { TaskSourceContext } from '../../../../../shared/work-items/task-source-context'
 import type { LinkedDartTaskRef } from '@/lib/dart-issue-workspace-attachment'
 import { translate } from '@/i18n/i18n'
-import { taskProviderErrorMessage } from '@/lib/task-provider-error-copy'
-import { readLinkedTaskIssuesWithLimit } from '../../read-linked-task-issues'
+import { taskProviderErrorMessage } from '@/lib/work-items/task-provider-error-copy'
+import { readLinkedTaskIssuesWithLimit } from '../linked-issues/read-linked-task-issues'
 
 type FetchDartTask = (
   taskId: string,

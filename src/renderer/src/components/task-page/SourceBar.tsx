@@ -1,11 +1,11 @@
 import type { TaskPageComposerActionsModel } from './use-task-page-composer-actions'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 import { X, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
-import { cn } from '@/lib/utils'
-import { LinearScopeSelector } from '@/components/linear-scope-selector'
+import { cn } from '@/lib/class-names'
+import { LinearScopeSelector } from '@/components/task-page/source-selection/linear-scope-selector'
 import {
   Select,
   SelectTrigger,
@@ -13,7 +13,7 @@ import {
   SelectContent,
   SelectItem
 } from '@/components/ui/select'
-import { openAppHttpLink } from '@/lib/app-http-link-open'
+import { openAppHttpLink } from '@/lib/browser/navigation/app-http-link-open'
 import { DART_APP_HOST } from '../../../../shared/dart/dart-types'
 
 const DART_APP_URL = `https://${DART_APP_HOST}`
@@ -22,6 +22,7 @@ export function TaskPageSourceBar({
 }: {
   model: TaskPageComposerActionsModel
 }): React.JSX.Element | null {
+  const t = useTranslate()
   const {
     openTaskPage,
     closeTaskPage,
@@ -67,13 +68,13 @@ export function TaskPageSourceBar({
               size="icon"
               className="size-7 rounded-full"
               onClick={closeTaskPage}
-              aria-label={translate('auto.components.TaskPage.1a06219d5c', 'Close tasks')}
+              aria-label={t('auto.components.TaskPage.1a06219d5c', 'Close tasks')}
             >
               <X className="size-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent side="bottom" sideOffset={6}>
-            {translate('auto.components.TaskPage.4826fd1ad8', 'Close · Esc')}
+            {t('auto.components.TaskPage.4826fd1ad8', 'Close · Esc')}
           </TooltipContent>
         </Tooltip>
         <div className="mx-1 h-5 w-px bg-border/50" aria-hidden />
@@ -104,7 +105,7 @@ export function TaskPageSourceBar({
                       defaultTaskSource: source.id
                     }).catch(() => {
                       toast.error(
-                        translate(
+                        t(
                           'auto.components.TaskPage.609532fae7',
                           'Failed to save default task source.'
                         )
@@ -166,14 +167,10 @@ export function TaskPageSourceBar({
                 disabled={!selectedLinearTeamForExternalLink}
                 aria-label={
                   selectedLinearTeamForExternalLink
-                    ? translate(
-                        'auto.components.TaskPage.246bd64aed',
-                        'Open {{value0}} in Linear',
-                        {
-                          value0: selectedLinearTeamForExternalLink.name
-                        }
-                      )
-                    : translate(
+                    ? t('auto.components.TaskPage.246bd64aed', 'Open {{value0}} in Linear', {
+                        value0: selectedLinearTeamForExternalLink.name
+                      })
+                    : t(
                         'auto.components.TaskPage.8029e2bd4d',
                         'Select one Linear team to open in Linear'
                       )
@@ -185,13 +182,10 @@ export function TaskPageSourceBar({
             </TooltipTrigger>
             <TooltipContent side="bottom" sideOffset={6}>
               {selectedLinearTeamForExternalLink
-                ? translate('auto.components.TaskPage.246bd64aed', 'Open {{value0}} in Linear', {
+                ? t('auto.components.TaskPage.246bd64aed', 'Open {{value0}} in Linear', {
                     value0: selectedLinearTeamForExternalLink.name
                   })
-                : translate(
-                    'auto.components.TaskPage.2af3ab5c58',
-                    'Select one team to open in Linear'
-                  )}
+                : t('auto.components.TaskPage.2af3ab5c58', 'Select one team to open in Linear')}
             </TooltipContent>
           </Tooltip>
         </div>
@@ -209,7 +203,7 @@ export function TaskPageSourceBar({
                 setJiraLoading(true)
                 void selectJiraSite(value).catch(() => {
                   toast.error(
-                    translate('auto.components.TaskPage.d09b7631b7', 'Failed to switch Jira site.')
+                    t('auto.components.TaskPage.d09b7631b7', 'Failed to switch Jira site.')
                   )
                 })
               }}
@@ -219,7 +213,7 @@ export function TaskPageSourceBar({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">
-                  {translate('auto.components.TaskPage.e592d99051', 'All Jira sites')}
+                  {t('auto.components.TaskPage.e592d99051', 'All Jira sites')}
                 </SelectItem>
                 {jiraSites.map((site) => (
                   <SelectItem key={site.id} value={site.id}>
@@ -235,7 +229,7 @@ export function TaskPageSourceBar({
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           {dartStatus.viewer ? (
             <span className="hidden truncate sm:inline">
-              {translate(
+              {t(
                 'auto.components.task.page.SourceBar.dartSignedInAs',
                 'Dart · signed in as {{value0}}',
                 { value0: dartStatus.viewer.name }
@@ -249,7 +243,7 @@ export function TaskPageSourceBar({
                 variant="outline"
                 size="icon-sm"
                 onClick={(event) => openAppHttpLink(DART_APP_URL, { event })}
-                aria-label={translate(
+                aria-label={t(
                   'auto.components.task.page.SourceBar.openDart',
                   'Open Dart in the browser'
                 )}
@@ -258,10 +252,7 @@ export function TaskPageSourceBar({
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom" sideOffset={6}>
-              {translate(
-                'auto.components.task.page.SourceBar.openDart',
-                'Open Dart in the browser'
-              )}
+              {t('auto.components.task.page.SourceBar.openDart', 'Open Dart in the browser')}
             </TooltipContent>
           </Tooltip>
         </div>

@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DART_PROVIDER_RUNTIME_CAPABILITY } from '../../../shared/dart/dart-capabilities'
 import type { WorkspaceAttachment } from '../../../shared/worktree/types'
-import { createCompatibleRuntimeStatusResponse } from './runtime-compatibility-test-fixture'
-import { clearRuntimeCompatibilityCacheForTests } from './runtime-rpc-client'
+import { createCompatibleRuntimeStatusResponse } from './rpc/testing/runtime-compatibility-test-fixture'
+import { clearRuntimeCompatibilityCache } from './rpc/compatibility/runtime-compatibility-cache'
 import { assertLinkedTaskProviderCapabilities } from './runtime-linked-task-provider-capabilities'
 
 const call = vi.fn()
@@ -27,7 +27,7 @@ function hostWithoutDart(): void {
   call.mockImplementation(async () => status)
 }
 beforeEach(() => {
-  clearRuntimeCompatibilityCacheForTests()
+  clearRuntimeCompatibilityCache()
   call.mockReset()
   vi.stubGlobal('window', { api: { runtimeEnvironments: { call } } })
 })

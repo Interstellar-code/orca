@@ -2,8 +2,8 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { installAppKeyboardRouter } from '@/lib/app-keyboard-router'
-import { createCompatibleRuntimeStatusResponse } from '@/runtime/runtime-compatibility-test-fixture'
+import { installAppKeyboardRouter } from '@/lib/keyboard/app-keyboard-router'
+import { createCompatibleRuntimeStatusResponse } from '@/runtime/rpc/testing/runtime-compatibility-test-fixture'
 import { useAppStore } from '@/store'
 import {
   dartTaskFixture,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import type { DartComment } from '../../../../../shared/dart/dart-types'
 import {
   beginDartCommentSend,
@@ -16,6 +16,14 @@ import {
 import { clearCompletedDartComment } from './dart-comment-completion'
 import { canSubmitDartComment, hasMatchingDartComment } from './dart-comment-duplicate'
 import type { DartDetailCommentsApi } from './dart-detail-contracts'
+
+async function whileDartCommentSends(draftKey: string, send: () => Promise<void>): Promise<void> {
+  try {
+    await send()
+  } finally {
+    endDartCommentSend(draftKey)
+  }
+}
 
 export function useDartCommentSubmission({
   draftKey,
@@ -43,11 +51,13 @@ export function useDartCommentSubmission({
 } {
   const mountedRef = useRef(true)
   const currentReplyId = useRef(replyTo?.id ?? null)
-  currentReplyId.current = replyTo?.id ?? null
   const currentDraftKey = useRef(draftKey)
-  currentDraftKey.current = draftKey
   const currentContext = useRef({ viewerName, viewerEmail, onAddComment, readLatestComments })
-  currentContext.current = { viewerName, viewerEmail, onAddComment, readLatestComments }
+  useLayoutEffect(() => {
+    currentReplyId.current = replyTo?.id ?? null
+    currentDraftKey.current = draftKey
+    currentContext.current = { viewerName, viewerEmail, onAddComment, readLatestComments }
+  })
   useEffect(() => {
     mountedRef.current = true
     return () => {
@@ -79,7 +89,7 @@ export function useDartCommentSubmission({
       ) {
         return
       }
-      try {
+      await whileDartCommentSends(draftKey, async () => {
         const viewerIdentities = [viewerName, viewerEmail].filter(
           (value): value is string => !!value?.trim()
         )
@@ -157,9 +167,7 @@ export function useDartCommentSubmission({
         } else {
           patchDartCommentSendState(draftKey, { refusalNotice: dartCommentRefusedNotice(result) })
         }
-      } finally {
-        endDartCommentSend(draftKey)
-      }
+      })
     },
     [
       appendLocalComment,

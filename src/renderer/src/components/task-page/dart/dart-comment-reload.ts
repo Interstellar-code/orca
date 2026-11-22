@@ -1,6 +1,9 @@
 import type { DartComment, DartCommentPage } from '../../../../../shared/dart/dart-types'
-import type { RuntimeClientTarget } from '../../../../../shared/runtime-client-target'
-import { taskProviderErrorMessage, taskProviderErrorText } from '@/lib/task-provider-error-copy'
+import type { RuntimeClientTarget } from '../../../../../shared/remote-runtime/host-catalog/runtime-client-target'
+import {
+  taskProviderErrorMessage,
+  taskProviderErrorText
+} from '@/lib/work-items/task-provider-error-copy'
 import { dartListCommentsForTarget, type DartClientResult } from '@/runtime/runtime-dart-client'
 import { captureDartEpoch, type DartTaskIdentity } from '@/store/slices/dart/dart-task-identity'
 import { readPastDartWrites } from './dart-stale-read'

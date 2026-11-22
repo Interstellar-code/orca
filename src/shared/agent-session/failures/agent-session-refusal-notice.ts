@@ -23,7 +23,7 @@ import {
   agentSessionRefusalReasonWords,
   type AgentSessionRefusalHolder
 } from './agent-session-refusal-reason-words'
-import { TUI_AGENT_DISPLAY_NAMES } from '../../tui-agent-display-names'
+import { TUI_AGENT_DISPLAY_NAMES } from '../../agent-launch/catalog/tui-agent-display-names'
 import { expiredAttachmentsSentence } from './agent-session-attachment-failure-words'
 import { agentSessionExpiredAttachmentNames } from './agent-session-expired-attachments'
 
@@ -188,7 +188,7 @@ function reasonParts(
  *  A failed start's refusal keeps the holder it named, which tells a chat from a terminal. */
 export function agentSessionRefusalCauseParts(
   failure: AgentSessionWriteFailure & AgentSessionRefusalHolder,
-  context: { agentName?: string } = {}
+  context: Pick<AgentSessionFailureWordsContext, 'agentName' | 'hostName'> = {}
 ): AgentSessionWriteNoticePart[] {
   const parts =
     failure.kind === 'refused'

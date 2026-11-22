@@ -1,7 +1,7 @@
 import type { DartTask } from '../../../../../shared/dart/dart-types'
 import type { DartCreateTaskArgs } from '../../../../../shared/rpc-contract/dart-params'
 import { translate } from '@/i18n/i18n'
-import { taskProviderErrorMessage } from '@/lib/task-provider-error-copy'
+import { taskProviderErrorMessage } from '@/lib/work-items/task-provider-error-copy'
 import { dartListTasksForTarget } from '@/runtime/runtime-dart-client'
 import type { DartWriteResult } from '@/runtime/runtime-dart-write-client'
 import { useAppStore } from '@/store'
