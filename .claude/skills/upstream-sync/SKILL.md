@@ -154,10 +154,11 @@ On the sync branch, right after the merge commit, in this order:
    see what it selects. It runs the tests named in the registry, the Dart tests, and the tests related
    to the fork's source files plus those changed-on-both-sides files, with `--maxWorkers=2`.
    The report lists current names (a renamed file shows as `new (renamed from old)`), and the suite
-   follows any remaining old name through renames since the upstream merge base. It prints
-   `N of M seeds skipped` and exits 1 for each listed path that no longer exists and has no rename
-   (usually a file upstream deleted): fix those before going on, by dropping the path from the list
-   or recording it in the sync report as deleted upstream. Skipped-seed warnings are never ignored.
+   follows any remaining old name through renames since the upstream merge base. The summary line is
+   `N listed, R resolved through renames, D deleted upstream, C non-code ignored, S skipped`.
+   Deleted-upstream paths (with the deleting commit) do not change the exit code: copy them into the
+   sync report. A skipped path (no rename, no deletion; usually a typo or a stale list) exits 1 and
+   must be fixed before going on; never ignore skipped-seed warnings.
    Exit codes: 1 is a test failure, a skipped seed, a stale registry path or an empty selection;
    2 is a usage error (for example a missing `--also-related` path).
    Without the report, make the list with git: on the merge commit `M`,

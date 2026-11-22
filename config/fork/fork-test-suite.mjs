@@ -28,7 +28,8 @@ const USAGE = `Usage: node config/fork/fork-test-suite.mjs [options] [-- <extra 
                                exists nowhere (even after rename resolution) is an error
   --also-related-from <path>   the same, read from a file: one path per line, or an
                                upstream-sync report (path bullets are picked out); a path that
-                               is gone is resolved through renames, else skipped and the run
+                               is gone is resolved through renames; one deleted in history is
+                               listed as deleted upstream; any other is skipped and the run
                                exits 1
   --renames-from <ref>         base commit for rename resolution (default: the merge base of
                                the latest "merge: upstream" commit)
@@ -136,10 +137,24 @@ function readList(file) {
 
 // Paths renamed since the upstream merge base, followed through repeated renames.
 let renameTargets
+let renameBase
+function historyBase() {
+  renameBase ??= options.renamesFrom ?? upstreamMergeBase()
+  return renameBase
+}
+
+// The short sha of the commit that deleted a path since the merge base, or '' when none did.
+function deletingCommit(file) {
+  const base = historyBase()
+  return base
+    ? gitOutput(['log', '--diff-filter=D', '--format=%h', '-1', `${base}..HEAD`, '--', file]).trim()
+    : ''
+}
+
 function renameTarget(file) {
   if (!renameTargets) {
     renameTargets = new Map()
-    const base = options.renamesFrom ?? upstreamMergeBase()
+    const base = historyBase()
     if (!base) {
       console.warn(
         'warn: no "merge: upstream" commit found and no --renames-from; renames not resolved'
@@ -236,7 +251,7 @@ for (const customization of active) {
 }
 
 const alsoRelated = new Set()
-const seedStats = { listed: 0, renamed: [], notCode: [], skipped: [] }
+const seedStats = { listed: 0, renamed: [], deleted: [], notCode: [], skipped: [] }
 const seedEntries = [
   ...options.alsoRelated.map((path) => ({ path, explicit: true })),
   ...options.alsoRelatedFrom.flatMap((path) => {
@@ -262,7 +277,12 @@ for (const [path, { explicit }] of new Map(
     if (explicit) {
       fail(`--also-related path does not exist and has no rename: ${file}`)
     }
-    seedStats.skipped.push(file)
+    const deletedBy = deletingCommit(file)
+    if (deletedBy) {
+      seedStats.deleted.push(`${file} (deleted in ${deletedBy})`)
+    } else {
+      seedStats.skipped.push(file)
+    }
     continue
   }
   for (const entry of filesUnder(file) ?? []) {
@@ -379,14 +399,19 @@ async function relatedTests(seeds) {
 function report() {
   const seen = new Set()
   console.log('Fork test suite selection')
-  const { listed, renamed, notCode, skipped } = seedStats
+  const { listed, renamed, deleted, notCode, skipped } = seedStats
   if (listed) {
     console.log(
       `\nalso-related seeds: ${listed} listed, ${renamed.length} resolved through renames, ` +
-        `${notCode.length} non-code files ignored, ${skipped.length} skipped`
+        `${deleted.length} deleted upstream, ${notCode.length} non-code ignored, ` +
+        `${skipped.length} skipped`
     )
     if (options.list) {
       renamed.forEach((entry) => console.log(`  renamed ${entry}`))
+    }
+    if (deleted.length) {
+      console.log('\ndeleted upstream (record these in the sync report):')
+      deleted.forEach((entry) => console.log(`  ${entry}`))
     }
   }
   for (const name of SOURCE_NAMES) {
@@ -539,7 +564,7 @@ if (!options.list) {
 if (seedStats.skipped.length) {
   console.error(
     `\nfork-test-suite: ${seedStats.skipped.length} of ${seedStats.listed} also-related seeds skipped ` +
-      '(not found and no rename; fix the list or pass --renames-from):'
+      '(not found, no rename and no deletion in history; fix the list or pass --renames-from):'
   )
   seedStats.skipped.forEach((entry) => console.error(`  ${entry}`))
   exitCode ||= 1
