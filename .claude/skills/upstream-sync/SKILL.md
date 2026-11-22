@@ -166,9 +166,24 @@ On the sync branch, right after the merge commit, in this order:
    `comm -12 <(git diff --name-only --no-renames $base M^1 | sort) <(git diff --name-only --no-renames $base M^2 | sort) > <file>`
    (pre-merge names; the suite resolves them through renames) and pass `--also-related-from <file>`.
    A non-zero exit that lists missing registry paths is a stale registry: fix it in step 7.
-4. `pnpm test --maxWorkers=2` (full suite) only when Rohit asks for it.
-5. `pnpm lint`, then `pnpm check:changed`.
-6. A failure: check whether it also fails on the upstream target alone, in a separate worktree
+4. `pnpm run build:mobile-web` (about 20 s). It runs upstream's bundle size check
+   (`verify-mobile-web-app-bundle.mjs`); fork code can push the merged bundle over the limit, and
+   no test catches that.
+5. One real package build of the branch for the current platform, in the background:
+   - Linux: `pnpm run build:desktop:assets && pnpm run ensure:electron-runtime && env -u CI pnpm exec electron-builder --config config/electron-builder.config.cjs --linux dir --x64 --publish never`,
+     with `ORCA_BUILD_COMMIT` (the short `HEAD` sha) and `ORCA_LOCAL_BUILD_VERSION` exported the way
+     `build_linux` in `config/fork/rebuild-and-install.sh` sets them.
+   - macOS: `config/fork/rebuild-and-install.sh --mode mac --no-upstream --no-push` from the build
+     clone, or `pnpm build:mac`.
+     A size-budget failure from upstream's own check is fixed by taking upstream's later raise of the
+     budget if one exists (cherry-pick with `-x`, and ask Rohit first), or by trimming fork code.
+6. `pnpm test --maxWorkers=2` (full suite) only when Rohit asks for it.
+7. `pnpm lint`, then `ORCA_CODE_QUALITY_BASE=<target> pnpm check:changed`. Scope it to the upstream
+   target: against `origin/main` the changed-file list is the whole upstream diff, the related unit
+   tests become a second full suite, and the code-quality step fails with `E2BIG`. For the same reason
+   `pnpm lint`'s own `check:code-quality:changed` step fails with `E2BIG` on a sync branch; the scoped
+   `check:changed` covers it.
+8. A failure: check whether it also fails on the upstream target alone, in a separate worktree
    (`git worktree add --detach ../upstream-target <target>`, a sibling folder of `<checkout>`; then `pnpm install --frozen-lockfile`
    there; remove it with `git worktree remove` afterwards). Fails there too: record it in the sync report as pre-existing, do not fix. Fails only
    on the merge: fix it on the branch (a builder round with the failure output), re-run the gates.
