@@ -402,7 +402,7 @@
       "id": "fork-upstream-sync-and-release-skills",
       "title": "upstream-sync and release skills: guided upstream merge and one-command fork release",
       "status": "active",
-      "summary": "Two project skills. upstream-sync lists the upstream releases the fork lacks, asks which to sync to, merges on a branch on Ubu, resolves conflicts against this registry, runs the gates and a live Dart check, reviews and merges the PR, then runs release. release publishes the GitHub Release (fork-release.yml: Mac, Linux, Windows downloads), builds and installs on Ubu, and builds the Mac app for a swap Rohit runs. config/fork/upstream-sync.sh holds the report, release-target, record-release and record-sync helpers; rebuild-and-install.sh now calls its record-release.",
+      "summary": "Two project skills. upstream-sync lists the upstream releases the fork lacks, asks which to sync to, merges on a branch in the invoking machine's own checkout, resolves conflicts against this registry, runs the gates, reviews and merges the PR, runs release, then a live Dart check on the Ubu install. release publishes the GitHub Release (fork-release.yml: Mac, Linux, Windows downloads), builds and installs on Ubu, and builds the Mac app for a swap Rohit runs. config/fork/upstream-sync.sh holds the report, release-target, record-release and record-sync helpers; rebuild-and-install.sh now calls its record-release.",
       "areas": ["tooling", "ci"],
       "key_paths": [
         ".claude/skills/upstream-sync/SKILL.md",
