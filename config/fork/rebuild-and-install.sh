@@ -290,7 +290,7 @@ build_linux() {
   local commit=$1
   linux_output
   built_version=$(ORCA_BUILD_COMMIT=$commit node --input-type=module -e "
-import { createLocalBuildVersion, readForkBaseVersion } from '$PWD/config/scripts/build-mac-local.mjs'
+import { createLocalBuildVersion, readForkBaseVersion } from '$PWD/config/scripts/desktop-distribution/macos/build-mac-local.mjs'
 import { readFileSync } from 'node:fs'
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
 console.log(createLocalBuildVersion(readForkBaseVersion(pkg.version), Date.now(), process.env.ORCA_BUILD_COMMIT))
