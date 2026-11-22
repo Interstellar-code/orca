@@ -126,10 +126,13 @@ function readList(file) {
       .replaceAll('`', '')
     // A report bullet is `path` or `path (renamed from old)`; prose bullets have no slash in the first word.
     const token = text.split(/\s+/)[0]
-    if (token.includes('/') && !token.endsWith(':') && !token.endsWith(',')) {
+    if (!token.includes('/')) {
+      continue
+    }
+    if (/^[\w@.+/[\]()-]+\.\w{1,6}$/.test(token) || token.endsWith('/')) {
       paths.push(token)
-    } else if (/^[-*]\s/.test(raw.trim()) && text.includes('/') && /\.\w{1,6}$/.test(text)) {
-      console.warn(`warn: bullet looks like a path but was not read: ${text}`)
+    } else {
+      console.warn(`warn: not read as a path: ${text}`)
     }
   }
   return paths
@@ -189,7 +192,6 @@ function renameTarget(file) {
 function upstreamMergeBase() {
   const merge = gitOutput([
     'log',
-    '--first-parent',
     '--merges',
     '--grep=^merge: upstream',
     '-n1',

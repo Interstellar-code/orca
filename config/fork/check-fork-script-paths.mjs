@@ -13,7 +13,7 @@ const SCANNED = [
 ]
 // A path starts at a word boundary, so URLs, absolute paths, `$VAR/` and `../` prefixes never match.
 const REPO_PATH =
-  /(?<![\w./~$@:%{}-])(?:config|src|mobile|scripts|resources|\.github)\/[\w@.+/-]*(?:[\w@+/-]|\.\w)/g
+  /(?<![\w./~$@:%{}-])(?:config|src|mobile|scripts|resources|tests|docs|\.github)\/[\w@.+/-]*(?:[\w@+/-]|\.\w)/g
 const PNPM_SCRIPT =
   /\bpnpm((?:\s+(?:-C\s+\S+|--[\w-]+(?:=\S+)?))*)\s+(?:run\s+)?([A-Za-z][\w:.-]*)(?=[\s`'")]|$)/g
 const PNPM_COMMANDS = new Set([
@@ -82,11 +82,8 @@ for (const file of SCANNED.flatMap((pattern) => globSync(pattern, { cwd: root })
     const code =
       isMarkdown && !inFence ? [...line.matchAll(/`([^`]*)`/g)].map((m) => m[1]).join('\n') : line
     const at = `${file}:${index + 1}`
-    // `$PWD/config/...` and `./config/...` name repo paths; other prefixes (URLs, $HOME) do not.
-    const scan = line.replace(
-      /(?:\$\{?(?:PWD|ROOT|REPO_ROOT|root)\}?|\$\(pwd\)|(?<![\w.])\.)\//g,
-      ' '
-    )
+    // `$VAR/config/...` and `./config/...` count as repo-root relative; URLs do not.
+    const scan = line.replace(/(?:\$\{?\w+\}?|\$\(pwd\)|(?<![\w.])\.)\//g, ' ')
     for (const found of scan.matchAll(REPO_PATH)) {
       // A glob or placeholder right after the match means the path is not literal.
       if (/[*<>{$[?]/.test(scan[found.index + found[0].length] ?? '')) {
