@@ -4,8 +4,11 @@ import {
   DART_SAVED_VIEWS_UPDATE_REQUIRED,
   type DartSavedViewState
 } from '../../../../shared/dart/dart-saved-views'
-import { callRuntimeResult, getRemoteRuntimeStatus } from './web-runtime-calls'
-import { assertActiveEnvironment, requireActiveEnvironment } from './web-runtime-session'
+import { callRuntimeResult, getRemoteRuntimeStatus } from '../runtime/client/web-runtime-calls'
+import {
+  assertActiveEnvironment,
+  requireActiveEnvironment
+} from '../runtime/client/web-runtime-session'
 
 type WebDartSavedViewApi = Required<
   Pick<NonNullable<Partial<PreloadApi>['ui']>, 'getDartSavedViews' | 'mutateDartSavedViews'>

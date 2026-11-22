@@ -12,7 +12,7 @@ import {
   UpdateTaskDescription,
   type DartFailure
 } from '../../../shared/rpc-contract/dart-params'
-import { taskProviderFailure } from '../../../shared/task-provider-failure'
+import { taskProviderFailure } from '../../../shared/work-items/task-provider-failure'
 import { connect, disconnect, getConfig, getStatus, testConnection } from '../../dart/client'
 import {
   addComment,
@@ -60,8 +60,8 @@ export function registerDartHandlers(): void {
     return result
   })
 
-  ipcMain.handle('dart:disconnect', () => {
-    const result = disconnect()
+  ipcMain.handle('dart:disconnect', async () => {
+    const result = await disconnect()
     _resetPreflightCache()
     return result
   })

@@ -1,12 +1,12 @@
 import { DART_PROVIDER_RUNTIME_CAPABILITY } from '../../../shared/dart/dart-capabilities'
-import { WORKTREE_LINKED_WORK_ITEM_CONTEXT_RUNTIME_CAPABILITY } from '../../../shared/protocol-version'
-import type { RuntimeClientTarget } from '../../../shared/runtime-client-target'
-import type { TaskSourceContext } from '../../../shared/task-source-context'
+import { WORKTREE_LINKED_WORK_ITEM_CONTEXT_RUNTIME_CAPABILITY } from '../../../shared/remote-runtime/protocol/worktree-runtime-capabilities'
+import type { RuntimeClientTarget } from '../../../shared/remote-runtime/host-catalog/runtime-client-target'
+import type { TaskSourceContext } from '../../../shared/work-items/task-source-context'
 import type { WorkspaceAttachment, WorkspaceLinkedItem } from '../../../shared/worktree/types'
-import { getWorkspaceAttachmentKey } from '../../../shared/workspace-attachment-normalization'
+import { getWorkspaceAttachmentKey } from '../../../shared/workspace-attachments/workspace-attachment-normalization'
 import { translate } from '@/i18n/i18n'
 import { dartUpdateRequiredMessage } from './runtime-dart-client'
-import { assertRuntimeEnvironmentCapability } from './runtime-rpc-client'
+import { assertRuntimeEnvironmentCapability } from './rpc/compatibility/runtime-capability-proof'
 
 type LinkedTaskRequest = {
   linkedTask?: Pick<WorkspaceLinkedItem, 'provider'> | null

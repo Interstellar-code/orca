@@ -1,20 +1,20 @@
-import type { GlobalSettings } from '../../../../../shared/global-settings-types'
-import type { RuntimeClientTarget } from '../../../../../shared/runtime-client-target'
+import type { GlobalSettings } from '../../../../../shared/settings/global-settings-types'
+import type { RuntimeClientTarget } from '../../../../../shared/remote-runtime/host-catalog/runtime-client-target'
 import {
   getTaskSourceCacheScope,
   type TaskSourceContext
-} from '../../../../../shared/task-source-context'
+} from '../../../../../shared/work-items/task-source-context'
 import type { DartConnectionStatus, DartTaskPage } from '../../../../../shared/dart/dart-types'
 import type { DartScopeMeta } from '@/components/task-page/dart/dart-board-contracts'
-import { defaultScopeHost } from '@/lib/default-creation-host'
+import { defaultScopeHost } from '@/runtime/hosts/selection/default-creation-host'
 import {
   getEnvironmentRuntimeContextKey,
   getProviderRuntimeContextKey,
   runtimeEnvironmentIdFromContextKey
-} from '@/lib/provider-runtime-context'
-import { taskSourceRuntimeTarget } from '@/lib/task-source-runtime-target'
-import { getRuntimeTargetHostId, runtimeTargetEnvironmentId } from '@/runtime/runtime-client-target'
-import type { CacheEntry } from '../../github/cache-model'
+} from '@/runtime/hosts/observations/provider-runtime-context'
+import { taskSourceRuntimeTarget } from '@/lib/work-items/task-source-runtime-target'
+import { getRuntimeTargetHostId, runtimeTargetEnvironmentId } from '@/runtime/rpc/targets/runtime-client-target'
+import type { CacheEntry } from '../../github/cache/cache-model'
 import type { AppState } from '../../types'
 import type { DartSlice, DartSliceSet } from './dart-slice-contract'
 

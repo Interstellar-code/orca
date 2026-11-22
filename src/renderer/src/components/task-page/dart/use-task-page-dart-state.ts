@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DartLayout } from '../../../../../shared/dart/dart-saved-views'
 import type { DartConnectionStatus, DartTask } from '../../../../../shared/dart/dart-types'
-import type { TaskProvider } from '../../../../../shared/task-providers'
-import type { TaskSourceContext } from '../../../../../shared/task-source-context'
+import type { TaskProvider } from '../../../../../shared/work-items/task-providers'
+import type { TaskSourceContext } from '../../../../../shared/work-items/task-source-context'
 import type { Worktree } from '../../../../../shared/worktree/types'
 import {
   buildDartTaskWorkspaceAttachmentIndex,

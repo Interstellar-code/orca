@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { getIntlLocale, translate } from '@/i18n/i18n'
 import { writeDartBoardTaskDragData } from '@/lib/dart-board-drag-payload'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/class-names'
 import type { DartTaskIdentity } from '@/store/slices/dart/dart-task-identity'
 import type { DartBoardModel } from './dart-board-contracts'
 import { DartCardMarkers } from './DartCardMarkers'

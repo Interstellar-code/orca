@@ -1,7 +1,7 @@
 import { parseDartTaskUrl } from '../../../shared/dart/dart-issue-url'
 import type { DartTask } from '../../../shared/dart/dart-types'
-import type { TaskSourceContext } from '../../../shared/task-source-context'
-import { getWorkspaceAttachments } from '../../../shared/workspace-attachments'
+import type { TaskSourceContext } from '../../../shared/work-items/task-source-context'
+import { getWorkspaceAttachments } from '../../../shared/workspace-attachments/workspace-attachments'
 import type { WorkspaceAttachment, Worktree } from '../../../shared/worktree/types'
 
 export type DartTaskWorkspaceAttachmentIndex = ReadonlyMap<string, readonly Worktree[]>

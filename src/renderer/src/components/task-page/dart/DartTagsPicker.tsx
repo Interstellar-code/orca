@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
-import { LINEAR_EDIT_CHIP_CLASS } from '@/components/linear-item-drawer-edit-controls'
+import { LINEAR_EDIT_CHIP_CLASS } from '@/components/task-page/linear/item-drawer/linear-item-drawer-edit-controls'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   Command,

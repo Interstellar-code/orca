@@ -1,6 +1,6 @@
 import type { DartDetailEditApi } from './dart-detail-contracts'
 import { translate } from '@/i18n/i18n'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/class-names'
 import { DartDateField } from './DartDateField'
 import { DartSearchChip, DartSelectChip, dartFieldState } from './DartPropertyChips'
 import { DartTagsPicker } from './DartTagsPicker'

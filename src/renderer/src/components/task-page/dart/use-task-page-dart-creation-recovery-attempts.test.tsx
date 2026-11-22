@@ -6,9 +6,9 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DartWorkspaceConfig } from '../../../../../shared/dart/dart-types'
-import { getDefaultSettings } from '../../../../../shared/constants'
+import { getDefaultSettings } from '../../../../../shared/orca-profiles/constants'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
+import { getProviderRuntimeContextKey } from '@/runtime/hosts/observations/provider-runtime-context'
 import { useAppStore } from '@/store'
 import {
   installFakeDartRuntime,

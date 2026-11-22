@@ -6,8 +6,8 @@ import {
   type DartSavedViewMutation,
   type DartSavedViewState
 } from '../../../../../shared/dart/dart-saved-views'
-import { createNonSecureContextUuid } from '../../../../../shared/non-secure-context-uuid'
-import type { RuntimeClientTarget } from '../../../../../shared/runtime-client-target'
+import { createNonSecureContextUuid } from '../../../../../shared/identifiers/non-secure-context-uuid'
+import type { RuntimeClientTarget } from '../../../../../shared/remote-runtime/host-catalog/runtime-client-target'
 import { translate } from '@/i18n/i18n'
 import {
   mutateDartSavedViews,

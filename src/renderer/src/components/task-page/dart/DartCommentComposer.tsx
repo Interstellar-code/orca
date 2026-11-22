@@ -3,10 +3,13 @@ import { LoaderCircle, Send } from 'lucide-react'
 import type { DartComment } from '../../../../../shared/dart/dart-types'
 import { Button } from '@/components/ui/button'
 import { translate } from '@/i18n/i18n'
-import { ImeTextarea } from '@/lib/ime-text-field'
-import { hasBoundedCommentBodyText } from '@/lib/comment-body-submit-state'
+import { ImeTextarea } from '@/lib/text-input/ime/ime-text-field'
+import { hasBoundedCommentBodyText } from '@/lib/source-control/review/comments/comment-body-submit-state'
 import { useDartCommentReplyEscape } from './use-dart-comment-reply-escape'
-import { getScreenSubmitShortcutLabel, isScreenSubmitShortcut } from '@/lib/screen-submit-shortcut'
+import {
+  getScreenSubmitShortcutLabel,
+  isScreenSubmitShortcut
+} from '@/lib/keyboard/screen-submit-shortcut'
 import {
   draftCommentText,
   getDartCommentSendState,

@@ -26,20 +26,22 @@ import {
 } from './dart-delivery-transports.test-support'
 
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
-vi.mock('@/components/PullRequestPage', () => ({ default: () => null }))
-vi.mock('@/components/GitHubItemDialog', () => ({ default: () => null }))
-vi.mock('./github/List', () => ({ TaskPageGitHubList: () => null }))
+vi.mock('@/components/pull-request-page/page/surface', () => ({ default: () => null }))
+vi.mock('@/components/github-item-dialog/open-dialog/github-item-dialog', () => ({
+  default: () => null
+}))
+vi.mock('./github/listing/List', () => ({ TaskPageGitHubList: () => null }))
 vi.mock('./jira/Content', () => ({ TaskPageJiraContent: () => null }))
 vi.mock('./linear/Content', () => ({ TaskPageLinearContent: () => null }))
 
-vi.mock('@/web/preload-api/web-runtime-calls', () => ({
+vi.mock('@/web/runtime/client/web-runtime-calls', () => ({
   getRemoteRuntimeStatus: async () => ({ capabilities: web.capabilities }),
   callRuntimeEnvelope: async (method: string, params: Parameters<FakeDartHost['handle']>[1]) =>
     web.methodNotFound
       ? { ok: false, error: { code: 'method_not_found', message: `Unknown method ${method}` } }
       : { ok: true, result: await web.host!.handle(method, params) }
 }))
-vi.mock('@/web/preload-api/web-runtime-session', () => ({
+vi.mock('@/web/runtime/client/web-runtime-session', () => ({
   requireActiveEnvironment: () => ({ id: 'web-env' }),
   assertActiveEnvironment: () => {}
 }))
@@ -107,6 +109,8 @@ describe('hosts and config', () => {
     if (!(trigger instanceof HTMLElement)) {
       throw new Error('The disabled switch has no tooltip trigger')
     }
+    // Tooltips open on focus only when the keyboard moved focus.
+    await userEvent.setup().keyboard('{Shift}')
     act(() => trigger.focus())
     expect((await screen.findAllByText(text)).length).toBeGreaterThan(0)
   }

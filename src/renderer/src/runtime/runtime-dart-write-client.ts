@@ -12,8 +12,8 @@ import type {
   DartUpdateTaskBlockersArgs,
   DartUpdateTaskDescriptionArgs
 } from '../../../shared/rpc-contract/dart-params'
-import type { RuntimeClientTarget } from '../../../shared/runtime-client-target'
-import type { TaskProviderErrorCode } from '../../../shared/task-provider-failure'
+import type { RuntimeClientTarget } from '../../../shared/remote-runtime/host-catalog/runtime-client-target'
+import type { TaskProviderErrorCode } from '../../../shared/work-items/task-provider-failure'
 import { isRemoteRuntimeRequestTooLargeMessage } from '../../../shared/remote-runtime/remote-runtime-memory-limits'
 import { translate } from '@/i18n/i18n'
 import {
@@ -28,7 +28,8 @@ import {
   sanitizeDartTask,
   type DartClientFailure
 } from './runtime-dart-client'
-import { callRuntimeRpc, runtimeEnvironmentSupportsCapability } from './runtime-rpc-client'
+import { callRuntimeRpc } from './rpc/calls/runtime-rpc-call'
+import { runtimeEnvironmentSupportsCapability } from './rpc/compatibility/runtime-capability-proof'
 
 /** `applied` is for callers that confirm a write (T3); this client only returns `notApplied` or `unknown` on failure. */
 export type DartWriteOutcome = 'applied' | 'notApplied' | 'unknown'

@@ -14,8 +14,8 @@ import {
   dartStatusForTarget,
   DartUpdateRequiredError
 } from './runtime-dart-client'
-import { createCompatibleRuntimeStatusResponse } from './runtime-compatibility-test-fixture'
-import { clearRuntimeCompatibilityCacheForTests } from './runtime-rpc-client'
+import { createCompatibleRuntimeStatusResponse } from './rpc/testing/runtime-compatibility-test-fixture'
+import { clearRuntimeCompatibilityCache } from './rpc/compatibility/runtime-compatibility-cache'
 
 const dartStatusLocal = vi.fn()
 const dartConnectLocal = vi.fn()
@@ -88,7 +88,7 @@ function mockRemoteFeatureCapabilities(advertised: {
 }
 
 beforeEach(() => {
-  clearRuntimeCompatibilityCacheForTests()
+  clearRuntimeCompatibilityCache()
   vi.stubGlobal('window', {
     api: {
       dart: {
@@ -301,14 +301,14 @@ describe('dartBoardFeaturesForTarget', () => {
       relationships: true
     })
 
-    clearRuntimeCompatibilityCacheForTests()
+    clearRuntimeCompatibilityCache()
     mockRemoteFeatureCapabilities({ board: true })
     await expect(dartBoardFeaturesForTarget(remote)).resolves.toEqual({
       board: true,
       relationships: false
     })
 
-    clearRuntimeCompatibilityCacheForTests()
+    clearRuntimeCompatibilityCache()
     mockRemoteFeatureCapabilities({ board: false })
     await expect(dartBoardFeaturesForTarget(remote)).resolves.toEqual({
       board: false,

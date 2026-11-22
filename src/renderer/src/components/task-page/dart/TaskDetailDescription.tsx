@@ -1,5 +1,5 @@
 import { Pencil } from 'lucide-react'
-import CommentMarkdown from '@/components/sidebar/CommentMarkdown'
+import CommentMarkdown from '@/components/comment-markdown/CommentMarkdown'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,

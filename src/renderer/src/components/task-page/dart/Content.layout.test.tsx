@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { installAppKeyboardRouter } from '@/lib/app-keyboard-router'
+import { installAppKeyboardRouter } from '@/lib/keyboard/app-keyboard-router'
 import { useAppStore } from '@/store'
 import { dartTaskFixture } from '@/store/slices/dart/dart-fake-runtime.test-support'
 import { bumpDartEpochs } from '@/store/slices/dart/dart-task-identity'
@@ -17,9 +17,11 @@ import {
 import TaskPage from '../TaskPage'
 
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
-vi.mock('@/components/PullRequestPage', () => ({ default: () => null }))
-vi.mock('@/components/GitHubItemDialog', () => ({ default: () => null }))
-vi.mock('../github/List', () => ({ TaskPageGitHubList: () => null }))
+vi.mock('@/components/pull-request-page/page/surface', () => ({ default: () => null }))
+vi.mock('@/components/github-item-dialog/open-dialog/github-item-dialog', () => ({
+  default: () => null
+}))
+vi.mock('../github/listing/List', () => ({ TaskPageGitHubList: () => null }))
 vi.mock('../jira/Content', () => ({ TaskPageJiraContent: () => null }))
 vi.mock('../linear/Content', () => ({ TaskPageLinearContent: () => null }))
 

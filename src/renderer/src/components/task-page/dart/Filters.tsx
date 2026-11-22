@@ -15,7 +15,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { translate } from '@/i18n/i18n'
-import { shouldSuppressEnterSubmit } from '@/lib/new-workspace-enter-guard'
+import { shouldSuppressEnterSubmit } from '@/lib/workspace/creation/new-workspace-enter-guard'
 import type { TaskPageComposerActionsModel } from '../use-task-page-composer-actions'
 import { hasDartOnHoldOption } from './dart-board-columns'
 import type { DartSavedViewsModel } from './dart-board-contracts'

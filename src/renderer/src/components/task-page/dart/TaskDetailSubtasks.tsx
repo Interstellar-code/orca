@@ -1,6 +1,6 @@
 import type { DartTask } from '../../../../../shared/dart/dart-types'
 import { Button } from '@/components/ui/button'
-import { openAppHttpLink } from '@/lib/app-http-link-open'
+import { openAppHttpLink } from '@/lib/browser/navigation/app-http-link-open'
 import { translate } from '@/i18n/i18n'
 import { isDartTaskFinished } from './dart-board-columns'
 import type { DartRelationshipsApi } from './dart-board-contracts'

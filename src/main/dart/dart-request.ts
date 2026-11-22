@@ -2,7 +2,7 @@ import { DART_API_BASE_URL } from '../../shared/dart/dart-types'
 import {
   readFetchResponseJsonWithinLimit,
   readFetchResponseTextWithinLimit
-} from '../../shared/fetch-response-body'
+} from '../../shared/network/fetch-response-body'
 import { getMainHttpClient } from '../network/http-client'
 import { ensureElectronProxyFromEnvironment } from '../network/proxy-settings'
 import { withSpan } from '../observability/tracer'

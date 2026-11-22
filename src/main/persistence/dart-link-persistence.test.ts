@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { PersistedState } from '../../shared/persisted-state-types'
-import type { ProjectGroup } from '../../shared/project-group-types'
-import type { TaskSourceContext } from '../../shared/task-source-context'
+import type { PersistedState } from '../../shared/orca-profiles/persisted-state-types'
+import type { ProjectGroup } from '../../shared/project/groups/project-group-types'
+import type { TaskSourceContext } from '../../shared/work-items/task-source-context'
 import type { WorkspaceAttachment, WorkspaceLinkedItem } from '../../shared/worktree/types'
 import type { WorktreeMeta } from '../../shared/worktree/meta-types'
-import { getWorkspaceAttachments } from '../../shared/workspace-attachments'
-import { normalizeFolderWorkspaces } from '../../shared/folder-workspaces'
-import { mergeWorktreeMetaForWrite } from './loading-store/worktree-meta-write-normalization'
+import { getWorkspaceAttachments } from '../../shared/workspace-attachments/workspace-attachments'
+import { normalizeFolderWorkspaces } from '../../shared/folder-workspaces/folder-workspaces'
+import { mergeWorktreeMetaForWrite } from './loading-store/worktree-metadata/worktree-meta-write-normalization'
 import { normalizeWorktreeLinkedItemMetadata } from './tracking-repos/worktree-metadata-normalization'
 import { FolderWorkspacePersistenceOperations } from './restoring-sessions/folder-workspace-operations'
 
@@ -117,7 +117,7 @@ describe('a Dart link survives a restart on a plain folder workspace', () => {
     return new FolderWorkspacePersistenceOperations({
       state,
       scheduleSave: () => {},
-      removeWorkspaceLineageForFolderParent: () => {},
+      removeWorkspaceLineageForRemovedFolder: () => {},
       pruneMobileClientTabSelections: () => {},
       hydrateRepo: (repo) => repo
     })

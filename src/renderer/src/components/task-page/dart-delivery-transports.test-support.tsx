@@ -1,5 +1,5 @@
 import { vi } from 'vitest'
-import { getDefaultSettings } from '../../../../shared/constants'
+import { getDefaultSettings } from '../../../../shared/orca-profiles/constants'
 import {
   DART_PROVIDER_RUNTIME_CAPABILITY,
   DART_WRITES_V2_RUNTIME_CAPABILITY

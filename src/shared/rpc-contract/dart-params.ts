@@ -70,7 +70,7 @@ import {
   checkDartRequestText,
   type DartTextField
 } from '../dart/dart-text-limits'
-import type { TaskProviderErrorCode } from '../task-provider-failure'
+import type { TaskProviderErrorCode } from '../work-items/task-provider-failure'
 import { OptionalPlainString, OptionalString, requiredString } from './rpc-param-primitives'
 
 export const DART_LIST_PAGE_DEFAULT = 100

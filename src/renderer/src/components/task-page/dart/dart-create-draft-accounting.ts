@@ -1,5 +1,5 @@
 import { useAppStore } from '@/store'
-import type { DartCreateSession } from '@/store/slices/task-creation-drafts'
+import type { DartCreateSession } from '@/store/slices/task-creation/task-creation-drafts'
 import { clearDraft, dartDraftKey, setDraft } from './dart-draft-store'
 
 const NEW_TASK_DRAFT_ID = 'new-task'

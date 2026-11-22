@@ -11,8 +11,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { translate } from '@/i18n/i18n'
-import { openAppHttpLink } from '@/lib/app-http-link-open'
-import { cn } from '@/lib/utils'
+import { openAppHttpLink } from '@/lib/browser/navigation/app-http-link-open'
+import { cn } from '@/lib/class-names'
 import { formatRelativeTime } from '../task-page-source-context'
 import { getDartStatusTone, getDartTaskOpenUrl } from './task-page-dart-list-model'
 

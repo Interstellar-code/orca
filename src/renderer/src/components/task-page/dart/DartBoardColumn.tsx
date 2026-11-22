@@ -1,6 +1,6 @@
 import { Badge } from '@/components/ui/badge'
 import { translate } from '@/i18n/i18n'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/class-names'
 import type { DartBoardColumn as DartBoardColumnData } from './dart-board-contracts'
 
 export function dartColumnLabel(column: DartBoardColumnData): string {

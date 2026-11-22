@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { act, cleanup, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { dartTaskFixture } from '@/store/slices/dart/dart-fake-runtime.test-support'
-import type { TaskSourceContext } from '../../../../../shared/task-source-context'
+import type { TaskSourceContext } from '../../../../../shared/work-items/task-source-context'
 import { TaskPageDartTaskDetail } from './TaskDetail'
 
 const wiring = vi.hoisted(

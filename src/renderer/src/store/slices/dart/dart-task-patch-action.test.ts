@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { createTestStore } from '../store-test-helpers'
+import { createTestStore } from '@/store/testing/app-store-test-fixture'
 import { dartTaskFixture } from './dart-fake-runtime.test-support'
 import { getDartReadScope } from './dart-read-coordination'
 import { dartTaskIdentity, registerDartCacheAlias } from './dart-task-identity'
-import type { TaskSourceContext } from '../../../../../shared/task-source-context'
+import type { TaskSourceContext } from '../../../../../shared/work-items/task-source-context'
 
 const TASK_ID = 'aB3dE5gH7jK9'
 const FRESH = 1_000

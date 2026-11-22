@@ -1,7 +1,7 @@
 import type { DartTask } from '../../../../../shared/dart/dart-types'
 import type { Worktree } from '../../../../../shared/worktree/types'
 import { translate } from '@/i18n/i18n'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/class-names'
 import type { DartNestedListModel } from './dart-board-contracts'
 import { TaskListNestedRows } from './TaskListNestedRows'
 import { DartTaskRow, dartRowGridClass, type DartListRowActions } from './TaskListRow'

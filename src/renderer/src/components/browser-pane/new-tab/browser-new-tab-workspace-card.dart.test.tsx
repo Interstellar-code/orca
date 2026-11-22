@@ -2,7 +2,7 @@
 import { cleanup, render } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { BrowserNewTabWorkspaceCard } from './browser-new-tab-workspace-card'
-import type { WorkspaceLinkedItemRow } from '../../sidebar/workspace-hover-attachments'
+import type { WorkspaceLinkedItemRow } from '../../sidebar/workspace-card/review/workspace-hover-attachments'
 
 afterEach(cleanup)
 

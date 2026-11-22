@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { TaskSourceContext } from '../../../../../shared/task-source-context'
-import { createTestStore } from '../store-test-helpers'
+import type { TaskSourceContext } from '../../../../../shared/work-items/task-source-context'
+import { createTestStore } from '@/store/testing/app-store-test-fixture'
 import { getDartReadScope } from './dart-read-coordination'
 import { captureDartEpoch, dartTaskIdentity, isDartEpochCurrent } from './dart-task-identity'
 import { dartTaskFixture, installFakeDartRuntime } from './dart-fake-runtime.test-support'

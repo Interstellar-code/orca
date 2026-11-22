@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createTestStore } from '../store-test-helpers'
+import { createTestStore } from '@/store/testing/app-store-test-fixture'
 import { dartTaskFixture, installFakeDartRuntime } from './dart-fake-runtime.test-support'
 import { relationshipsFixture } from './dart-fake-relationships.test-support'
 import { getDartReadScope, scopedDartCacheKey } from './dart-read-coordination'

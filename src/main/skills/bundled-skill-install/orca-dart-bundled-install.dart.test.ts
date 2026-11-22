@@ -2,8 +2,8 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { BUNDLED_SKILL_SOURCES } from './bundled-skill-sources'
-import { installBundledSkills, previewBundledSkillInstall } from './service'
-import { makeSkillHome, removeSkillHomes, serviceInput } from './skill-home.test-support'
+import { installBundledSkills, previewBundledSkillInstall } from './bundled-skill-installation'
+import { makeSkillHome, removeSkillHomes, serviceInput } from './testing/bundled-skill-home'
 
 afterEach(removeSkillHomes)
 

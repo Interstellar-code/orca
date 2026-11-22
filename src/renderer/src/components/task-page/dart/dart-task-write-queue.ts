@@ -1,7 +1,7 @@
 import { toast } from 'sonner'
 import type { DartTask } from '../../../../../shared/dart/dart-types'
 import { translate } from '@/i18n/i18n'
-import { taskProviderErrorMessage } from '@/lib/task-provider-error-copy'
+import { taskProviderErrorMessage } from '@/lib/work-items/task-provider-error-copy'
 import type { DartWriteFailure } from '@/runtime/runtime-dart-write-client'
 import { beginDartMutation } from '@/store/slices/dart/dart-read-coordination'
 import {

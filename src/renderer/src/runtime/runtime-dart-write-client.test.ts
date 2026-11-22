@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 
 import { RemoteRuntimeClientError } from '../../../shared/remote-runtime/remote-runtime-client-error'
-import { getUtf8ByteLength } from '../../../shared/utf8-byte-limits'
-import { createBrowserUuid } from '@/lib/browser-uuid'
+import { getUtf8ByteLength } from '../../../shared/text/utf8-byte-limits'
+import { createNonSecureContextUuid as createBrowserUuid } from '../../../shared/identifiers/non-secure-context-uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   DART_PROVIDER_RUNTIME_CAPABILITY,
@@ -10,12 +10,12 @@ import {
   DART_WRITES_V2_RUNTIME_CAPABILITY
 } from '../../../shared/dart/dart-capabilities'
 import { DART_REQUEST_TEXT_MAX_BYTES } from '../../../shared/dart/dart-text-limits'
-import { runtimeEnvironmentCallFailure } from '../../../main/ipc/runtime-environments/runtime-environment-call-failure'
+import { runtimeEnvironmentCallFailure } from '../../../main/ipc/runtime-environments/requests/runtime-environment-call-failure'
 import {
   REMOTE_RUNTIME_MAX_INBOUND_REQUEST_JSON_BYTES,
   serializeRemoteRuntimeRpcRequest
 } from '../../../shared/remote-runtime/remote-runtime-memory-limits'
-import type { resolveEnvironment } from '../../../shared/runtime-environment-store'
+import type { resolveEnvironment } from '../../../shared/remote-runtime/host-store/runtime-environment-store'
 import type { DartTask } from '../../../shared/dart/dart-types'
 import {
   dartAddCommentForTarget,
@@ -25,8 +25,8 @@ import {
   dartUpdateTaskDescriptionForTarget,
   dartUpdateTaskForTarget
 } from './runtime-dart-write-client'
-import { createCompatibleRuntimeStatusResponse } from './runtime-compatibility-test-fixture'
-import { clearRuntimeCompatibilityCacheForTests } from './runtime-rpc-client'
+import { createCompatibleRuntimeStatusResponse } from './rpc/testing/runtime-compatibility-test-fixture'
+import { clearRuntimeCompatibilityCache } from './rpc/compatibility/runtime-compatibility-cache'
 
 const runtimeCall = vi.fn()
 const updateTaskLocal = vi.fn()
@@ -90,7 +90,7 @@ function mockRemote(options: {
 }
 
 beforeEach(() => {
-  clearRuntimeCompatibilityCacheForTests()
+  clearRuntimeCompatibilityCache()
   vi.stubGlobal('window', {
     api: {
       dart: {
@@ -390,7 +390,9 @@ describe('runtime Dart client writes', () => {
 
     it('maps a serializer refusal through the real callRuntimeRpc path to notApplied, and any other post-dispatch exception to unknown', async () => {
       // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the failure builder reads only runtimeId from the environment.
-      const environment = { runtimeId: 'remote-dart' } as ReturnType<typeof resolveEnvironment>
+      const environment = { runtimeId: 'remote-dart' } as Awaited<
+        ReturnType<typeof resolveEnvironment>
+      >
       let hostReached = 0
       mockRemote({
         withDartCapability: true,
@@ -515,7 +517,7 @@ describe('runtime Dart client writes', () => {
           } catch (error) {
             const failure = runtimeEnvironmentCallFailure(
               // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the failure builder reads only runtimeId from the environment.
-              { runtimeId: 'remote-dart' } as ReturnType<typeof resolveEnvironment>,
+              { runtimeId: 'remote-dart' } as Awaited<ReturnType<typeof resolveEnvironment>>,
               args.method,
               error
             )

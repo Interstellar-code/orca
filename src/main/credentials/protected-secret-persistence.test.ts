@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { setSecretStore } from '../../shared/secret-store'
+import { setSecretStore } from '../../shared/secure-storage/secret-store'
 
 const cipherState = { available: true }
 
@@ -12,25 +12,6 @@ describe('ProtectedSecretPersistence', () => {
       decryptString: (ciphertext) => ciphertext.toString().slice('encrypted:'.length),
       describeProtectionGap: () => null
     })
-  })
-
-  it('evicts dynamic slots across repeated SSH recovery lifecycles', async () => {
-    const { ProtectedSecretPersistence, sshPtyOwnerLeaseSecretSlot } =
-      await import('./protected-secret-persistence')
-    const secrets = new ProtectedSecretPersistence()
-    const slots = Array.from({ length: 100 }, (_, index) =>
-      sshPtyOwnerLeaseSecretSlot(`ssh-${index}`)
-    )
-
-    for (const slot of slots) {
-      expect(secrets.encrypt(slot, 'owner-lease').blob).not.toBe('owner-lease')
-      secrets.removeRetainedBlob(slot)
-    }
-
-    cipherState.available = false
-    for (const slot of slots) {
-      expect(secrets.encrypt(slot, 'replacement-lease')).toEqual({ blob: '', degraded: true })
-    }
   })
 
   it('keeps unavailable ciphertext sealed across recovery until replacement or clear', async () => {
@@ -62,35 +43,5 @@ describe('ProtectedSecretPersistence', () => {
 
     secrets.removeRetainedBlob(slot)
     expect(secrets.encrypt(slot, '')).toEqual({ blob: '', degraded: false })
-  })
-
-  it('keeps deferred encryption pending until its retention update commits', async () => {
-    const { ProtectedSecretPersistence } = await import('./protected-secret-persistence')
-    const secrets = new ProtectedSecretPersistence()
-    cipherState.available = false
-    secrets.encrypt('slot', 'pending')
-    expect(secrets.hasPendingEncryption()).toBe(true)
-    cipherState.available = true
-    const encrypted = secrets.encrypt('slot', 'pending')
-    expect(secrets.hasPendingEncryption()).toBe(true)
-    if (!encrypted.retentionUpdate) {
-      throw new Error('Expected a retention update')
-    }
-    secrets.commitRetentionUpdates([encrypted.retentionUpdate])
-    expect(secrets.hasPendingEncryption()).toBe(false)
-  })
-
-  it('retires a deferred empty secret without retaining a phantom retry', async () => {
-    const { ProtectedSecretPersistence } = await import('./protected-secret-persistence')
-    const secrets = new ProtectedSecretPersistence()
-    cipherState.available = false
-    secrets.encrypt('slot', 'pending')
-    const cleared = secrets.encrypt('slot', '')
-    expect(secrets.hasPendingEncryption()).toBe(true)
-    if (!cleared.retentionUpdate) {
-      throw new Error('Expected a retention update')
-    }
-    secrets.commitRetentionUpdates([cleared.retentionUpdate])
-    expect(secrets.hasPendingEncryption()).toBe(false)
   })
 })

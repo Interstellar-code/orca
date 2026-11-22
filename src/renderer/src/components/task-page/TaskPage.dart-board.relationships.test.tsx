@@ -12,13 +12,15 @@ import { prepareBoardPageEnvironment, renderPage } from './dart-board-page.test-
 import { SOURCE, TRANSPORTS, VIEWER, web } from './dart-delivery-transports.test-support'
 
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
-vi.mock('@/components/PullRequestPage', () => ({ default: () => null }))
-vi.mock('@/components/GitHubItemDialog', () => ({ default: () => null }))
-vi.mock('./github/List', () => ({ TaskPageGitHubList: () => null }))
+vi.mock('@/components/pull-request-page/page/surface', () => ({ default: () => null }))
+vi.mock('@/components/github-item-dialog/open-dialog/github-item-dialog', () => ({
+  default: () => null
+}))
+vi.mock('./github/listing/List', () => ({ TaskPageGitHubList: () => null }))
 vi.mock('./jira/Content', () => ({ TaskPageJiraContent: () => null }))
 vi.mock('./linear/Content', () => ({ TaskPageLinearContent: () => null }))
 
-vi.mock('@/web/preload-api/web-runtime-calls', () => ({
+vi.mock('@/web/runtime/client/web-runtime-calls', () => ({
   getRemoteRuntimeStatus: async () => ({ capabilities: web.capabilities }),
   callRuntimeResult: async (method: string, params: Parameters<FakeDartHost['handle']>[1]) =>
     web.host!.handle(method, params),
@@ -27,7 +29,7 @@ vi.mock('@/web/preload-api/web-runtime-calls', () => ({
     result: await web.host!.handle(method, params)
   })
 }))
-vi.mock('@/web/preload-api/web-runtime-session', () => ({
+vi.mock('@/web/runtime/client/web-runtime-session', () => ({
   requireActiveEnvironment: () => ({ id: 'web-env' }),
   assertActiveEnvironment: () => {}
 }))

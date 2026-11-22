@@ -1,10 +1,10 @@
 import { normalizeJiraQuickFilterState } from '../../shared/jira/jira-quick-filters'
-import { JiraQuickFilterStateParam } from '../../shared/rpc-contract/jira-quick-filter-params'
+import { JiraQuickFilterStateParam } from '../../shared/rpc-contract/jira/jira-quick-filter-params'
 import {
   normalizeJiraSavedFilterState,
   mutateJiraSavedFilterState
 } from '../../shared/jira/jira-saved-filters'
-import { JiraSavedFilterMutationParam } from '../../shared/rpc-contract/jira-saved-filter-params'
+import { JiraSavedFilterMutationParam } from '../../shared/rpc-contract/jira/jira-saved-filter-params'
 import {
   normalizeDartSavedViewState,
   mutateDartSavedViewState
@@ -12,10 +12,10 @@ import {
 import { DartSavedViewMutationParam } from '../../shared/rpc-contract/dart-saved-view-params'
 import { BrowserWindow, ipcMain, webContents, type WebContents } from 'electron'
 import type { Store } from '../persistence/loading-store/store'
-import type { PersistedUIState } from '../../shared/persisted-ui-state-types'
-import { isFeatureInteractionId } from '../../shared/feature-interactions'
-import { isWslMoveWindowWriteHeld } from '../persistence/moving-wsl-projects/wsl-move-window-write-hold'
-import { isTrustedMainRendererSender } from './main-renderer-sender-trust'
+import type { PersistedUIState } from '../../shared/orca-profiles/persisted-ui-state-types'
+import { isFeatureInteractionId } from '../../shared/feature-education/interactions/feature-interactions'
+import { isWslMoveWindowWriteHeld } from '../persistence/moving-wsl-projects/quiescence/wsl-move-window-write-hold'
+import { isTrustedMainRendererSender } from './renderer-requests/main-renderer-sender-trust'
 
 let trustedUIRendererWebContentsId: number | null = null
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import * as VisuallyHidden from 'radix-ui/visually-hidden'
 import type { DartTask } from '../../../../../shared/dart/dart-types'
-import type { TaskSourceContext } from '../../../../../shared/task-source-context'
+import type { TaskSourceContext } from '../../../../../shared/work-items/task-source-context'
 import type { Worktree } from '../../../../../shared/worktree/types'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { translate } from '@/i18n/i18n'

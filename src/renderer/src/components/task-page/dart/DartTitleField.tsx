@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { translate } from '@/i18n/i18n'
-import { cn } from '@/lib/utils'
-import { ImeTextarea } from '@/lib/ime-text-field'
+import { cn } from '@/lib/class-names'
+import { ImeTextarea } from '@/lib/text-input/ime/ime-text-field'
 import { dartTextTooLargeMessage } from '@/runtime/runtime-dart-write-client'
 import { checkDartRequestText } from '../../../../../shared/dart/dart-text-limits'
 import {

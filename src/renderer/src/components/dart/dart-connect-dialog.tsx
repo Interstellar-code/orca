@@ -13,9 +13,12 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { hasRemoteProviderRuntime } from '@/lib/provider-runtime-context'
-import { preventOutsideDismissWhenDirty } from '@/lib/outside-dismiss-guard'
-import { taskProviderErrorMessage, taskProviderErrorText } from '@/lib/task-provider-error-copy'
+import { hasRemoteProviderRuntime } from '@/runtime/hosts/observations/provider-runtime-context'
+import { preventOutsideDismissWhenDirty } from '@/lib/overlay-interaction/outside-dismiss-guard'
+import {
+  taskProviderErrorMessage,
+  taskProviderErrorText
+} from '@/lib/work-items/task-provider-error-copy'
 import { translate } from '@/i18n/i18n'
 import { dartCredentialStorageCopy } from './dart-credential-storage-copy'
 

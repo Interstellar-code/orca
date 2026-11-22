@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatUiRelativeTimeFromDate } from '@/i18n/relative-time-format'
 import { translate } from '@/i18n/i18n'
-import { openAppHttpLink } from '@/lib/app-http-link-open'
+import { openAppHttpLink } from '@/lib/browser/navigation/app-http-link-open'
 import { dartFieldState } from './DartPropertyChips'
 import { DartTitleField } from './DartTitleField'
 

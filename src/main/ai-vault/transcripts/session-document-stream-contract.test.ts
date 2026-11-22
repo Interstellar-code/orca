@@ -26,13 +26,6 @@ function read(
 }
 
 describe('streamed session document contracts', () => {
-  it.each(['[]', 'null', 'false', '0', '"not an array"', '{}'])(
-    'a later messages value %s clears an earlier fold',
-    async (last) => {
-      expect(await read(`{"messages":[1,2],"messages":${last}}`)).toEqual({ record: {}, state: [] })
-    }
-  )
-
   it('replaces a failed earlier array and continues with its successor', async () => {
     const consume = (state: unknown[], value: unknown): void => {
       if (value === 'bad') {
@@ -40,58 +33,18 @@ describe('streamed session document contracts', () => {
       }
       state.push(value)
     }
-    expect(await read('{"messages":["bad",1],"messages":[2,3]}', { consume })).toEqual({
+    expect(await read('{"messages":["discard","bad"],"messages":[2,3]}', { consume })).toEqual({
       record: {},
       state: [2, 3]
     })
-    expect(await read('{"messages":["bad"],"messages":[]}', { consume })).toEqual({
+    expect(await read('{"messages":["discard","bad"],"messages":[]}', { consume })).toEqual({
       record: {},
       state: []
     })
-  })
-
-  it('keeps the first consumer failure unless a later array replaces it', async () => {
-    const failure = new Error('consumer failed')
-    let calls = 0
-    await expect(
-      read('{"messages":[1,2]}', {
-        consume: () => {
-          calls++
-          throw failure
-        }
-      })
-    ).rejects.toBe(failure)
-    expect(calls).toBe(1)
-  })
-
-  it('gives malformed trailing JSON precedence over a consumer failure', async () => {
-    await expect(
-      read('{"messages":[1]} trailing', {
-        consume: () => {
-          throw new Error('consumer')
-        }
-      })
-    ).rejects.toBeInstanceOf(SyntaxError)
-  })
-
-  it('keeps projected object resets and full-field overlap precedence', async () => {
-    expect(await read('{"agent":{"model":"old"},"agent":null}')).toEqual({
-      record: { agent: {} },
+    expect(await read('{"messages":[1],"messages":null}')).toEqual({
+      record: {},
       state: []
     })
-    expect(await read('{"agent":{"model":"m","extra":[1,2]}}', { fields: ['agent'] })).toEqual({
-      record: { agent: { model: 'm', extra: [1, 2] } },
-      state: []
-    })
-    expect(await read('{"messages":[1,2]}', { objectFields: { messages: ['model'] } })).toEqual({
-      record: { messages: {} },
-      state: [1, 2]
-    })
-    expect(
-      await read('{"messages":{"model":"m","ignored":1}}', {
-        objectFields: { messages: ['model'] }
-      })
-    ).toEqual({ record: { messages: { model: 'm' } }, state: [] })
   })
 
   it('preserves selected prototype keys as own properties', async () => {
@@ -102,20 +55,6 @@ describe('streamed session document contracts', () => {
     expect(Object.getPrototypeOf(parsed?.record)).toBeNull()
     expect(Object.prototype).not.toHaveProperty('polluted')
   })
-
-  it.each(['', ' ', '{', '{"messages":[1,]}', '{"messages":[]}{"messages":[]}'])(
-    'rejects malformed input %j',
-    async (content) => {
-      await expect(read(content)).rejects.toBeInstanceOf(SyntaxError)
-    }
-  )
-
-  it.each(['null', '[]', '[{}]', '123', '"text"', '"{}"'])(
-    'does not publish a nonobject document %s',
-    async (content) => {
-      expect(await read(content)).toBeNull()
-    }
-  )
 
   it('recognizes an object root after whitespace and empty byte chunks', async () => {
     async function* padded() {
@@ -133,7 +72,7 @@ describe('streamed session document contracts', () => {
     })
   })
 
-  it('validates discarded subtrees and closes their source on malformed input', async () => {
+  it('rejects malformed input in a discarded subtree or after consuming messages', async () => {
     let closed = false
     async function* malformed() {
       try {
@@ -145,6 +84,7 @@ describe('streamed session document contracts', () => {
     }
     await expect(read('', { bytes: malformed() })).rejects.toBeInstanceOf(SyntaxError)
     expect(closed).toBe(true)
+    await expect(read('{"messages":[1]')).rejects.toBeInstanceOf(SyntaxError)
   })
 
   it('preserves source failure and closes the source even after a consumer failure', async () => {

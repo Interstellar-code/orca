@@ -14,9 +14,9 @@ import type {
   DartWorkspaceConfig
 } from '../../../../../shared/dart/dart-types'
 import type { DartListTasksArgs } from '../../../../../shared/rpc-contract/dart-params'
-import type { TaskSourceContext } from '../../../../../shared/task-source-context'
+import type { TaskSourceContext } from '../../../../../shared/work-items/task-source-context'
 import type { LinkedDartTaskRef } from '@/lib/dart-issue-workspace-attachment'
-import { taskProviderErrorMessage } from '@/lib/task-provider-error-copy'
+import { taskProviderErrorMessage } from '@/lib/work-items/task-provider-error-copy'
 import type { DartClientResult } from '@/runtime/runtime-dart-client'
 import type { DartSlice } from '@/store/slices/dart/dart-slice-contract'
 import { captureDartEpoch } from '@/store/slices/dart/dart-task-identity'

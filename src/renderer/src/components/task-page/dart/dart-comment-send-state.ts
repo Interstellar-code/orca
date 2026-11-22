@@ -3,11 +3,11 @@ import type { DartComment, DartTask } from '../../../../../shared/dart/dart-type
 import {
   normalizeExecutionHostId,
   parseExecutionHostId
-} from '../../../../../shared/execution-host'
+} from '../../../../../shared/execution-host/execution-host'
 import { translate } from '@/i18n/i18n'
-import { getCommentBodySubmitState } from '@/lib/comment-body-submit-state'
-import { selectExecutionHostDisplayLabel } from '@/lib/execution-host-display-label'
-import { taskProviderErrorMessage } from '@/lib/task-provider-error-copy'
+import { getCommentBodySubmitState } from '@/lib/source-control/review/comments/comment-body-submit-state'
+import { selectExecutionHostDisplayLabel } from '@/runtime/hosts/display/execution-host-display-label'
+import { taskProviderErrorMessage } from '@/lib/work-items/task-provider-error-copy'
 import { dartTextTooLargeMessage } from '@/runtime/runtime-dart-write-client'
 import type { AppState } from '@/store/types'
 import { dartDraftKeyParts, getDraft, type DartDraftValue } from './dart-draft-store'

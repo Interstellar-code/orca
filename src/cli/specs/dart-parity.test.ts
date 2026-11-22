@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CLI_COMMAND_NAMES } from '../../main/startup/cli-command-names'
+import { CLI_COMMAND_NAMES } from '../../main/startup/cli-launch/cli-command-names'
 import { DART_HANDLER_GROUP } from '../dart/dart-handler-group'
 import { COMMAND_SPECS } from './index'
 

@@ -12,7 +12,7 @@ import {
   SelectValue
 } from '@/components/ui/select'
 import { translate } from '@/i18n/i18n'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/class-names'
 import type { DartCreateDraft } from './dart-detail-contracts'
 import { InlineError } from './TaskDetailLoadStates'
 

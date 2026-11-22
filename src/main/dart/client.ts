@@ -1,6 +1,6 @@
 import type { DartUser, DartWorkspaceConfig } from '../../shared/dart/dart-types'
 import type { DartFailure, DartMethodContract } from '../../shared/rpc-contract/dart-params'
-import { taskProviderFailure } from '../../shared/task-provider-failure'
+import { taskProviderFailure } from '../../shared/work-items/task-provider-failure'
 import { isDartTokenRejected, toDartFailure } from './dart-failure'
 import { DartApiError, dartRequest } from './dart-request'
 import { mapDartConfig } from './dart-task-mapping'
@@ -39,10 +39,10 @@ function notConnected(): DartFailure {
 
 type TokenRead = { token: string } | { failure: DartFailure }
 
-export function readToken(): TokenRead {
+export async function readToken(): Promise<TokenRead> {
   let token: string | null
   try {
-    token = readDartApiToken()
+    token = await readDartApiToken()
   } catch {
     return {
       failure: taskProviderFailure('dart.notConnected', 'The saved Dart token could not be read.')
@@ -100,11 +100,11 @@ async function lookupViewer(token: string): Promise<DartUser | null> {
 }
 
 export async function getStatus(): Promise<Reply<'dart.status'>> {
-  if (!hasDartApiToken()) {
+  if (!(await hasDartApiToken())) {
     return { ok: true, connected: false, viewer: null, credentialProtection: null }
   }
-  const credentialProtection = getDartApiTokenProtection()
-  const token = readToken()
+  const credentialProtection = await getDartApiTokenProtection()
+  const token = await readToken()
   if ('failure' in token) {
     return {
       ok: true,
@@ -136,7 +136,7 @@ export async function connect(args: { apiToken: string }): Promise<Reply<'dart.c
     return toDartFailure(error, 'connect')
   }
   try {
-    saveDartApiToken(apiToken)
+    await saveDartApiToken(apiToken)
   } catch {
     // An orcad host without its key loaded throws instead of storing plaintext.
     return taskProviderFailure('dart.connectFailed', 'Could not save the Dart token on this host.')
@@ -148,10 +148,10 @@ export async function connect(args: { apiToken: string }): Promise<Reply<'dart.c
   return { ok: true, viewer: user }
 }
 
-export function disconnect(): Reply<'dart.disconnect'> {
+export async function disconnect(): Promise<Reply<'dart.disconnect'>> {
   invalidate()
   try {
-    clearDartApiToken()
+    await clearDartApiToken()
   } catch {
     return taskProviderFailure('dart.connectFailed', 'Could not remove the saved Dart token.')
   }
@@ -159,7 +159,7 @@ export function disconnect(): Reply<'dart.disconnect'> {
 }
 
 export async function testConnection(): Promise<Reply<'dart.testConnection'>> {
-  const token = readToken()
+  const token = await readToken()
   if ('failure' in token) {
     return token.failure
   }
@@ -215,7 +215,7 @@ export async function readConfig(
 }
 
 export async function getConfig(): Promise<Reply<'dart.config'>> {
-  const token = readToken()
+  const token = await readToken()
   if ('failure' in token) {
     return token.failure
   }

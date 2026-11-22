@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { AlertTriangle, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getIntlLocale, translate } from '@/i18n/i18n'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/class-names'
 import type { DartNoticeApi } from './dart-detail-contracts'
 
 function fieldLabel(field: string): string {

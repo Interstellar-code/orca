@@ -23,7 +23,7 @@ export function jsonResponse(status: number, body: unknown): Response {
 export async function installDartHost(
   options: { encryption?: boolean; sealThrows?: boolean } = {}
 ) {
-  const { setSecretStore } = await import('../../shared/secret-store')
+  const { setSecretStore } = await import('../../shared/secure-storage/secret-store')
   const { setMainHttpClient } = await import('../network/http-client')
   const home = mkdtempSync(join(tmpdir(), 'orca-dart-'))
   const previousHome = process.env.HOME

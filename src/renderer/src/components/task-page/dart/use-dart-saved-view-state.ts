@@ -1,6 +1,6 @@
 import { useCallback, type Dispatch, type SetStateAction } from 'react'
 import type { DartBoardFilters, DartSavedView } from '../../../../../shared/dart/dart-saved-views'
-import type { RuntimeClientTarget } from '../../../../../shared/runtime-client-target'
+import type { RuntimeClientTarget } from '../../../../../shared/remote-runtime/host-catalog/runtime-client-target'
 import type { DartViewMode } from '@/components/dart-view-mode-storage'
 import { useTaskPageDartSavedViews } from './use-task-page-dart-saved-views'
 

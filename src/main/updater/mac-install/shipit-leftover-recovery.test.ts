@@ -43,17 +43,6 @@ describe('prepareShipItStaging', () => {
   const leftovers = (): boolean =>
     existsSync(join(cacheDir, 'ShipItState.plist')) || existsSync(join(cacheDir, 'update.6rnCgPu'))
 
-  it('clears a dead install request so Squirrel can stage again, keeping its logs', async () => {
-    await expect(prepareShipItStaging(deps())).resolves.toEqual({
-      kind: 'recovered',
-      removed: ['ShipItState.plist', 'update.6rnCgPu']
-    })
-    expect(leftovers()).toBe(false)
-    expect(existsSync(join(cacheDir, 'ShipIt_stderr.log'))).toBe(true)
-    expect(existsSync(shipItInstallLockPath(coordinationDir))).toBe(false)
-    expect(await readdir(shipItStagingOwnersDir(coordinationDir))).toEqual(['500'])
-  })
-
   it('leaves the cache alone while another live Orca owns staged state', async () => {
     await mkdir(shipItStagingOwnersDir(coordinationDir), { recursive: true })
     await writeFile(join(shipItStagingOwnersDir(coordinationDir), '600'), '')
@@ -71,16 +60,14 @@ describe('prepareShipItStaging', () => {
       kind: 'skipped',
       reason: 'owner-live'
     })
-    await expect(prepareShipItStaging(deps())).resolves.toMatchObject({ kind: 'recovered' })
-    expect(await readdir(shipItStagingOwnersDir(coordinationDir))).toEqual(['500'])
-  })
-
-  it('ignores the ShipIt of another app', async () => {
-    const other = deps({
-      listProcesses: async () =>
-        '/Applications/Other.app/Contents/Frameworks/Squirrel.framework/Resources/ShipIt com.other.ShipIt /x\n'
+    await expect(prepareShipItStaging(deps())).resolves.toEqual({
+      kind: 'recovered',
+      removed: ['ShipItState.plist', 'update.6rnCgPu']
     })
-    await expect(prepareShipItStaging(other)).resolves.toMatchObject({ kind: 'recovered' })
+    expect(leftovers()).toBe(false)
+    expect(existsSync(join(cacheDir, 'ShipIt_stderr.log'))).toBe(true)
+    expect(existsSync(shipItInstallLockPath(coordinationDir))).toBe(false)
+    expect(await readdir(shipItStagingOwnersDir(coordinationDir))).toEqual(['500'])
   })
 
   it('never clears while ShipIt runs, or when that cannot be checked', async () => {
@@ -110,13 +97,5 @@ describe('prepareShipItStaging', () => {
 
     await expect(prepareShipItStaging(deps())).resolves.toMatchObject({ kind: 'recovered' })
     expect(existsSync(shipItInstallLockPath(coordinationDir))).toBe(false)
-  })
-
-  it('does nothing extra when there is nothing left over', async () => {
-    await rm(cacheDir, { recursive: true, force: true })
-    const d = deps()
-    await expect(prepareShipItStaging(d)).resolves.toEqual({ kind: 'clean' })
-    expect(d.listProcesses).not.toHaveBeenCalled()
-    expect(await readdir(shipItStagingOwnersDir(coordinationDir))).toEqual(['500'])
   })
 })

@@ -1,7 +1,10 @@
-import { isENOENT } from '../../ipc/filesystem/filesystem-path-containment'
+import { isENOENT } from '../../filesystem/local-file-io/filesystem-path-containment'
 import type { GitWorktreeInfo } from '../../../shared/worktree/types'
-import type { LocalWorktreeFilesystemOptions } from './local-worktree-filesystem'
-import { getLocalWorktreePathAccess, toLocalWorktreeRuntimePath } from './local-worktree-filesystem'
+
+import {
+  type LocalWorktreeFilesystemOptions,
+  getLocalWorktreePathAccess
+} from './local-worktree-filesystem'
 
 /** Malformed .git paths must never resolve cleanup to a parent checkout. */
 export async function isPrunableGitFileWorktree(
@@ -21,15 +24,13 @@ export async function isPrunableGitFileWorktree(
     return false
   }
   const access = getLocalWorktreePathAccess(options)
-  const entry = await access
-    .statPath(toLocalWorktreeRuntimePath(worktree.path, options))
-    .catch((error: unknown) => {
-      // A vanished marker leaves missing-path recovery to its existing stricter gate.
-      if (isENOENT(error)) {
-        return null
-      }
-      throw error
-    })
+  const entry = await access.statPath(worktree.path).catch((error: unknown) => {
+    // A vanished marker leaves missing-path recovery to its existing stricter gate.
+    if (isENOENT(error)) {
+      return null
+    }
+    throw error
+  })
   if (!entry || typeof entry !== 'object') {
     return false
   }

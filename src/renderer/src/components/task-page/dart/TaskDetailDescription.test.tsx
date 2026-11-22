@@ -4,10 +4,10 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import type * as AppHttpLink from '@/lib/app-http-link-open'
-import { getShortcutPlatform } from '@/lib/shortcut-platform'
+import type * as AppHttpLink from '@/lib/browser/navigation/app-http-link-open'
+import { getShortcutPlatform } from '@/lib/keyboard/shortcut-platform'
 import type { FakeDartHost } from '@/store/slices/dart/dart-fake-runtime.test-support'
-import { createCompatibleRuntimeStatusResponse } from '@/runtime/runtime-compatibility-test-fixture'
+import { createCompatibleRuntimeStatusResponse } from '@/runtime/rpc/testing/runtime-compatibility-test-fixture'
 import { DART_WRITES_V2_RUNTIME_CAPABILITY } from '../../../../../shared/dart/dart-capabilities'
 import {
   applyPatchesLikeDart,
@@ -33,7 +33,7 @@ import {
 import { DartTaskDetailDescription } from './TaskDetailDescription'
 
 const links = vi.hoisted(() => ({ open: vi.fn() }))
-vi.mock('@/lib/app-http-link-open', async (importOriginal) => ({
+vi.mock('@/lib/browser/navigation/app-http-link-open', async (importOriginal) => ({
   ...(await importOriginal<typeof AppHttpLink>()),
   openAppHttpLink: links.open
 }))

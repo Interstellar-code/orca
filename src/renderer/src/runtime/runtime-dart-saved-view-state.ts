@@ -5,8 +5,9 @@ import {
   type DartSavedViewMutation,
   type DartSavedViewState
 } from '../../../shared/dart/dart-saved-views'
-import type { RuntimeClientTarget } from '../../../shared/runtime-client-target'
-import { callRuntimeRpc, runtimeEnvironmentSupportsCapability } from './runtime-rpc-client'
+import type { RuntimeClientTarget } from '../../../shared/remote-runtime/host-catalog/runtime-client-target'
+import { callRuntimeRpc } from './rpc/calls/runtime-rpc-call'
+import { runtimeEnvironmentSupportsCapability } from './rpc/compatibility/runtime-capability-proof'
 
 const SAVED_VIEWS_TIMEOUT_MS = 15_000
 

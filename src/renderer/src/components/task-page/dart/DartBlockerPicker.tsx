@@ -6,7 +6,7 @@ import { Command, CommandInput, CommandItem, CommandList } from '@/components/ui
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { translate } from '@/i18n/i18n'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/class-names'
 import type { DartTask } from '../../../../../shared/dart/dart-types'
 import type { DartRelationshipsApi } from './dart-board-contracts'
 import { getDartStatusTone } from './task-page-dart-list-model'

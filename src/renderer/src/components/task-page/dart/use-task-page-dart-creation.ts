@@ -8,7 +8,7 @@ import {
   isDartAuthLostFailure
 } from '@/store/slices/dart/dart-read-coordination'
 import { dartScopeHostKey, dartScopeViewerId } from '@/store/slices/dart/dart-task-identity'
-import { EMPTY_DART_CREATE_SESSION } from '@/store/slices/task-creation-drafts'
+import { EMPTY_DART_CREATE_SESSION } from '@/store/slices/task-creation/task-creation-drafts'
 import type { DartCreateTaskModel } from './dart-detail-contracts'
 import { isDartCreateAnywayReady, resolveDartCreateKey } from './dart-create-session-state'
 import { dartCreateNotApplied } from './dart-create-not-applied'

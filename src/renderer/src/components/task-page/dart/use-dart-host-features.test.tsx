@@ -3,7 +3,7 @@
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DartHostFeatures } from '../../../../../shared/dart/dart-types'
-import type { RuntimeClientTarget } from '../../../../../shared/runtime-client-target'
+import type { RuntimeClientTarget } from '../../../../../shared/remote-runtime/host-catalog/runtime-client-target'
 import { useDartHostFeatures } from './use-dart-host-features'
 
 const probe = vi.hoisted(() => vi.fn())

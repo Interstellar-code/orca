@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DartComment, DartTask } from '../../../../../shared/dart/dart-types'
-import type { TaskSourceContext } from '../../../../../shared/task-source-context'
-import { taskProviderErrorMessage, taskProviderErrorText } from '@/lib/task-provider-error-copy'
-import { runtimeTargetEnvironmentId } from '@/runtime/runtime-client-target'
+import type { TaskSourceContext } from '../../../../../shared/work-items/task-source-context'
+import {
+  taskProviderErrorMessage,
+  taskProviderErrorText
+} from '@/lib/work-items/task-provider-error-copy'
+import { runtimeTargetEnvironmentId } from '@/runtime/rpc/targets/runtime-client-target'
 import { useAppStore } from '@/store'
 import {
   dartExplicitScope,

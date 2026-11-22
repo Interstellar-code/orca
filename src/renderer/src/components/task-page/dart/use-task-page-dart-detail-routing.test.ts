@@ -3,7 +3,7 @@
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { dartTaskFixture } from '@/store/slices/dart/dart-fake-runtime.test-support'
-import type { TaskSourceContext } from '../../../../../shared/task-source-context'
+import type { TaskSourceContext } from '../../../../../shared/work-items/task-source-context'
 import { useTaskPageDartDetailRouting } from './use-task-page-dart-detail-routing'
 
 function dartContext(env: string): TaskSourceContext {

@@ -136,6 +136,8 @@ describe('Dart filters board controls', () => {
     })
 
     // The tooltip trigger is the wrapper span: a disabled group never receives pointer events.
+    // A key press first: tooltips open on focus only when the keyboard moved focus.
+    await user.keyboard('{Shift}')
     act(() => screen.getByRole('radiogroup', { name: 'Dart layout' }).parentElement?.focus())
     expect((await screen.findAllByText(tooltip)).length).toBeGreaterThan(0)
     await user.click(screen.getByRole('radio', { name: 'Board' }))

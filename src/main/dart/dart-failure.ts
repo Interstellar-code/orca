@@ -1,5 +1,8 @@
 import type { DartFailure, DartWriteOutcome } from '../../shared/rpc-contract/dart-params'
-import { taskProviderFailure, type TaskProviderErrorCode } from '../../shared/task-provider-failure'
+import {
+  taskProviderFailure,
+  type TaskProviderErrorCode
+} from '../../shared/work-items/task-provider-failure'
 import { DartApiError } from './dart-request'
 
 export type DartOperation =

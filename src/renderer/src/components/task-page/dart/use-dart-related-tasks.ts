@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { DartTask, DartTaskRelationships } from '../../../../../shared/dart/dart-types'
-import type { TaskSourceContext } from '../../../../../shared/task-source-context'
+import type { TaskSourceContext } from '../../../../../shared/work-items/task-source-context'
 import { translate } from '@/i18n/i18n'
-import { taskProviderErrorMessage, taskProviderErrorText } from '@/lib/task-provider-error-copy'
+import {
+  taskProviderErrorMessage,
+  taskProviderErrorText
+} from '@/lib/work-items/task-provider-error-copy'
 import { useAppStore } from '@/store'
 import type { DartReadScope } from '@/store/slices/dart/dart-read-coordination'
 import type { DartLoad, DartTaskPage } from './dart-board-contracts'

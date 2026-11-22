@@ -1,5 +1,5 @@
-import { isWebClientLocation } from '@/lib/web-client-location'
-import { readStoredWebRuntimeEnvironment } from '@/web/web-runtime-environment'
+import { isWebClientLocation } from '@/app-shell/platform/web-client-location'
+import { readStoredWebRuntimeEnvironment } from '@/web/pairing/web-runtime-environment'
 
 /** In a paired web client the local host is the server, so it takes the pairing's name, not the browser's OS. */
 export function getWebClientLocalHostLabel(): string | undefined {

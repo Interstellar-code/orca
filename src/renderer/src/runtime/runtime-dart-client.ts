@@ -19,14 +19,15 @@ import type {
   DartListTasksArgs,
   DartMethodName
 } from '../../../shared/rpc-contract/dart-params'
-import type { RuntimeClientTarget } from '../../../shared/runtime-client-target'
-import type { SecretAtRestProtection } from '../../../shared/secret-at-rest-protection'
+import type { RuntimeClientTarget } from '../../../shared/remote-runtime/host-catalog/runtime-client-target'
+import type { SecretAtRestProtection } from '../../../shared/secure-storage/secret-at-rest-protection'
 import {
   taskProviderFailure,
   type TaskProviderErrorCode
-} from '../../../shared/task-provider-failure'
+} from '../../../shared/work-items/task-provider-failure'
 import { translate } from '@/i18n/i18n'
-import { callRuntimeRpc, runtimeEnvironmentSupportsCapability } from './runtime-rpc-client'
+import { callRuntimeRpc } from './rpc/calls/runtime-rpc-call'
+import { runtimeEnvironmentSupportsCapability } from './rpc/compatibility/runtime-capability-proof'
 
 /** A contract failure, or the client's own "update the remote server" refusal (no error code). */
 export type DartClientFailure = { ok: false; error: string; errorCode?: TaskProviderErrorCode }

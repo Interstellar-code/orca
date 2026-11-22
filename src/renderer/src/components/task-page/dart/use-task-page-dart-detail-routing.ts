@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import type { DartTask } from '../../../../../shared/dart/dart-types'
-import type { TaskSourceContext } from '../../../../../shared/task-source-context'
+import type { TaskSourceContext } from '../../../../../shared/work-items/task-source-context'
 import type { TaskPageData } from '@/store/slices/ui/ui-slice-contract-core'
 
 type OpenTaskPage = (data?: TaskPageData, options?: { recordTasksInteraction?: boolean }) => void

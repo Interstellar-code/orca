@@ -7,11 +7,11 @@ const mocks = vi.hoisted(() => ({
   assertActiveEnvironment: vi.fn()
 }))
 
-vi.mock('./web-runtime-calls', () => ({
+vi.mock('../runtime/client/web-runtime-calls', () => ({
   getRemoteRuntimeStatus: mocks.getRemoteRuntimeStatus,
   callRuntimeResult: mocks.callRuntimeResult
 }))
-vi.mock('./web-runtime-session', () => ({
+vi.mock('../runtime/client/web-runtime-session', () => ({
   requireActiveEnvironment: mocks.requireActiveEnvironment,
   assertActiveEnvironment: mocks.assertActiveEnvironment
 }))

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { DartWorkspaceConfig } from '../../../../../shared/dart/dart-types'
 import { translate } from '@/i18n/i18n'
-import { taskProviderErrorMessage } from '@/lib/task-provider-error-copy'
+import { taskProviderErrorMessage } from '@/lib/work-items/task-provider-error-copy'
 import type { DartClientResult } from '@/runtime/runtime-dart-client'
 
 type FetchDartConfig = (options?: {

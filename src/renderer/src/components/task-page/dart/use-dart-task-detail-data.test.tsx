@@ -3,11 +3,11 @@
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DartComment } from '../../../../../shared/dart/dart-types'
-import type { TaskSourceContext } from '../../../../../shared/task-source-context'
+import type { TaskSourceContext } from '../../../../../shared/work-items/task-source-context'
 import { DART_WRITES_V2_RUNTIME_CAPABILITY } from '../../../../../shared/dart/dart-capabilities'
-import { createCompatibleRuntimeStatusResponse } from '@/runtime/runtime-compatibility-test-fixture'
+import { createCompatibleRuntimeStatusResponse } from '@/runtime/rpc/testing/runtime-compatibility-test-fixture'
 import { dartSupportsWritesV2ForTarget } from '@/runtime/runtime-dart-write-client'
-import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
+import { getProviderRuntimeContextKey } from '@/runtime/hosts/observations/provider-runtime-context'
 import { useAppStore } from '@/store'
 import {
   dartTaskFixture,

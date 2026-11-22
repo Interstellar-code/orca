@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Copy, ExternalLink } from 'lucide-react'
-import CommentMarkdown from '@/components/sidebar/CommentMarkdown'
+import CommentMarkdown from '@/components/comment-markdown/CommentMarkdown'
 import { Button } from '@/components/ui/button'
 import { translate } from '@/i18n/i18n'
-import { openAppHttpLink } from '@/lib/app-http-link-open'
+import { openAppHttpLink } from '@/lib/browser/navigation/app-http-link-open'
 import { copyDescriptionText } from './dart-description-copy'
 
 // `supportsWritesV2` is false until the host answers, so a current host must not flash the update hint.

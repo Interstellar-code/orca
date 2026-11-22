@@ -3,7 +3,7 @@
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DartTask } from '../../../../../shared/dart/dart-types'
-import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
+import { getProviderRuntimeContextKey } from '@/runtime/hosts/observations/provider-runtime-context'
 import { useAppStore } from '@/store'
 import {
   dartTaskFixture,

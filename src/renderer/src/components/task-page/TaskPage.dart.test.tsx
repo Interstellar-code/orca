@@ -3,19 +3,21 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { getDefaultSettings } from '../../../../shared/constants'
+import { getDefaultSettings } from '../../../../shared/orca-profiles/constants'
 import type { DartTask } from '../../../../shared/dart/dart-types'
-import type { TaskProvider } from '../../../../shared/task-providers'
-import type { TaskProviderErrorCode } from '../../../../shared/task-provider-failure'
-import { installAppKeyboardRouter } from '@/lib/app-keyboard-router'
-import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
+import type { TaskProvider } from '../../../../shared/work-items/task-providers'
+import type { TaskProviderErrorCode } from '../../../../shared/work-items/task-provider-failure'
+import { installAppKeyboardRouter } from '@/lib/keyboard/app-keyboard-router'
+import { getProviderRuntimeContextKey } from '@/runtime/hosts/observations/provider-runtime-context'
 import { useAppStore } from '@/store'
 import TaskPage from './TaskPage'
 
 // The GitHub detail pages pull in the real editor, whose document listeners reject asynchronously under happy-dom.
-vi.mock('@/components/PullRequestPage', () => ({ default: () => null }))
-vi.mock('@/components/GitHubItemDialog', () => ({ default: () => null }))
-vi.mock('./github/List', () => ({
+vi.mock('@/components/pull-request-page/page/surface', () => ({ default: () => null }))
+vi.mock('@/components/github-item-dialog/open-dialog/github-item-dialog', () => ({
+  default: () => null
+}))
+vi.mock('./github/listing/List', () => ({
   TaskPageGitHubList: () => <div data-testid="github-content" />
 }))
 vi.mock('./jira/Content', () => ({

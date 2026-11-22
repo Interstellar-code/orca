@@ -1,4 +1,4 @@
-import { getUtf8ByteLength, measureUtf8ByteLength } from '../utf8-byte-limits'
+import { getUtf8ByteLength, measureUtf8ByteLength } from '../text/utf8-byte-limits'
 
 export const DART_TITLE_MAX_LENGTH = 500
 export const DART_COMMENT_MAX_LENGTH = 50_000

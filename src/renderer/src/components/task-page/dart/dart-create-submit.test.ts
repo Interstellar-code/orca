@@ -1,4 +1,4 @@
-import type { DartCreateSession } from '@/store/slices/task-creation-drafts'
+import type { DartCreateSession } from '@/store/slices/task-creation/task-creation-drafts'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { state, listTasks, createTask } = vi.hoisted(() => {

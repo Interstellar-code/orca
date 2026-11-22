@@ -3,9 +3,10 @@ import {
   type DartMethodName,
   type DartResult
 } from '../../shared/rpc-contract/dart-params'
-import type { HandlerContext } from '../dispatch'
-import { printResult } from '../format'
-import { RuntimeClientError, type RuntimeRpcSuccess } from '../runtime-client'
+import type { HandlerContext } from '../dispatch/dispatch'
+import { printResult } from '../output/command-result-output'
+import type { RuntimeRpcSuccess } from '../../shared/remote-runtime/rpc/runtime-rpc-envelope'
+import { RuntimeClientError } from '../runtime/connection/types'
 import { UNVERIFIED_WRITE_OUTCOME_CODES } from '../unverified-write-outcome-codes'
 
 export type DartCall<T extends object> = {
