@@ -297,9 +297,13 @@ jobs:
       - name: Package (Linux)
         if: matrix.platform == 'linux-x64'
         run: env -u CI -u GITHUB_ACTIONS pnpm exec electron-builder --config config/electron-builder.config.cjs --linux dir --x64 --publish never
+      # Deps are already installed; pnpm's pre-run re-install hits locked files on the Windows runner.
       - name: Package (Windows)
         if: matrix.platform == 'win-x64'
         shell: bash
+        env:
+          npm_config_verify_deps_before_run: 'false'
+          pnpm_config_verify_deps_before_run: 'false'
         run: env -u CI -u GITHUB_ACTIONS pnpm exec electron-builder --config config/electron-builder.config.cjs --win nsis --x64 --publish never
 
       - name: Sign with the fork identity (macOS)
@@ -370,6 +374,12 @@ jobs:
           current=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" -q .object.sha)
           if [ "$current" = "$SHA" ]; then
             echo "main is already at $SHA."
+            exit 0
+          fi
+          # A main that moved on past the released commit already contains it.
+          status=$(gh api "repos/$GITHUB_REPOSITORY/compare/$SHA...$current" -q .status)
+          if [ "$status" = "ahead" ]; then
+            echo "main ($current) already contains $SHA."
             exit 0
           fi
           gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/heads/main" -f sha="$SHA" -F force=false >/dev/null
