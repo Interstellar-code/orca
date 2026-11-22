@@ -63,8 +63,9 @@ confidence, a Dart check fails, or a step would discard work.
   skips rename detection and turns upstream's directory moves into needless conflicts.
 - Ubu (release target only): SSH host `ubuntu-7of9`, Orca environment "Orca Ubu 7of9", web client
   `http://192.168.0.57:6770`.
-- Dart test paths: `src/main/dart`, `src/shared/dart`, `src/renderer/src/components/task-page/dart`,
-  `src/cli/handlers/dart.test.ts`.
+- Test gate: `config/fork/fork-test-suite.mjs` (`--list` previews the selection). Dart test paths it
+  covers: `src/main/dart`, `src/shared/dart`, `src/renderer/src/components/task-page/dart`,
+  `src/cli/dart`, and every `*.dart.test.*` file.
 
 ## Steps
 
@@ -146,8 +147,18 @@ On the sync branch, right after the merge commit, in this order:
 
 1. `pnpm install --frozen-lockfile` and `pnpm -C mobile install --frozen-lockfile`.
 2. `pnpm tc`.
-3. Dart tests: `pnpm test <Dart test paths> --maxWorkers=2`.
-4. `pnpm test --maxWorkers=2` (full suite).
+3. Fork test suite (replaces the full suite and the separate Dart test run; the full upstream suite is
+   not rerun here):
+   `node config/fork/fork-test-suite.mjs --also-related-from docs/plans/upstream-sync-<YYYY-MM-DD>.md`
+   (the report committed in step 5.3; it lists the files changed on both sides). Add `--list` first to
+   see what it selects. It runs the tests named in the registry, the Dart tests, and the tests related
+   to the fork's source files plus those changed-on-both-sides files, with `--maxWorkers=2`.
+   Without the report, make the list with git: on the merge commit `M`,
+   `base=$(git merge-base M^1 M^2)`, then
+   `comm -12 <(git diff --name-only --no-renames $base M^1 | sort) <(git diff --name-only --no-renames $base M^2 | sort) > <file>`
+   and pass `--also-related-from <file>`.
+   A non-zero exit that lists missing registry paths is a stale registry: fix it in step 7.
+4. `pnpm test --maxWorkers=2` (full suite) only when Rohit asks for it.
 5. `pnpm lint`, then `pnpm check:changed`.
 6. A failure: check whether it also fails on the upstream target alone, in a separate worktree
    (`git worktree add --detach ../upstream-target <target>`, a sibling folder of `<checkout>`; then `pnpm install --frozen-lockfile`
