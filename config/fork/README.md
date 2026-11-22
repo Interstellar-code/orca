@@ -76,8 +76,12 @@ shell still work.
   To re-sign an existing build instead, run `config/fork/sign-fork-app.sh` on
   `dist/mac-arm64/Orca.app` (Apple silicon) or `dist/mac/Orca.app` (Intel).
 
-- Only the installed `.app` is signed. The dmg, zip and `latest-mac.yml` in `dist/` are written
-  before signing and still carry the invalid seal; do not copy them to another Mac.
+- The rebuild builds only this Mac's arch as an unpacked `.app` (`pnpm build:mac dir --<arch>`): the
+  config's dmg/zip targets list both slices, and the other slice's boot check fails locally.
+- Only the installed `.app` is signed. A dmg, zip or `latest-mac.yml` from a manual `pnpm build:mac`
+  is written before signing and still carries the invalid seal; do not copy them to another Mac.
+- After its sync, the script re-runs the clone's copy of itself if that copy changed, so a run from
+  another checkout finishes with the clone's version.
 - The first launch after switching to this identity may ask for Local Network access once.
 - Rollout: launchd runs the clone's own script, which bash reads before the run pulls this
   change, so the first nightly run after it lands builds unsigned and the installer refuses that

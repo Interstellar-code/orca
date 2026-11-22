@@ -275,8 +275,8 @@ SERVER_BUILD_STAMP=dist/fork-server-build
 
 build_mac() {
   mac_output
-  # build:mac alone also packages and boot-checks the other macOS slice, which fails on this host.
-  pnpm build:mac "--$MAC_ARCH" || fail "pnpm build:mac --$MAC_ARCH failed"
+  # The config's dmg/zip targets list both slices and outrank a CLI arch; only an explicit target honors it.
+  pnpm build:mac dir "--$MAC_ARCH" || fail "pnpm build:mac dir --$MAC_ARCH failed"
   local app="dist/$MAC_DIR/Orca.app"
   [[ -d $app ]] || fail "build produced no $app"
   local archs
@@ -433,10 +433,11 @@ main() {
   sync_main
 
   # The fast-forward may have changed this script; finish the run with the new copy.
-  local synced="$clone/config/fork/rebuild-and-install.sh"
+  local synced="$PWD/config/fork/rebuild-and-install.sh"
   if [[ -z ${ORCA_FORK_REEXEC:-} && $(cksum <"$synced") != "$self_sum" ]]; then
     log 'this script changed in the sync; re-running the synced copy'
-    ORCA_FORK_REEXEC=1 exec bash "$synced" "${args[@]}"
+    # bash 3.2 treats an empty array as unbound under set -u; the last --clone wins, so a relative one is safe.
+    ORCA_FORK_REEXEC=1 exec bash "$synced" ${args[@]+"${args[@]}"} --clone "$PWD"
   fi
 
   log 'installing dependencies (frozen lockfile)'
