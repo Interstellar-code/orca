@@ -20,6 +20,7 @@ can prove no client is connected.
 | `sign-fork-app.sh`                    | Signs an `Orca.app` with the fork identity and verifies it. The rebuild runs it after every Mac build; the installer refuses an app without it.                                                                                         |
 | `upstream-sync.sh`                    | Helpers for the `upstream-sync` skill: `report`, `release-target`, `record-release` (also used by the rebuild), `record-sync`.                                                                                                          |
 | `fork-test-suite.mjs`                 | The tests that cover the fork's own code and where it touches upstream, run instead of the full suite during an upstream sync. `--list` shows the selection; `--also-related-from <report>` adds tests for files changed on both sides. |
+| `check-fork-script-paths.mjs`         | Fails when a fork workflow, script or skill names a repo path or `pnpm` script that no longer exists, for example after upstream moves a file. Run in step 7 of an upstream sync.                                                       |
 | `swap-mac-app.sh`                     | Quit Orca, install the built app, reopen it, delete the backup. Run detached from Claude Code's `!` prompt; used by the `release` skill.                                                                                                |
 | `com.interstellar.orca-rebuild.plist` | launchd template that runs the script nightly at 03:30 local.                                                                                                                                                                           |
 | `upstream-release`                    | The newest upstream release whose `main` point the fork holds. Builds are versioned `<release>-fork.local.<time>.<commit>` (upstream leaves `package.json` behind); the rebuild updates it after each upstream merge.                   |
@@ -198,6 +199,27 @@ GitHub, with `/Applications/Orca.app` left untouched (mtime unchanged):
 | Fast-forward then merge (local bare remotes) | `origin/main` taken by `--ff-only`, then `upstream/main` merged; a divergent local `main` stopped the run before any upstream merge                                                          |
 
 Server mode is the exception: it has never been run (see below).
+
+## Fork test suite
+
+`node config/fork/fork-test-suite.mjs --list` shows which tests the upstream-sync gate runs; without
+`--list` it runs them with `--maxWorkers=2` through the same runner as `pnpm test`.
+
+1. Sources: tests named in active customizations' `key_paths`, the Dart tests, and tests that import
+   the fork's source files (`key_paths` and `touches_upstream_files`) within `--related-depth` hops
+   (default 2; `all` is about two thirds of the repo). The import graph is the one CI uses to pick
+   tests for draft PRs.
+2. `--also-related-from <report>` adds the files changed on both sides. A path that no longer exists
+   is followed through renames since the upstream merge base; one that still has no home is listed,
+   and the run exits 1.
+3. Exit codes: 1 for a test failure, a stale registry path, a skipped seed or an empty selection;
+   2 for a usage error.
+4. Large selections are split into several vitest runs, because Linux caps one environment string at
+   128 KiB and the runner passes its arguments through one.
+5. Known gaps: the import graph does not follow the `@orca/test-host` alias that mobile tests use
+   to reach desktop sources, so a desktop-only change never selects a mobile test through it; it
+   also ignores `vi.mock` paths and files read at runtime, and tests outside the unit include
+   (electron, live-shell, node-pty, cross-version-wire) are reported as left out, not run.
 
 ## Logs
 

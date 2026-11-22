@@ -35,6 +35,12 @@ report() {
   upstream_files=$(git -c diff.renameLimit=0 diff --name-only --no-renames "$base" "$upstream")
   fork_files=$(git -c diff.renameLimit=0 diff --name-only --no-renames "$(git merge-base HEAD "$upstream")" HEAD)
   overlap=$(comm -12 <(sort -u <<<"$upstream_files") <(sort -u <<<"$fork_files"))
+  # Overlap names are the pre-merge ones; renames (oldest first, per commit) map them to current names.
+  local renames
+  renames=$(
+    git log -M --diff-filter=R --name-status --format= --reverse "$base..$upstream"
+    git log -M --diff-filter=R --name-status --format= --reverse "$(git merge-base HEAD "$upstream")..HEAD"
+  )
 
   printf '# Upstream sync report %s\n\n' "$(date +%Y-%m-%d)"
   printf -- '- Last sync: upstream `%s`\n' "$base"
@@ -62,23 +68,36 @@ report() {
   printf '\n## Customizations touched (likely conflicts)\n\n'
   OVERLAP="$overlap" node -e "
 const reg = JSON.parse(require('fs').readFileSync('$REGISTRY', 'utf8'))
-const files = (process.env.OVERLAP || '').split('\n').filter(Boolean)
+const next = new Map()
+for (const line of require('fs').readFileSync(0, 'utf8').split('\n')) {
+  const [status, from, to] = line.split('\t')
+  if (status && status.startsWith('R') && to) next.set(from, to)
+}
+const current = (f) => {
+  const seen = new Set()
+  while (next.has(f) && !seen.has(f)) { seen.add(f); f = next.get(f) }
+  return f
+}
+// Each entry keeps its old name (what the registry lists) and its current one (what the tests use).
+const files = (process.env.OVERLAP || '').split('\n').filter(Boolean).map((old) => ({ old, now: current(old) }))
+const label = (f) => f.now + (f.now === f.old ? '' : ' (renamed from ' + f.old + ')')
 const owned = new Set()
 for (const c of reg.customizations) {
   const paths = [...(c.key_paths || []), ...(c.touches_upstream_files || [])]
-  const hits = files.filter((f) => paths.some((p) => (p.endsWith('/') ? f.startsWith(p) : f === p)))
+  const matches = (name) => paths.some((p) => (p.endsWith('/') ? name.startsWith(p) : name === p))
+  const hits = files.filter((f) => matches(f.old) || matches(f.now))
   if (!hits.length) continue
   hits.forEach((f) => owned.add(f))
   console.log('### ' + c.id + ' (' + hits.length + ' files)\n')
-  hits.forEach((f) => console.log('- ' + f))
+  hits.forEach((f) => console.log('- ' + label(f)))
   if (c.sync_notes) console.log('\nSync notes: ' + c.sync_notes)
   console.log('')
 }
 const rest = files.filter((f) => !owned.has(f))
 console.log('### Not in the registry (' + rest.length + ' files)\n')
-rest.forEach((f) => console.log('- ' + f))
+rest.forEach((f) => console.log('- ' + label(f)))
 if (!rest.length) console.log('- none')
-"
+" <<<"$renames"
 }
 
 # Upstream cuts releases off main, so the newest release whose main point the branch holds names the fork's base.

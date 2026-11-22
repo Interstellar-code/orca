@@ -24,9 +24,14 @@ const USAGE = `Usage: node config/fork/fork-test-suite.mjs [options] [-- <extra 
   --no-registry                skip the tests named in active customizations' key_paths
   --no-dart                    skip the Dart test files and folders
   --no-related                 skip tests related to the fork's source files
-  --also-related <file...>     more source files whose related tests are added
+  --also-related <file...>     more source files whose related tests are added; a path that
+                               exists nowhere (even after rename resolution) is an error
   --also-related-from <path>   the same, read from a file: one path per line, or an
-                               upstream-sync report (path bullets are picked out)
+                               upstream-sync report (path bullets are picked out); a path that
+                               is gone is resolved through renames, else skipped and the run
+                               exits 1
+  --renames-from <ref>         base commit for rename resolution (default: the merge base of
+                               the latest "merge: upstream" commit)
   --related-depth <n|all>      import hops from a source file to its tests (default 2; the
                                full transitive closure through shared types is ~2/3 of the repo)
   --max-workers <n>            vitest workers (default 2)`
@@ -39,6 +44,7 @@ function parseArgs(argv) {
     alsoRelatedFrom: [],
     maxWorkers: '2',
     relatedDepth: 2,
+    renamesFrom: undefined,
     passthrough: []
   }
   const takeValues = (index) => {
@@ -71,6 +77,8 @@ function parseArgs(argv) {
       if (!(options.relatedDepth >= 1)) {
         fail('--related-depth must be a positive number or "all"')
       }
+    } else if (arg === '--renames-from') {
+      options.renamesFrom = argv[(index += 1)] ?? fail('--renames-from needs a value')
     } else if (arg === '--max-workers') {
       options.maxWorkers = argv[(index += 1)] ?? fail('--max-workers needs a value')
     } else if (arg === '--help' || arg === '-h') {
@@ -100,17 +108,79 @@ function gitFiles() {
   return out.toString('utf8').split('\0').filter(Boolean)
 }
 
+function gitOutput(args) {
+  try {
+    return execFileSync('git', args, { cwd: root, maxBuffer: 256 * 1024 * 1024 }).toString('utf8')
+  } catch {
+    return ''
+  }
+}
+
 function readList(file) {
-  // A sync report has other bullet text; only single-token path bullets and bare paths count.
-  return readFileSync(file, 'utf8')
-    .split('\n')
-    .map((line) =>
-      line
-        .trim()
-        .replace(/^[-*]\s+/, '')
-        .replaceAll('`', '')
-    )
-    .filter((line) => /^[\w@.+/-]+$/.test(line) && line.includes('/'))
+  const paths = []
+  for (const raw of readFileSync(file, 'utf8').split('\n')) {
+    const text = raw
+      .trim()
+      .replace(/^[-*]\s+/, '')
+      .replaceAll('`', '')
+    // A report bullet is `path` or `path (renamed from old)`; prose bullets have no slash in the first word.
+    const token = text.split(/\s+/)[0]
+    if (token.includes('/') && !token.endsWith(':') && !token.endsWith(',')) {
+      paths.push(token)
+    } else if (/^[-*]\s/.test(raw.trim()) && text.includes('/') && /\.\w{1,6}$/.test(text)) {
+      console.warn(`warn: bullet looks like a path but was not read: ${text}`)
+    }
+  }
+  return paths
+}
+
+// Paths renamed since the upstream merge base, followed through repeated renames.
+let renameTargets
+function renameTarget(file) {
+  if (!renameTargets) {
+    renameTargets = new Map()
+    const base = options.renamesFrom ?? upstreamMergeBase()
+    if (!base) {
+      console.warn(
+        'warn: no "merge: upstream" commit found and no --renames-from; renames not resolved'
+      )
+    } else {
+      const log = gitOutput([
+        'log',
+        '-M',
+        '--diff-filter=R',
+        '--name-status',
+        '--format=',
+        '--reverse',
+        `${base}..HEAD`
+      ])
+      for (const line of log.split('\n')) {
+        const [status, from, to] = line.split('\t')
+        if (status?.startsWith('R') && to) {
+          renameTargets.set(from, to)
+        }
+      }
+    }
+  }
+  const seen = new Set()
+  let current = file
+  while (renameTargets.has(current) && !seen.has(current)) {
+    seen.add(current)
+    current = renameTargets.get(current)
+  }
+  return current
+}
+
+function upstreamMergeBase() {
+  const merge = gitOutput([
+    'log',
+    '--first-parent',
+    '--merges',
+    '--grep=^merge: upstream',
+    '-n1',
+    '--format=%H'
+  ]).trim()
+  return merge ? gitOutput(['merge-base', `${merge}^1`, `${merge}^2`]).trim() : ''
 }
 
 function isDirectory(path) {
@@ -166,22 +236,43 @@ for (const customization of active) {
 }
 
 const alsoRelated = new Set()
-for (const entry of [
-  ...options.alsoRelated,
+const seedStats = { listed: 0, renamed: [], notCode: [], skipped: [] }
+const seedEntries = [
+  ...options.alsoRelated.map((path) => ({ path, explicit: true })),
   ...options.alsoRelatedFrom.flatMap((path) => {
     if (!existsSync(path)) {
       fail(`--also-related-from file not found: ${path}`)
     }
-    return readList(path)
+    return readList(path).map((entry) => ({ path: entry, explicit: false }))
   })
-]) {
-  const file = entry.replace(/^\.\//, '')
-  if (!existsSync(join(root, file)) || isDirectory(file)) {
-    console.warn(`warn: --also-related path is not a file here, skipped: ${file}`)
-  } else if (CODE_FILE.test(file) && !TEST_FILE.test(file)) {
-    alsoRelated.add(file)
-  } else if (TEST_FILE.test(file)) {
-    registryTests.add(file)
+]
+for (const [path, { explicit }] of new Map(
+  seedEntries.map((entry) => [entry.path.replace(/^\.\//, ''), entry])
+)) {
+  seedStats.listed += 1
+  let file = path
+  if (!existsSync(join(root, file))) {
+    const moved = renameTarget(file)
+    if (moved !== file && existsSync(join(root, moved))) {
+      seedStats.renamed.push(`${file} -> ${moved}`)
+      file = moved
+    }
+  }
+  if (!existsSync(join(root, file))) {
+    if (explicit) {
+      fail(`--also-related path does not exist and has no rename: ${file}`)
+    }
+    seedStats.skipped.push(file)
+    continue
+  }
+  for (const entry of filesUnder(file) ?? []) {
+    if (TEST_FILE.test(entry)) {
+      registryTests.add(entry)
+    } else if (CODE_FILE.test(entry)) {
+      alsoRelated.add(entry)
+    } else {
+      seedStats.notCode.push(entry)
+    }
   }
 }
 
@@ -196,9 +287,7 @@ const keep = (files, source) =>
     if (unitFiles.has(file) || mobileTests.has(file)) {
       return true
     }
-    if (source !== 'related') {
-      notRunnable.push(`${file} (${source})`)
-    }
+    notRunnable.push({ file, source })
     return false
   })
 
@@ -290,6 +379,16 @@ async function relatedTests(seeds) {
 function report() {
   const seen = new Set()
   console.log('Fork test suite selection')
+  const { listed, renamed, notCode, skipped } = seedStats
+  if (listed) {
+    console.log(
+      `\nalso-related seeds: ${listed} listed, ${renamed.length} resolved through renames, ` +
+        `${notCode.length} non-code files ignored, ${skipped.length} skipped`
+    )
+    if (options.list) {
+      renamed.forEach((entry) => console.log(`  renamed ${entry}`))
+    }
+  }
   for (const name of SOURCE_NAMES) {
     if (!selection[name]) {
       console.log(`\n${name}: skipped`)
@@ -304,10 +403,21 @@ function report() {
     }
   }
   console.log(`\ntotal: ${seen.size} unique files`)
-  if (notRunnable.length) {
-    const skipped = [...new Set(notRunnable)]
-    console.log(`not part of the unit run, left out (${skipped.length}):`)
-    skipped.forEach((file) => console.log(`  ${file}`))
+  const desktop = [...seen].filter((file) => !mobileTests.has(file)).sort()
+  console.log(
+    `desktop vitest runs: ${desktopRunPlan(desktop).chunks.length} (env argument budget ${RUN_ARGS_BUDGET} bytes)`
+  )
+  for (const name of SOURCE_NAMES) {
+    const left = [
+      ...new Set(notRunnable.filter((entry) => entry.source === name).map((e) => e.file))
+    ]
+    if (left.length) {
+      console.log(`${name}: ${left.length} selected files left out (not part of the unit run)`)
+      // Related drops are numerous and expected; the file names print with --list.
+      if (name !== 'related' || options.list) {
+        left.sort().forEach((file) => console.log(`  ${file}`))
+      }
+    }
   }
   return [...seen]
 }
@@ -320,25 +430,66 @@ function npmScriptSegments(script) {
   return segments.map((tokens) => tokens.slice(1))
 }
 
-function runDesktop(files) {
+// run-vitest.mjs copies its arguments into one env string; Linux caps a single env string at 128 KiB.
+const RUN_ARGS_BUDGET = 100_000
+
+function chunkFiles(baseArgs, files) {
+  const chunks = []
+  let current = []
+  let size = JSON.stringify(baseArgs).length
+  for (const file of files) {
+    const added = JSON.stringify(file).length + 1
+    if (current.length && size + added > RUN_ARGS_BUDGET) {
+      chunks.push(current)
+      current = []
+      size = JSON.stringify(baseArgs).length
+    }
+    current.push(file)
+    size += added
+  }
+  return current.length ? [...chunks, current] : chunks
+}
+
+function spawnNode(args, cwd) {
+  const result = spawnSync(process.execPath, args, { cwd, stdio: 'inherit' })
+  if (result.error) {
+    console.error(`fork-test-suite: could not run node ${args[0]}: ${result.error.message}`)
+  }
+  return result.status ?? 1
+}
+
+function desktopRunPlan(files) {
   const script = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).scripts.test
   const segments = npmScriptSegments(script)
+  const runner = segments.at(-1)
+  const baseArgs = [
+    ...runner.slice(1),
+    `--maxWorkers=${options.maxWorkers}`,
+    ...options.passthrough
+  ]
+  return {
+    prerequisites: segments.slice(0, -1),
+    runner,
+    baseArgs,
+    chunks: chunkFiles(baseArgs, files)
+  }
+}
+
+function runDesktop(files) {
   // Same prerequisites and runner as `pnpm test`, so projects and environments match.
-  for (const [index, args] of segments.entries()) {
-    const last = index === segments.length - 1
-    const result = spawnSync(
-      process.execPath,
-      [
-        ...args,
-        ...(last ? [`--maxWorkers=${options.maxWorkers}`, ...options.passthrough, ...files] : [])
-      ],
-      { cwd: root, stdio: 'inherit' }
-    )
-    if (result.status !== 0) {
-      return result.status ?? 1
+  const { prerequisites, runner, baseArgs, chunks } = desktopRunPlan(files)
+  for (const args of prerequisites) {
+    const status = spawnNode(args, root)
+    if (status !== 0) {
+      return status
     }
   }
-  return 0
+  let exitCode = 0
+  for (const [index, chunk] of chunks.entries()) {
+    console.log(`\nChunk ${index + 1}/${chunks.length}: ${chunk.length} files`)
+    exitCode = spawnNode([runner[0], ...baseArgs, ...chunk], root) || exitCode
+  }
+  return exitCode
 }
 
 function runMobile(files) {
@@ -349,20 +500,17 @@ function runMobile(files) {
     )
     return 1
   }
-  return (
-    spawnSync(
-      process.execPath,
-      [
-        mobileVitest,
-        'run',
-        '--config',
-        'vitest.config.ts',
-        `--maxWorkers=${options.maxWorkers}`,
-        ...options.passthrough,
-        ...files.map((file) => file.slice('mobile/'.length))
-      ],
-      { cwd: join(root, 'mobile'), stdio: 'inherit' }
-    ).status ?? 1
+  return spawnNode(
+    [
+      mobileVitest,
+      'run',
+      '--config',
+      'vitest.config.ts',
+      `--maxWorkers=${options.maxWorkers}`,
+      ...options.passthrough,
+      ...files.map((file) => file.slice('mobile/'.length))
+    ],
+    join(root, 'mobile')
   )
 }
 
@@ -384,8 +532,17 @@ if (!options.list) {
     exitCode = runMobile(mobile) || exitCode
   }
   if (!selected.length) {
-    console.log('Nothing selected to run.')
+    console.error('fork-test-suite: nothing was selected to run')
+    exitCode ||= 1
   }
+}
+if (seedStats.skipped.length) {
+  console.error(
+    `\nfork-test-suite: ${seedStats.skipped.length} of ${seedStats.listed} also-related seeds skipped ` +
+      '(not found and no rename; fix the list or pass --renames-from):'
+  )
+  seedStats.skipped.forEach((entry) => console.error(`  ${entry}`))
+  exitCode ||= 1
 }
 if (missing.length) {
   console.error(`\nfork-test-suite: ${missing.length} registry paths are missing (stale registry):`)

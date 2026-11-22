@@ -153,10 +153,17 @@ On the sync branch, right after the merge commit, in this order:
    (the report committed in step 5.3; it lists the files changed on both sides). Add `--list` first to
    see what it selects. It runs the tests named in the registry, the Dart tests, and the tests related
    to the fork's source files plus those changed-on-both-sides files, with `--maxWorkers=2`.
+   The report lists current names (a renamed file shows as `new (renamed from old)`), and the suite
+   follows any remaining old name through renames since the upstream merge base. It prints
+   `N of M seeds skipped` and exits 1 for each listed path that no longer exists and has no rename
+   (usually a file upstream deleted): fix those before going on, by dropping the path from the list
+   or recording it in the sync report as deleted upstream. Skipped-seed warnings are never ignored.
+   Exit codes: 1 is a test failure, a skipped seed, a stale registry path or an empty selection;
+   2 is a usage error (for example a missing `--also-related` path).
    Without the report, make the list with git: on the merge commit `M`,
    `base=$(git merge-base M^1 M^2)`, then
    `comm -12 <(git diff --name-only --no-renames $base M^1 | sort) <(git diff --name-only --no-renames $base M^2 | sort) > <file>`
-   and pass `--also-related-from <file>`.
+   (pre-merge names; the suite resolves them through renames) and pass `--also-related-from <file>`.
    A non-zero exit that lists missing registry paths is a stale registry: fix it in step 7.
 4. `pnpm test --maxWorkers=2` (full suite) only when Rohit asks for it.
 5. `pnpm lint`, then `pnpm check:changed`.
@@ -169,6 +176,9 @@ On the sync branch, right after the merge commit, in this order:
 ### 7. Registry check
 
 1. Every `key_paths` entry of every active customization still exists.
+2. Fork script paths still exist: `node config/fork/check-fork-script-paths.mjs`. It scans the fork
+   workflows, `config/fork` scripts and the skills for repo paths and `pnpm` script names; any
+   reported path was moved or removed upstream (no test runs those files), so fix the caller.
 
 ### 8. Review and merge
 

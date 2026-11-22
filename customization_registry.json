@@ -434,7 +434,8 @@
         ".claude/skills/release/SKILL.md",
         "config/fork/upstream-sync.sh",
         "config/fork/swap-mac-app.sh",
-        "config/fork/fork-test-suite.mjs"
+        "config/fork/fork-test-suite.mjs",
+        "config/fork/check-fork-script-paths.mjs"
       ],
       "commits": [],
       "touches_upstream_files": [],
