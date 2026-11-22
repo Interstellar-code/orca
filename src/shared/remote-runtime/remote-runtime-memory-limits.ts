@@ -75,15 +75,26 @@ export function measureRemoteRuntimeSubscriptionParams(params: unknown): number 
   }
 }
 
-export function serializeRemoteRuntimeRpcRequest(args: {
+type RemoteRuntimeRpcRequestArgs = {
   requestId: string
   deviceToken: string
   method: string
   params: unknown
   envelope?: RuntimeOrchestrationEnvelope
   maxBytes?: number
-}): string {
-  const serialized = serializeRemoteRuntimePayload(
+}
+
+export function serializeRemoteRuntimeRpcRequest(args: RemoteRuntimeRpcRequestArgs): string {
+  const serialized = serializeUncheckedRemoteRuntimeRpcRequest(args)
+  assertRemoteRuntimeRequestFitsHostFrame(serialized)
+  return serialized
+}
+
+/** Skips the host-frame refusal so a preparation can measure an oversized candidate; the caller must check what it sends. */
+export function serializeUncheckedRemoteRuntimeRpcRequest(
+  args: RemoteRuntimeRpcRequestArgs
+): string {
+  return serializeRemoteRuntimePayload(
     {
       id: args.requestId,
       deviceToken: args.deviceToken,
@@ -98,8 +109,6 @@ export function serializeRemoteRuntimeRpcRequest(args: {
     },
     args.maxBytes
   )
-  assertRemoteRuntimeRequestFitsHostFrame(serialized)
-  return serialized
 }
 
 const REMOTE_RUNTIME_REQUEST_TOO_LARGE_PREFIX = 'Remote runtime request exceeds'

@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import {
+  assertRemoteRuntimeRequestFitsHostFrame,
   serializeRemoteRuntimePayload,
-  serializeRemoteRuntimeRpcRequest
+  serializeUncheckedRemoteRuntimeRpcRequest
 } from '../remote-runtime-memory-limits'
 import { prepareRemoteRuntimeRequest } from './remote-runtime-prepared-request-admission'
 import type { PairedRuntimeConnection } from '../pairing/paired-runtime-connection'
@@ -16,8 +17,22 @@ type SerializeRequest = (
   envelope: RuntimeOrchestrationEnvelope | undefined
 ) => string
 
-/** Serializes one request, letting the caller's preparation pick its params against their exact wire size. */
+/**
+ * Serializes one request, letting the caller's preparation pick its params against their exact wire size.
+ * `serialize` must not refuse oversized candidates; only the selected request must fit the host frame.
+ */
 export function serializePreparedRemoteRuntimeRequest(
+  serialize: SerializeRequest,
+  params: unknown,
+  envelope: RuntimeOrchestrationEnvelope | undefined,
+  prepareRequest: RuntimeRequestPreparation | undefined
+): string {
+  const serialized = selectPreparedRemoteRuntimeRequest(serialize, params, envelope, prepareRequest)
+  assertRemoteRuntimeRequestFitsHostFrame(serialized)
+  return serialized
+}
+
+function selectPreparedRemoteRuntimeRequest(
   serialize: SerializeRequest,
   params: unknown,
   envelope: RuntimeOrchestrationEnvelope | undefined,
@@ -90,7 +105,7 @@ export function prepareRuntimeSocketRequest(
     prepareRemoteRuntimeRequest(new Map(), () =>
       serializePreparedRemoteRuntimeRequest(
         (selected, selectedEnvelope) =>
-          serializeRemoteRuntimeRpcRequest({
+          serializeUncheckedRemoteRuntimeRpcRequest({
             requestId,
             deviceToken: connection.credential.deviceToken,
             method,

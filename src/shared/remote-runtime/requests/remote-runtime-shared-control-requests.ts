@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { abortSignalReason } from '../../concurrency/abort-signal-reason'
-import { serializeRemoteRuntimeRpcRequest } from '../remote-runtime-memory-limits'
+import { serializeUncheckedRemoteRuntimeRpcRequest } from '../remote-runtime-memory-limits'
 import {
   prepareRemoteRuntimeRequest,
   releaseRemoteRuntimePreparedRequest,
@@ -49,7 +49,7 @@ export function requestSharedControl<TResult>(args: {
     preparedRequest = prepareRemoteRuntimeRequest(pendingRequests, () =>
       serializePreparedRemoteRuntimeRequest(
         (params, envelope) =>
-          serializeRemoteRuntimeRpcRequest({
+          serializeUncheckedRemoteRuntimeRpcRequest({
             requestId,
             deviceToken: args.deviceToken,
             method: args.method,

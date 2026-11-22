@@ -32,7 +32,11 @@
         "src/shared/workspace-attachments/workspace-linked-item-equality.test.ts",
         "src/renderer/src/store/slices/worktrees/create/create-worktree-dart-link-remote.test.ts",
         "src/shared/new-workspace/workspace-source.test.ts",
-        "src/renderer/src/store/slices/worktrees/metadata/worktree-meta-persist.dart.test.ts"
+        "src/renderer/src/store/slices/worktrees/metadata/worktree-meta-persist.dart.test.ts",
+        "src/renderer/src/store/slices/ui/workspace-navigation-history-dart.ts",
+        "src/renderer/src/store/slices/ui/workspace-navigation-history-task-detail-key.ts",
+        "src/shared/wsl-move/wsl-move-storage-dispositions-dart.ts",
+        "src/shared/wsl-move/wsl-move-sqlite-table-rows.ts"
       ],
       "commits": [
         "26dc8008bdf",
@@ -123,7 +127,7 @@
         "src/shared/wsl-move/wsl-move-storage-dispositions.ts",
         "src/shared/wsl-move/wsl-move-ui-dispositions.ts"
       ],
-      "sync_notes": "Largest conflict surface. src/shared/task-providers.ts, task-provider-identity.ts, workspace-attachment*.ts, workspace-linked-item*.ts, workspace-reference-identity.ts and rpc-params-catalog.generated.ts (regenerate, do not hand-merge) are shared provider unions that upstream edits when it changes Jira or Linear. register-core-handlers.ts gained registerDartHandlers() (upstream deleted its test, so nothing checks the call). DART_METHODS is registered in rpc-method-registry.ts, which replaced methods/index.ts in v1.4.269. runtime-edge-command-controller.ts binds RuntimeDartCommands. orcad-plaintext-credential-migration.ts lists the Dart token envelope. create-worktree.ts and folder-workspace-mutations.ts replaced Jira-only remote capability checks with assertLinkedTaskProviderCapabilities. config/focus-setting-read-baseline.txt must keep upstream sort order. After a sync, re-run the Dart tests plus the RPC catalog generator.",
+      "sync_notes": "Largest conflict surface. src/shared/task-providers.ts, task-provider-identity.ts, workspace-attachment*.ts, workspace-linked-item*.ts, workspace-reference-identity.ts and rpc-params-catalog.generated.ts (regenerate, do not hand-merge) are shared provider unions that upstream edits when it changes Jira or Linear. register-core-handlers.ts gained registerDartHandlers() (upstream deleted its test, so nothing checks the call). DART_METHODS is registered in rpc-method-registry.ts, which replaced methods/index.ts in v1.4.269. runtime-edge-command-controller.ts binds RuntimeDartCommands. orcad-plaintext-credential-migration.ts lists the Dart token envelope. create-worktree.ts and folder-workspace-mutations.ts replaced Jira-only remote capability checks with assertLinkedTaskProviderCapabilities. config/focus-setting-read-baseline.txt must keep upstream sort order. workspace-navigation-history.ts and wsl-move-storage-dispositions.ts sit at the 300-line limit, so their Dart parts live in the *-dart.ts files beside them; upstream's task-detail history keys moved to workspace-navigation-history-task-detail-key.ts and its sqlite tables() helper to wsl-move-sqlite-table-rows.ts, so port upstream edits to those pieces there. After a sync, re-run the Dart tests plus the RPC catalog generator.",
       "known_gaps": [
         "Tasks page is read-and-link only: creating, updating and commenting on Dart tasks is done via the orca dart CLI, not the UI.",
         "No Dart support on mobile (see dart-mobile-deferral)."

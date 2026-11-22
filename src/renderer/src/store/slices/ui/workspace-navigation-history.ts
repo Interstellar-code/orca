@@ -1,22 +1,19 @@
-/* eslint-disable max-lines -- Why: the fork adds one Dart task-detail entry to upstream's file, which already sits at the limit; splitting it would rewrite upstream code on every sync. */
 import type { StateCreator } from 'zustand'
 import type { AppState } from '../../types'
 import { findFirstIndexedWorktree } from '../../../lib/workspace/ownership/worktree-runtime-owner-index'
 import type { GitHubWorkItem } from '../../../../../shared/github/work-items/work-item-types'
-import type { DartTask } from '../../../../../shared/dart/dart-types'
 import type { JiraIssue } from '../../../../../shared/jira/jira-types'
 import type { LinearIssue } from '../../../../../shared/linear/issue-types'
 import type { GitLabWorkItem } from '../../../../../shared/gitlab/gitlab-types'
-import {
-  getTaskSourceCacheScope,
-  type TaskSourceContext
-} from '../../../../../shared/work-items/task-source-context'
+import type { TaskSourceContext } from '../../../../../shared/work-items/task-source-context'
 import { parseWorkspaceKey } from '../../../../../shared/workspace/identity/workspace-scope'
 import {
   automationsPageLocationKey,
   isAutomationsHistoryEntry,
   type AutomationsPageLocation
 } from './automations-page-location'
+import type { WorktreeNavHistoryDartTaskDetailEntry } from './workspace-navigation-history-dart'
+import { getTaskDetailHistoryEntryKey } from './workspace-navigation-history-task-detail-key'
 import {
   selectFolderWorkspaces,
   selectWorktreesByRepo
@@ -59,12 +56,7 @@ export type WorktreeNavHistoryTaskDetailEntry =
       issue: JiraIssue
       sourceContext?: TaskSourceContext | null
     }
-  | {
-      kind: 'task-detail'
-      source: 'dart'
-      task: DartTask
-      sourceContext?: TaskSourceContext | null
-    }
+  | WorktreeNavHistoryDartTaskDetailEntry
 /** One Automations sub-page, so titlebar Back steps through them like any other page. */
 export type WorktreeNavHistoryAutomationsPageEntry = {
   kind: 'automations-page'
@@ -131,39 +123,7 @@ function getHistoryEntryKey(entry: WorktreeNavHistoryEntry): string {
   if (entry.kind === 'automations-page') {
     return `view:automations-page:${automationsPageLocationKey(entry.location)}`
   }
-  if (entry.source === 'github') {
-    const sourceScope =
-      entry.sourceContext?.provider === 'github'
-        ? getTaskSourceCacheScope(entry.sourceContext)
-        : 'legacy'
-    return `view:task-detail:github:${sourceScope}:${entry.workItem.repoId}:${entry.workItem.type}:${entry.workItem.number}:${entry.initialTab ?? 'conversation'}`
-  }
-  if (entry.source === 'gitlab') {
-    const sourceScope =
-      entry.sourceContext?.provider === 'gitlab'
-        ? getTaskSourceCacheScope(entry.sourceContext)
-        : 'legacy'
-    return `view:task-detail:gitlab:${sourceScope}:${entry.workItem.repoId}:${entry.workItem.type}:${entry.workItem.number}`
-  }
-  if (entry.source === 'jira') {
-    const sourceScope =
-      entry.sourceContext?.provider === 'jira'
-        ? getTaskSourceCacheScope(entry.sourceContext)
-        : 'legacy'
-    return `view:task-detail:jira:${sourceScope}:${entry.issue.siteId ?? 'selected'}:${entry.issue.key}`
-  }
-  if (entry.source === 'dart') {
-    const sourceScope =
-      entry.sourceContext?.provider === 'dart'
-        ? getTaskSourceCacheScope(entry.sourceContext)
-        : 'legacy'
-    return `view:task-detail:dart:${sourceScope}:${entry.task.id}`
-  }
-  const sourceScope =
-    entry.sourceContext?.provider === 'linear'
-      ? getTaskSourceCacheScope(entry.sourceContext)
-      : 'legacy'
-  return `view:task-detail:linear:${sourceScope}:${entry.issue.workspaceId ?? 'selected'}:${entry.issue.id}`
+  return getTaskDetailHistoryEntryKey(entry)
 }
 
 type WorkspaceCatalog = Pick<AppState, 'folderWorkspaces' | 'worktreesByRepo'>

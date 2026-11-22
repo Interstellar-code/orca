@@ -1,6 +1,7 @@
-/* eslint-disable max-lines -- Why: the fork adds its Dart storage module to upstream's registry, which already sits at the limit; splitting it would rewrite upstream code on every sync. */
 import { moveDisposition, notApplicableDisposition } from './wsl-move-dispositions'
 import type { WslMoveFieldDisposition } from './wsl-move-dispositions'
+import { tables } from './wsl-move-sqlite-table-rows'
+import { DART_LOCAL_STORAGE_MODULES } from './wsl-move-storage-dispositions-dart'
 
 /** Census tests require a disposition for each renderer module using localStorage. */
 export const LOCAL_STORAGE_MODULE_DISPOSITIONS: Record<string, WslMoveFieldDisposition> = {
@@ -51,7 +52,7 @@ export const LOCAL_STORAGE_MODULE_DISPOSITIONS: Record<string, WslMoveFieldDispo
   ...Object.fromEntries(
     [
       'src/renderer/src/components/browser-pane/annotate/markup-tools/use-markup-draw-hint.ts',
-      'src/renderer/src/components/dart-view-mode-storage.ts',
+      ...DART_LOCAL_STORAGE_MODULES,
       'src/renderer/src/components/feature-tips/FeatureTipsModal.tsx',
       'src/renderer/src/components/feature-wall/setup/agent-capabilities/BrowserUseSkillSetupCard.tsx',
       'src/renderer/src/components/feature-wall/completion/feature-wall-completion-persistence.ts',
@@ -147,12 +148,6 @@ export const SQLITE_SCHEMA_FILE_DATABASES: Record<string, string> = {
   'src/main/codex/history/index/codex-state-db-test-fixture.ts': 'test-fixture',
   'src/main/opencode-usage/opencode-usage-sqlite-fixture.ts': 'test-fixture'
 }
-
-const tables = (
-  database: string,
-  names: readonly string[],
-  row: WslMoveFieldDisposition
-): [string, WslMoveFieldDisposition][] => names.map((name) => [`${database}.${name}`, row])
 
 /** Tables by `<database>.<table>`. Migration copies (`*_new`, `*_v35`) sit with what they rebuild. */
 export const SQLITE_TABLE_DISPOSITIONS: Record<string, WslMoveFieldDisposition> =
