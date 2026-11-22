@@ -15,7 +15,7 @@ can prove no client is connected.
 
 | Path                                  | Role                                                                                                                                                                                                                                    |
 | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `rebuild-and-install.sh`              | Fast-forward from `origin/main`, merge `upstream/main`, run the Dart gates, build, push, notify. `--mode mac` (default) or `--mode server`.                                                                                             |
+| `rebuild-and-install.sh`              | Fast-forward from `origin/main`, run the fork gates, build, notify. `--upstream` also merges `upstream/main`; `--push` pushes. `--mode mac` (default) or `--mode server`.                                                               |
 | `install-built-app.sh`                | The Mac install command the notification points at. Refuses while Orca runs; stages the new app and restores the old one if the swap fails.                                                                                             |
 | `sign-fork-app.sh`                    | Signs an `Orca.app` with the fork identity and verifies it. The rebuild runs it after every Mac build; the installer refuses an app without it.                                                                                         |
 | `upstream-sync.sh`                    | Helpers for the `upstream-sync` skill: `report`, `release-target`, `record-release` (also used by the rebuild), `record-sync`.                                                                                                          |
@@ -83,9 +83,8 @@ shell still work.
 - After its sync, the script re-runs the clone's copy of itself if that copy changed, so a run from
   another checkout finishes with the clone's version.
 - The first launch after switching to this identity may ask for Local Network access once.
-- Rollout: launchd runs the clone's own script, which bash reads before the run pulls this
-  change, so the first nightly run after it lands builds unsigned and the installer refuses that
-  build once. The next run signs.
+- A run that pulls a newer copy of the script re-runs that copy right after the fast-forward, so
+  script changes take effect on the same run.
 
 ### 3. Install the launchd job (your choice, not the script's)
 
@@ -156,9 +155,9 @@ shows Dart.
 ## On demand
 
 ```sh
-~/.orca-fork-build/orca/config/fork/rebuild-and-install.sh            # mac, merges, gates, builds, pushes
-~/.orca-fork-build/orca/config/fork/rebuild-and-install.sh --dry-run  # same, but no push and no install
-~/.orca-fork-build/orca/config/fork/rebuild-and-install.sh --no-push  # build only
+~/.orca-fork-build/orca/config/fork/rebuild-and-install.sh                   # mac: fast-forward, gates, build
+~/.orca-fork-build/orca/config/fork/rebuild-and-install.sh --upstream --push # also merge upstream and push main
+~/.orca-fork-build/orca/config/fork/rebuild-and-install.sh --dry-run         # prefix notifications, never push
 ```
 
 Stop paths: a diverged local `main` (the `--ff-only` step), a merge conflict, a failing gate,
@@ -260,11 +259,11 @@ If nothing was installed yet, there is nothing to roll back.
 Note that upstream Orca has no Dart provider, so Dart tasks, the `orca dart` CLI and the
 `orca-dart` skill disappear from the app; nothing else in your profile changes.
 
-## Server mode (UNVERIFIED — needs your go, never run by this lane)
+## Server mode
 
 `--mode server` is written for "Orca Ubu 7of9", which runs the packaged Linux app from
-`/opt/Orca` under systemd `orca-serve.service`. It has never been run against a real server.
-Everything below is unverified except that the script parses and refuses arguments correctly.
+`/opt/Orca` under systemd `orca-serve.service`. It has installed real releases there since
+November 2026 (the `release` skill's step 4).
 
 Run it on the server itself (SSH in first), from a clone of the fork's `main` at a path of
 your choosing, after `main` has been pushed from the Mac:
@@ -285,27 +284,26 @@ config/fork/rebuild-and-install.sh --mode server --no-upstream --dry-run   # bui
 config/fork/rebuild-and-install.sh --mode server --install-only            # swap and restart now
 ```
 
-`--no-upstream` skips the upstream fetch and merge (any mode). `--install-only` skips the
+`--no-upstream` (now the default) skips the upstream fetch and merge in any mode; `--upstream` turns it on. `--install-only` skips the
 sync, gates and build, and installs `dist/linux*-unpacked` only if its stamp names the
 current `HEAD`. It restarts even with clients connected, because you ran it on purpose.
 
-What it does: fast-forward from `origin/main`, merge `upstream/main`, `pnpm install
---frozen-lockfile`, `pnpm tc`, the Dart tests, the desktop build, and electron-builder
+What it does: fast-forward from `origin/main` (and merge `upstream/main` with `--upstream`),
+`pnpm install --frozen-lockfile`, `pnpm tc`, the fork test suite, the desktop build, and electron-builder
 `--linux dir --<host arch>`. Only the unpacked tree is built (`dist/linux-unpacked` on x64,
 `dist/linux-arm64-unpacked` on arm64), so the server does not need the deb/rpm packaging
 tools. The arch comes from `uname -m` and must match the host; a wrong arch builds a binary
 that cannot start there.
 
-Unverified on the server and easy to get wrong:
+Things to know on the server:
 
 - **Install layout.** The script treats the unpacked tree as the new `/opt/Orca` and copies
   it with `cp -a`. If the server install is an unpacked AppImage rather than an
   electron-builder `linux-unpacked` tree, the layout differs; confirm with `ls /opt/Orca`
   before trusting it.
 - **Version stamp.** Server mode sets `ORCA_LOCAL_BUILD_VERSION` (the same
-  `-local.<timestamp>.<commit>` string `build:mac` uses) so the fork guard applies there too.
-  The Linux path does not stamp it the way `build-mac-local.mjs` does for macOS; this is the
-  one piece of the mode most likely to need a fix after a first run.
+  `-local.<timestamp>.<commit>` string `build:mac` uses) so the fork guard applies there too;
+  `strings /opt/Orca/resources/app.asar | grep fork.local` shows it.
 - **Active-session detection.** The script reads the port `orca serve` actually bound from
   the profile's `orca-runtime.json` (`$HOME/.config/orca` by default, or
   `$ORCA_USER_DATA_PATH`), not the 6768 default, because serve moves to another port when
@@ -344,10 +342,9 @@ Covered by `src/main/updater/lifecycle/updater-fork-build-guard.test.ts`.
 
 **Only `pnpm build:mac` and the rebuild script produce a protected fork build.** The guard
 keys on the `-local.` version suffix, which those two stamp. `pnpm build:linux` on a Mac, a
-`build:unpack` tree, `ORCA_MAC_RELEASE=1`, the CI release workflow, and any plain
-`electron-builder` run produce a normal release version and are **not** protected: Stably's
-feed would replace them. Server mode stamps the suffix itself for the same reason, so the
-Linux package it installs is protected too.
+`build:unpack` tree, `ORCA_MAC_RELEASE=1`, and any plain `electron-builder` run produce a normal release version and are **not** protected: Stably's
+feed would replace them. Server mode and `fork-release.yml` stamp the suffix themselves for the
+same reason, so the Linux package and the GitHub Release builds are protected too.
 
 ## Out of scope here
 

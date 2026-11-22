@@ -90,6 +90,10 @@ for (const file of SCANNED.flatMap((pattern) => globSync(pattern, { cwd: root })
         continue
       }
       const path = found[0]
+      // Installed dependencies are absent on a fresh checkout; they are not repo paths.
+      if (path.includes('node_modules/')) {
+        continue
+      }
       if (!existsSync(join(root, path))) {
         problems.push(`${at}: missing path ${path}`)
       }

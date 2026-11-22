@@ -1,23 +1,20 @@
 #!/usr/bin/env bash
-# Fork-only rebuild: merges upstream/main into the fork's main, runs the Dart gates,
-# builds, and notifies. Never replaces a running app.
+# Fork-only rebuild: fast-forwards the fork's main (merging upstream/main only with --upstream),
+# runs the fork gates, builds, and notifies. Never replaces a running app.
 set -euo pipefail
 
 MODE=mac
 DRY_RUN=0
-# Server mode only installs what was already pushed, so it never pushes by default.
-PUSH=1
+# main moves only through reviewed PRs, so merging upstream and pushing are opt-in.
+PUSH=0
 PUSH_SET=0
-NO_UPSTREAM=0
+NO_UPSTREAM=1
 INSTALL_ONLY=0
 
 FORK_REMOTE_URL_MATCH='github.com[:/]Interstellar-code/orca'
 UPSTREAM_REMOTE_URL_MATCH='github.com[:/]stablyai/orca'
 UPSTREAM_BRANCH=upstream/main
 FORK_BRANCH=main
-# Lane B's component-test paths land here once that lane reports them.
-LANE_B_TESTS=()
-DART_TEST_PATHS=(src/main/dart src/shared/dart)
 
 log() { printf '%s %s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$*"; }
 
@@ -60,9 +57,11 @@ Usage: config/fork/rebuild-and-install.sh [options]
   --clone <path>      Build clone/worktree of the fork (default $ORCA_FORK_CLONE or
                       ~/.orca-fork-build/orca). Never the checkout you edit in.
   --dry-run           Do everything except push and install; prefix notifications.
-  --no-push           Skip pushing the merged main to the fork.
-  --push              Push even in server mode (default: server never pushes).
-  --no-upstream       Build the fork's main as pushed: no upstream fetch or merge.
+  --no-push           Do not push (the default; kept for older callers).
+  --push              Push main to the fork after the build (any mode).
+  --upstream          Also fetch and merge upstream/main (main normally moves only through
+                      the upstream-sync skill's reviewed PR).
+  --no-upstream       Build the fork's main as pushed (the default; kept for older callers).
   --install-only      Server mode: install the tree an earlier run built for this HEAD,
                       without rebuilding. Restarts even with clients connected.
 
@@ -373,6 +372,7 @@ main() {
       --no-push) PUSH=0; shift ;;
       --push) PUSH=1; PUSH_SET=1; shift ;;
       --no-upstream) NO_UPSTREAM=1; shift ;;
+      --upstream) NO_UPSTREAM=0; shift ;;
       --install-only) INSTALL_ONLY=1; shift ;;
       -h | --help) usage; return 0 ;;
       *) fail "unknown argument: $1" ;;
@@ -454,24 +454,8 @@ main() {
   log 'gate: pnpm tc'
   pnpm tc || fail 'typecheck failed'
 
-  local dart_paths=()
-  local path
-  for path in "${DART_TEST_PATHS[@]}"; do
-    [[ -d $path ]] && dart_paths+=("$path")
-  done
-  if [[ ${#dart_paths[@]} -eq 0 ]]; then
-    log "no Dart tests found: none of ${DART_TEST_PATHS[*]} exist yet"
-  else
-    log "gate: pnpm test ${dart_paths[*]}"
-    pnpm test "${dart_paths[@]}" || fail 'Dart tests failed'
-  fi
-
-  if [[ ${#LANE_B_TESTS[@]} -eq 0 ]]; then
-    log 'Lane B component tests not configured yet; that gate is skipped'
-  else
-    log "gate: pnpm test ${LANE_B_TESTS[*]}"
-    pnpm test "${LANE_B_TESTS[@]}" || fail 'Lane B component tests failed'
-  fi
+  log 'gate: fork test suite (registry and Dart tests)'
+  node config/fork/fork-test-suite.mjs --no-related || fail 'fork test suite failed'
 
   log "building ($MODE)"
   if [[ ${ORCA_FORK_FORCE_FAILURE:-} == gate ]]; then
