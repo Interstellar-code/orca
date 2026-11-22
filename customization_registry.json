@@ -370,7 +370,7 @@
         "07d46aea435"
       ],
       "touches_upstream_files": ["config/scripts/desktop-distribution/macos/build-mac-local.mjs"],
-      "sync_notes": "config/fork/ does not exist upstream. build-mac-local.mjs carries the forkBaseVersion labelling (07d46aea435); upstream moved it to config/scripts/desktop-distribution/macos/ in v1.4.269, so re-apply there if upstream moves it again.",
+      "sync_notes": "config/fork/ does not exist upstream. build-mac-local.mjs carries the forkBaseVersion labelling (07d46aea435) and forwards its extra arguments to electron-builder, so rebuild-and-install.sh can build one arch; upstream moved it to config/scripts/desktop-distribution/macos/ in v1.4.269, so re-apply there if upstream moves it again.",
       "known_gaps": []
     },
     {
