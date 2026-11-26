@@ -523,7 +523,7 @@
         "docs/plans/upstream-sync-2026-11-26.md",
         "customization_registry.json"
       ],
-      "commits": ["9ef4a116ea8", "6e720c2b786"],
+      "commits": ["9ef4a116ea8", "6e720c2b786", "91c8a74dcfd"],
       "touches_upstream_files": ["README.md"],
       "sync_notes": "Upstream ignores /.claude/skills/ and docs/**, so these files are force-added; a sync never conflicts on them unless upstream starts tracking the same paths.",
       "known_gaps": [
