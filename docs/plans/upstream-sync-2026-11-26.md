@@ -99,3 +99,27 @@ Sync notes: Retired in the v1.4.269 sync: upstream moved closeNotificationDismis
 - config/react-compiler-bailout-baseline.txt
 - config/scripts/build/mobile-web-app/verify-mobile-web-app-bundle.mjs
 - src/shared/remote-runtime/requests/remote-runtime-shared-control-requests.ts
+
+## Deleted upstream
+
+The related-test seed scan reported no deleted or skipped paths. Upstream commit `2cffdeda72cb1f5364c536fc43548b396af53e40` deleted four tests modified by the fork; they were retained during conflict resolution as listed below.
+
+## Pre-existing failures
+
+None verified. The fork test suite passed after correcting the Dart host-name test fixture. The test runner emitted happy-dom fetch `AbortError` messages during teardown; they did not fail the gate and their source was not identified.
+
+## Conflicts
+
+- `config/scripts/build/mobile-web-app/verify-mobile-web-app-bundle.mjs`: adopted upstream's eager and on-demand budgets, replacing the older total budget.
+- `src/main/skills/bundled-skill-install/bundled-skill-sources.ts`: regenerated upstream skill sources with the fork's `orca-dart` skill.
+- `src/main/updater/lifecycle/updater-menu-checks.ts`: retained the fork-build update guard ahead of upstream team update policy checks.
+- `src/renderer/src/components/skills/setup/linear-agent-skill-install-cta.tsx`: kept the fork's shared install row and ported upstream's replace hint and spacing to it.
+- `src/renderer/src/runtime/rpc/compatibility/runtime-capability-proof.ts`: combined fork fresh capability probes with upstream optional-capability caching; migrated the upstream caller.
+- `src/renderer/src/runtime/rpc/compatibility/runtime-compatibility-probe.ts`: combined upstream idle-stop handling with fork cache-generation safeguards.
+- `src/shared/remote-runtime/remote-runtime-memory-limits.ts`: retained fork request-size admission and upstream idle-passive metadata.
+- `mobile/src/new-workspace/creation/runtime/use-new-workspace-runtime-context.test.ts`: retained fork Dart mobile-deferral coverage despite upstream deletion.
+- `src/shared/remote-runtime/remote-runtime-memory-limits.test.ts`: retained fork request-frame admission coverage despite upstream deletion.
+- `src/shared/workspace-attachments/workspace-attachment-normalization.test.ts`: retained fork Dart attachment invariants despite upstream deletion.
+- `src/shared/workspace-attachments/workspace-reference-identity.test.ts`: retained fork Dart reference identity coverage despite upstream deletion.
+
+The release target is the upstream-main ancestor of v1.4.278, not the tag commit; fixes only on the release tag are not included.
