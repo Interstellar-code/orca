@@ -23,7 +23,14 @@ vi.mock('../runtime/client', async () => {
 
 import { DART_PROVIDER_RUNTIME_CAPABILITY } from '../../shared/dart/dart-capabilities'
 import { main } from '../index'
-import { okFixture, queueFixtures } from '../runtime/fixtures/runtime-rpc-fixtures'
+type RpcFixture = { id: string; result: Record<string, unknown> }
+
+const okFixture = (id: string, result: Record<string, unknown>): RpcFixture => ({ id, result })
+const queueFixtures = (mock: ReturnType<typeof vi.fn>, ...fixtures: RpcFixture[]) => {
+  for (const fixture of fixtures) {
+    mock.mockResolvedValueOnce(fixture)
+  }
+}
 
 const TASK_ID = 'abcdefghijkl'
 

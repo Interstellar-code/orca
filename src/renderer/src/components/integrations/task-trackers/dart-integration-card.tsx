@@ -46,7 +46,8 @@ import {
   IntegrationCardShell
 } from '../presentation/integration-card-shell'
 import { useIntegrationSubordinateRowClass } from '../presentation/integration-card-presentation'
-import { getProviderAccountScope } from '../../provider-accounts/provider-account-scope'
+import { defaultScopeHost } from '@/runtime/hosts/selection/default-creation-host'
+import { useProviderAccountScope } from '../../provider-accounts/use-provider-host-scope'
 import { ProviderHostScopeControl } from '../../provider-accounts/ProviderHostScopeControl'
 import { DART_INTEGRATION_SECTION_ID } from './task-provider-integration-section-ids'
 import { DartConnectedAccountRow } from './dart-connected-account-row'
@@ -158,7 +159,7 @@ export function DartIntegrationCard(): React.JSX.Element {
   const connected = contextMatches && !updateRequired && dartStatus.connected
   const credentialError = contextMatches ? dartStatus.credentialError : undefined
   const viewer = connected ? dartStatus.viewer : null
-  const accountScope = getProviderAccountScope(settings)
+  const accountScope = useProviderAccountScope(defaultScopeHost(settings))
   const remote = isEnvironmentRuntimeContextKey(providerRuntimeContextKey)
   const subordinateRowClass = useIntegrationSubordinateRowClass('flex items-center gap-3')
   const accountScopeRowClass = useIntegrationSubordinateRowClass('text-xs')

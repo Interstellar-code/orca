@@ -19,6 +19,7 @@ import { cn } from '@/lib/class-names'
 import type { LocalAgentRuntime } from '@/lib/skills/runtime/skill-runtime-command'
 import { useIntegrationSubordinateRowClass } from '../../integrations/presentation/integration-card-presentation'
 import { BundledSkillInstallStatus } from './BundledSkillInstallStatus'
+import { BundledSkillReplaceHint } from './BundledSkillReplaceHint'
 import { recheckSurfacesAfterAgentSkillInstall } from './agent-skill-recheck-surface-sync'
 import { type Translate, useTranslate } from '@/i18n/use-translate'
 
@@ -117,7 +118,7 @@ export function BundledAgentSkillInstallRow({
           type="button"
           variant="ghost"
           size="xs"
-          className="ml-auto"
+          className="ml-auto gap-1.5"
           onClick={() => void skill.refresh()}
           disabled={skill.loading}
         >
@@ -132,32 +133,37 @@ export function BundledAgentSkillInstallRow({
           {!showInstall ||
           state.kind === 'unsupported' ||
           bundledSkillInstallNeedsAttention(state) ? null : (
-            <Button
-              type="button"
-              variant="outline"
-              size="xs"
-              className="w-fit"
-              onClick={() => void install([skillName], replacePaths)}
-              disabled={installing || !ready || action.kind === 'loading'}
+            <BundledSkillReplaceHint
+              action={action}
+              replacing={!installing && Boolean(replacePaths)}
             >
-              {installing ? (
-                <Loader2 className="size-3 animate-spin" />
-              ) : (
-                <Download className="size-3" />
-              )}
-              {installing
-                ? t('auto.components.settings.AgentSkillSetupPanel.installing', 'Installing...')
-                : replacePaths
-                  ? t(
-                      'auto.components.settings.AgentSkillSetupPanel.replaceWithOrcaCopy',
-                      'Replace with Orca’s'
-                    )
-                  : action.kind === 'run' && action.changes
-                    ? bundledSkillSetupActionLabel(action.changes, t)
-                    : skill.installed
-                      ? t('auto.components.settings.AgentSkillSetupPanel.updateLabel', 'Update')
-                      : t('auto.components.skills.SkillInstallDialog.39acb9e8f4', 'Install skill')}
-            </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                className="w-fit"
+                onClick={() => void install([skillName], replacePaths)}
+                disabled={installing || !ready || action.kind === 'loading'}
+              >
+                {installing ? (
+                  <Loader2 className="size-3 animate-spin" />
+                ) : (
+                  <Download className="size-3" />
+                )}
+                {installing
+                  ? t('auto.components.settings.AgentSkillSetupPanel.installing', 'Installing...')
+                  : replacePaths
+                    ? t(
+                        'auto.components.settings.AgentSkillSetupPanel.replaceWithOrcaCopy',
+                        'Replace with Orca’s'
+                      )
+                    : action.kind === 'run' && action.changes
+                      ? bundledSkillSetupActionLabel(action.changes, t)
+                      : skill.installed
+                        ? t('auto.components.settings.AgentSkillSetupPanel.updateLabel', 'Update')
+                        : t('auto.components.skills.SkillInstallDialog.39acb9e8f4', 'Install skill')}
+              </Button>
+            </BundledSkillReplaceHint>
           )}
           <BundledSkillInstallStatus
             install={skillInstall}

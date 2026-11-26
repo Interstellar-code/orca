@@ -82,6 +82,8 @@ type RemoteRuntimeRpcRequestArgs = {
   params: unknown
   envelope?: RuntimeOrchestrationEnvelope
   maxBytes?: number
+  /** Background traffic (a poll): a host whose control socket is passive doesn't count it as use. */
+  idlePassive?: boolean
 }
 
 export function serializeRemoteRuntimeRpcRequest(args: RemoteRuntimeRpcRequestArgs): string {
@@ -97,6 +99,7 @@ export function serializeUncheckedRemoteRuntimeRpcRequest(
   return serializeRemoteRuntimePayload(
     {
       id: args.requestId,
+      ...(args.idlePassive ? { idlePassive: true } : {}),
       deviceToken: args.deviceToken,
       method: args.method,
       params: args.params,

@@ -1,4 +1,5 @@
 import * as z from 'zod'
+import { TaskProviderIdentity } from './automation-task-provider-identity-param'
 import { ChoicePatch, OptionKey } from '../agent-launch/agent-launch-settings-params'
 import { AGENT_PERMISSION_CHOICES } from '../../agent-launch/permissions/tui-agent-permission-choice'
 import {
@@ -17,6 +18,7 @@ import {
 } from '../rpc-param-primitives'
 import { normalizeExecutionHostId } from '../../execution-host/execution-host'
 import { getAutomationScheduleInputError } from '../../automations/scheduling/automation-schedule-parsing'
+import { refuseUnknownNamedZone } from './automation-timezone-param'
 import {
   MAX_AUTOMATION_PRECHECK_TIMEOUT_SECONDS,
   normalizeAutomationPrecheckTimeoutSeconds
@@ -63,59 +65,7 @@ export const OptionalNullablePlainString = z
   .transform((value) => (value === null || typeof value === 'string' ? value : undefined))
   .pipe(z.union([z.string(), z.null(), z.undefined()]))
   .optional()
-
-// A GitHub identity is only usable with both fields present and non-blank.
-const GithubIdentityField = z.string().refine((value) => value.trim().length > 0, {
-  message: 'Required'
-})
-
-export const TaskProviderIdentity = z
-  .discriminatedUnion('provider', [
-    z
-      .object({
-        provider: z.literal('github'),
-        // Reject blank identity without trimming: normalization treats it as absent, but parsing must preserve nonblank bytes.
-        owner: GithubIdentityField,
-        repo: GithubIdentityField,
-        host: z.string().optional()
-      })
-      .passthrough(),
-    z
-      .object({
-        provider: z.literal('gitlab'),
-        projectId: z.string().nullable().optional(),
-        namespace: z.string().nullable().optional(),
-        project: z.string().nullable().optional(),
-        webUrl: z.string().nullable().optional()
-      })
-      .passthrough(),
-    z
-      .object({
-        provider: z.literal('linear'),
-        workspaceId: z.string().nullable().optional(),
-        workspaceName: z.string().nullable().optional(),
-        teamId: z.string().nullable().optional(),
-        teamKey: z.string().nullable().optional()
-      })
-      .passthrough(),
-    z
-      .object({
-        provider: z.literal('jira'),
-        siteId: z.string().nullable().optional(),
-        siteUrl: z.string().nullable().optional(),
-        projectKey: z.string().nullable().optional()
-      })
-      .passthrough(),
-    // Fields follow DART_TASK_PROVIDER_IDENTITY_FIELDS in shared/dart/dart-types.ts.
-    z
-      .object({
-        provider: z.literal('dart'),
-        userId: z.string().nullable().optional()
-      })
-      .passthrough()
-  ])
-  .optional()
-  .nullable()
+export { TaskProviderIdentity }
 
 export const TaskSourceContext = z
   .object({
@@ -264,68 +214,72 @@ export const AutomationLaunchSetupPatch = z
     message: 'Choose an automation launch change.'
   })
 
-export const AutomationCreate = z.object({
-  creationKey: OptionalString,
-  name: requiredString('Missing automation name'),
-  prompt: requiredString('Missing automation prompt'),
-  precheck: AutomationPrecheck,
-  agentId: TuiAgent,
-  extraAgentArgs: ExtraAgentArgs,
-  launchSetupPatch: AutomationLaunchSetupPatch.optional(),
-  runContext: WorkspaceRunContext,
-  sourceContext: TaskSourceContext,
-  bot: AutomationBotTarget.optional(),
-  on: AutomationEventTriggers,
-  once: AutomationOnceParam,
-  repo: OptionalString,
-  workspace: OptionalString,
-  workspaceMode: AutomationWorkspaceMode,
-  baseBranch: OptionalPlainString,
-  setupDecision: SetupDecision,
-  setupTrustHash: z.string().max(128).optional(),
-  reuseSession: OptionalBoolean,
-  timezone: OptionalString,
-  timezoneExplicit: OptionalBoolean,
-  rrule: AutomationSchedule,
-  dtstart: requiredNumber('Missing trigger start time'),
-  enabled: OptionalBoolean,
-  missedRunGraceMinutes: OptionalPositiveInt,
-  destination: Destination,
-  // The native chat whose agent ran the command, to show the saved automation there.
-  callerSessionId: OptionalString,
-  // No --runs-in was given: a wait, or a teammate's automation, runs in that chat when it is one of the bot's own.
-  runsInDefault: z.literal(true).optional(),
-  // What a CLI from before runsInDefault sends for a wait given no --runs-in.
-  waitInCallerChat: z.literal(true).optional()
-})
+export const AutomationCreate = z
+  .object({
+    creationKey: OptionalString,
+    name: requiredString('Missing automation name'),
+    prompt: requiredString('Missing automation prompt'),
+    precheck: AutomationPrecheck,
+    agentId: TuiAgent,
+    extraAgentArgs: ExtraAgentArgs,
+    launchSetupPatch: AutomationLaunchSetupPatch.optional(),
+    runContext: WorkspaceRunContext,
+    sourceContext: TaskSourceContext,
+    bot: AutomationBotTarget.optional(),
+    on: AutomationEventTriggers,
+    once: AutomationOnceParam,
+    repo: OptionalString,
+    workspace: OptionalString,
+    workspaceMode: AutomationWorkspaceMode,
+    baseBranch: OptionalPlainString,
+    setupDecision: SetupDecision,
+    setupTrustHash: z.string().max(128).optional(),
+    reuseSession: OptionalBoolean,
+    timezone: OptionalString,
+    timezoneExplicit: OptionalBoolean,
+    rrule: AutomationSchedule,
+    dtstart: requiredNumber('Missing trigger start time'),
+    enabled: OptionalBoolean,
+    missedRunGraceMinutes: OptionalPositiveInt,
+    destination: Destination,
+    // The native chat whose agent ran the command, to show the saved automation there.
+    callerSessionId: OptionalString,
+    // No --runs-in was given: it runs in the calling chat when that is one of the bot's own.
+    runsInDefault: z.literal(true).optional(),
+    // What a CLI from before runsInDefault sends for a wait given no --runs-in.
+    waitInCallerChat: z.literal(true).optional()
+  })
+  .superRefine(refuseUnknownNamedZone)
 
-export const AutomationUpdateFields = z.object({
-  name: OptionalString,
-  prompt: OptionalString,
-  precheck: AutomationPrecheck,
-  agentId: TuiAgent.optional(),
-  extraAgentArgs: ExtraAgentArgs,
-  launchSetupPatch: AutomationLaunchSetupPatch.optional(),
-  runContext: WorkspaceRunContext,
-  sourceContext: TaskSourceContext,
-  bot: AutomationBotTarget.optional(),
-  on: AutomationEventTriggers,
-  once: AutomationOnceParam,
-  repo: OptionalString,
-  workspace: OptionalString,
-  workspaceMode: AutomationWorkspaceMode,
-  // Why: update patches distinguish omitted from null so callers can clear a saved base branch.
-  baseBranch: OptionalNullablePlainString,
-  setupDecision: SetupDecision,
-  setupTrustHash: z.string().max(128).optional(),
-  reuseSession: OptionalBoolean,
-  timezone: OptionalString,
-  timezoneExplicit: OptionalBoolean,
-  rrule: AutomationSchedule.optional(),
-  dtstart: requiredNumber('Missing trigger start time').optional(),
-  enabled: OptionalBoolean,
-  missedRunGraceMinutes: OptionalPositiveInt
-})
+export const AutomationUpdateFields = z
+  .object({
+    name: OptionalString,
+    prompt: OptionalString,
+    precheck: AutomationPrecheck,
+    agentId: TuiAgent.optional(),
+    extraAgentArgs: ExtraAgentArgs,
+    launchSetupPatch: AutomationLaunchSetupPatch.optional(),
+    runContext: WorkspaceRunContext,
+    sourceContext: TaskSourceContext,
+    bot: AutomationBotTarget.optional(),
+    on: AutomationEventTriggers,
+    once: AutomationOnceParam,
+    repo: OptionalString,
+    workspace: OptionalString,
+    workspaceMode: AutomationWorkspaceMode,
+    // Why: update patches distinguish omitted from null so callers can clear a saved base branch.
+    baseBranch: OptionalNullablePlainString,
+    setupDecision: SetupDecision,
+    setupTrustHash: z.string().max(128).optional(),
+    reuseSession: OptionalBoolean,
+    timezone: OptionalString,
+    timezoneExplicit: OptionalBoolean,
+    rrule: AutomationSchedule.optional(),
+    dtstart: requiredNumber('Missing trigger start time').optional(),
+    enabled: OptionalBoolean,
+    missedRunGraceMinutes: OptionalPositiveInt
+  })
+  .superRefine(refuseUnknownNamedZone)
 
 export const AutomationUpdate = z.object({
   id: requiredString('Missing automation id'),

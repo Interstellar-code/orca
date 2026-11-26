@@ -2,6 +2,11 @@ import { app, powerMonitor } from 'electron'
 import type { BrowserWindow } from 'electron'
 import type { ReleaseBuild, ReleaseChannel } from '../../../shared/updater/release-channel'
 import type { ReleaseBuildListOptions } from '../releases/updater-release-build-cache'
+import {
+  managesUpdates,
+  requiredMinimumVersion,
+  sameTeamUpdatePolicy
+} from '../releases/updater-release-policy'
 import type {
   LinuxPackageInstallInstructions,
   UpdateCheckOptions,
@@ -17,28 +22,14 @@ import { createUpdaterDiagnosticLogger } from '../linux-package/linux-package-in
 import { registerAutoUpdaterHandlers } from '../updater-events'
 import { getServeUpdateHandoffFailure } from '../serve-update-handoff'
 import { recordUpdaterLifecycle } from '../updater-lifecycle-diagnostics'
-import { AUTO_UPDATE_CHECK_INTERVAL_MS } from './updater-state'
+import { AUTO_UPDATE_CHECK_INTERVAL_MS, TEAM_POLICY_CHECK_RETRY_MS } from './updater-state'
 import { UpdaterDownloadInstall } from './updater-download-install'
+import { sameTeamUpdateRestartScope } from './team-update-restart-record'
 import { configureMacShipItScheduling } from '../mac-install/macos-shipit-scheduling'
 import { handleElectronUpdaterProxyLogin } from './electron-updater-proxy-session'
 import { resolveWindowsUpdateInstallDirectory } from './windows-update-install-directory'
-import type { PreQuitCleanupFailureMode, UpdateInstallMode } from './updater-state'
-
-export type UpdaterSetupOptions = {
-  getMainWindow?: () => BrowserWindow | null
-  getLastUpdateCheckAt?: () => number | null
-  onBeforeQuit?: () => void | Promise<void>
-  setLastUpdateCheckAt?: (timestamp: number) => void
-  getPendingUpdateNudgeId?: () => string | null
-  getDismissedUpdateNudgeId?: () => string | null
-  setPendingUpdateNudgeId?: (id: string | null) => void
-  setDismissedUpdateNudgeId?: (id: string | null) => void
-  getReleaseChannelOverride?: () => ReleaseChannel | null
-  getUpdateDelayDays?: () => number
-  getAutomaticUpdates?: () => boolean
-  installMode?: UpdateInstallMode
-  onBeforeQuitFailure?: PreQuitCleanupFailureMode
-}
+import type { UpdateInstallMode, UpdateInstallTrigger } from './updater-state'
+import type { UpdaterSetupOptions } from './updater-setup-options'
 
 export class UpdaterSetup extends UpdaterDownloadInstall {
   checkForUpdates(): void {
@@ -57,6 +48,7 @@ export class UpdaterSetup extends UpdaterDownloadInstall {
     super.downloadUpdate(automatic)
   }
 
+
   applyAutomaticUpdatesSetting(): void {
     if (this.currentStatus.state === 'downloaded' && !this.currentStatus.installing) {
       this.publishDownloadStatus(this.currentStatus)
@@ -65,8 +57,11 @@ export class UpdaterSetup extends UpdaterDownloadInstall {
     }
   }
 
-  quitAndInstall(automatic = false): void {
-    super.quitAndInstall(automatic)
+  override quitAndInstall(
+    trigger: UpdateInstallTrigger = 'manual',
+    isCurrentTeamRestart?: () => boolean
+  ): void {
+    super.quitAndInstall(trigger, isCurrentTeamRestart)
   }
 
   isQuittingForUpdate(): boolean {
@@ -139,6 +134,8 @@ export class UpdaterSetup extends UpdaterDownloadInstall {
     this._setPendingUpdateNudgeId = opts?.setPendingUpdateNudgeId ?? null
     this._setDismissedUpdateNudgeId = opts?.setDismissedUpdateNudgeId ?? null
     this.getReleaseChannelOverride = opts?.getReleaseChannelOverride ?? null
+    this.getTeamUpdatePolicy = opts?.getTeamUpdatePolicy ?? null
+    this.teamRestartOptions = opts?.teamRestart
     this.getUpdateDelayDays = opts?.getUpdateDelayDays ?? null
     this.getAutomaticUpdates = opts?.getAutomaticUpdates ?? null
     this.updateInstallMode = opts?.installMode ?? 'interactive'
@@ -159,12 +156,7 @@ export class UpdaterSetup extends UpdaterDownloadInstall {
     }
 
     if (this.isForkBuild()) {
-      // Never point a fork build at Stably's feed, desktop or headless serve; the rebuild job installs it.
-      recordUpdaterLifecycle(
-        'fork_build_auto_update_skipped',
-        { version: app.getVersion(), installMode: this.updateInstallMode },
-        { level: 'info', message: 'Fork build: automatic updates disabled' }
-      )
+      this.skipForkBuildAutoUpdate()
       return
     }
 
@@ -177,8 +169,10 @@ export class UpdaterSetup extends UpdaterDownloadInstall {
       autoUpdater.disableDifferentialDownload = false
     }
     // Implicit quit install requires interactive mode and an explicit non-root/AppImage marker; serve requires handoff.
-    autoUpdater.autoInstallOnAppQuit =
+    this.implicitInstallOnQuit =
       this.updateInstallMode === 'interactive' && getLinuxPackageType() === 'non-root'
+    autoUpdater.autoInstallOnAppQuit = false
+    this.applyTeamPolicyBeforeQuit()
     // MacUpdater ignores quitAndInstall arguments; only the surviving CLI supervisor may relaunch serve.
     autoUpdater.autoRunAppAfterInstall = this.updateInstallMode === 'interactive'
     // Keep native updater diagnostics visible through local logging.
@@ -204,6 +198,26 @@ export class UpdaterSetup extends UpdaterDownloadInstall {
     }
     this.autoUpdaterInitialized = true
     autoUpdater.on('login', handleElectronUpdaterProxyLogin)
+
+    let previousPolicy = this.getTeamUpdatePolicy?.()
+    let previousScope = this.teamRestartOptions?.scope()
+    opts?.onTeamUpdatePolicyChanged?.(() => {
+      const next = this.getTeamUpdatePolicy?.()
+      const nextScope = this.teamRestartOptions?.scope()
+      const checkNeeded =
+        (managesUpdates(previousPolicy) || managesUpdates(next)) &&
+        (!sameTeamUpdatePolicy(previousPolicy, next) ||
+          !sameTeamUpdateRestartScope(previousScope, nextScope))
+      previousPolicy = next
+      previousScope = nextScope
+      if (!checkNeeded || this.invalidateTeamRestart()) {
+        return
+      }
+      this.teamPolicyCheckPending = true
+      if (!this.runBackgroundUpdateCheck()) {
+        this.scheduleAutomaticUpdateCheck(TEAM_POLICY_CHECK_RETRY_MS)
+      }
+    })
 
     registerAutoUpdaterHandlers({
       autoUpdater,
@@ -234,14 +248,17 @@ export class UpdaterSetup extends UpdaterDownloadInstall {
         this.markUpdateAvailableEventPending(attemptId),
       markMissingManifestPrereleaseFallbackChecking: () =>
         this.markMissingManifestPrereleaseFallbackChecking(),
-      performQuitAndInstall: () => this.performQuitAndInstall(),
+      performQuitAndInstall: () => this.performRecordedInstall('manual'),
       commitStagedMacInstall: () => this.commitStagedMacInstall(),
+      finishMacStaging: () => this.finishMacStaging(),
       failMacStaging: (error) => {
-        this.stopWatchingMacStaging()
+        this.finishMacStaging()
         this.failMacStaging(error)
       },
       isAwaitingMacStaging: () => this.isAwaitingMacStaging(),
       isMacStagingDeferredToInstall: () => this.isMacStagingDeferredToInstall(),
+      shouldAcceptDownloadedUpdate: (version, obsolete) =>
+        this.shouldAcceptDownloadedUpdate(version, obsolete),
       watchMacStaging: (version) => this.watchMacStaging(version),
       shouldDeferMacQuitForInstall: () => this.updateInstallMode === 'interactive',
       recordCompletedUpdateCheck: () => this.recordCompletedUpdateCheck(),
@@ -292,7 +309,11 @@ export class UpdaterSetup extends UpdaterDownloadInstall {
     const lastUpdateCheckAt = opts?.getLastUpdateCheckAt?.() ?? null
     const msSinceLastCheck =
       lastUpdateCheckAt === null ? Number.POSITIVE_INFINITY : Date.now() - lastUpdateCheckAt
-    if (msSinceLastCheck >= AUTO_UPDATE_CHECK_INTERVAL_MS) {
+    if (
+      msSinceLastCheck >= AUTO_UPDATE_CHECK_INTERVAL_MS ||
+      previousPolicy?.forceUpdates ||
+      requiredMinimumVersion(previousPolicy, app.getVersion())
+    ) {
       this.runBackgroundUpdateCheck()
       this.scheduleAutomaticUpdateCheck(AUTO_UPDATE_CHECK_INTERVAL_MS)
     } else {

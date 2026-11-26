@@ -63,6 +63,7 @@ export const HANDLER_GROUPS: readonly HandlerGroup[] = [
       'automations list',
       'automations show',
       'automations create',
+      'automations watch-pr',
       'automations edit',
       'automations remove',
       'automations run',
@@ -206,6 +207,16 @@ export const HANDLER_GROUPS: readonly HandlerGroup[] = [
       'computer set-value'
     ],
     load: async () => (await import('../computer/computer.js')).COMPUTER_HANDLERS
+  },
+  {
+    name: 'mcp',
+    keys: ['mcp connect'],
+    load: async () => (await import('../mcp/mcp-connect.js')).MCP_HANDLERS
+  },
+  {
+    name: 'mcp-exec',
+    keys: ['mcp exec', 'mcp env'],
+    load: async () => (await import('../mcp/mcp-exec.js')).MCP_EXEC_HANDLERS
   },
   {
     name: 'agent-hooks',

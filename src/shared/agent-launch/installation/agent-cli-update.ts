@@ -16,7 +16,10 @@ export const AGENT_CLI_UPDATE_AGENTS = [
   'goose',
   'aug',
   'kilo',
-  'mimo-code'
+  'mimo-code',
+  'qwen-code',
+  'devin',
+  'codebuddy'
 ] as const
 export type AgentCliUpdateAgent = (typeof AGENT_CLI_UPDATE_AGENTS)[number]
 
