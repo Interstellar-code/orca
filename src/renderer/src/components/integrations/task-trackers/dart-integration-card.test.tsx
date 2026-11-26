@@ -42,6 +42,7 @@ type StoreState = {
   testDartConnection: () => Promise<ClientResult>
   disconnectDart: () => Promise<ClientResult>
   settings: { activeRuntimeEnvironmentId: string | null }
+  runtimeEnvironments: { id: string; name: string }[]
   dartCreateSessions: Record<string, DartCreateSession>
   clearDartCreateSession: (key: string) => void
   openSettingsPage: () => void
@@ -87,6 +88,7 @@ function installStore(
     testDartConnection: vi.fn(async () => ({ ok: true as const })),
     disconnectDart: vi.fn(async () => ({ ok: true as const })),
     settings,
+    runtimeEnvironments: [],
     dartCreateSessions: {},
     clearDartCreateSession: vi.fn((key: string) => {
       delete state.dartCreateSessions[key]
@@ -418,12 +420,23 @@ describe('DartIntegrationCard', () => {
     expect(screen.queryByText(/remote runtime/)).toBeNull()
   })
 
-  it('says the token is stored on the remote runtime for a remote scope and shows the host', () => {
-    installStore({}, { activeRuntimeEnvironmentId: 'runtime-1' })
+  it('says the token is stored on the remote runtime and shows the server name', () => {
+    installStore(
+      { runtimeEnvironments: [{ id: 'runtime-1', name: 'Build server' }] },
+      { activeRuntimeEnvironmentId: 'runtime-1' }
+    )
     renderCard()
 
     expect(screen.getByText(/sent to the selected remote runtime/)).toBeTruthy()
-    expect(screen.getByText(/Remote server: runtime-1/)).toBeTruthy()
+    expect(screen.getByText(/Remote server: Build server/)).toBeTruthy()
+  })
+
+  it('uses an unnamed remote server label when its name is unavailable', () => {
+    installStore({}, { activeRuntimeEnvironmentId: 'runtime-1' })
+    renderCard()
+
+    expect(screen.getByText('Account scope: Remote server')).toBeTruthy()
+    expect(screen.queryByText(/runtime-1/)).toBeNull()
   })
 
   it('opens the Hosts settings from the account scope row', () => {
