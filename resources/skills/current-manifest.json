@@ -68,16 +68,16 @@
     {
       "name": "orca-dart",
       "sourcePath": "skills/orca-dart",
-      "packageDigest": "bfdf746264f2783d3e84dc6a90a2daa3f4ab17b07bd20f3a33a3556230a3c4db",
+      "packageDigest": "395db2d035bb02f1a363dcca686be6faae1c3f5c07bb6df396334ae73d923498",
       "files": [
         {
           "path": "SKILL.md",
-          "size": 2627,
+          "size": 3018,
           "executable": false,
           "classification": "text",
-          "exactSha256": "414a76b7ae697bf42723905cea2c0aa5c61df217a74563910edb423a096869f2",
-          "textNormalizedSha256": "414a76b7ae697bf42723905cea2c0aa5c61df217a74563910edb423a096869f2",
-          "identitySha256": "414a76b7ae697bf42723905cea2c0aa5c61df217a74563910edb423a096869f2"
+          "exactSha256": "9586000314ab99583ff26b1192ed9d8e92382db2a54564afa810a567cb0c89b5",
+          "textNormalizedSha256": "9586000314ab99583ff26b1192ed9d8e92382db2a54564afa810a567cb0c89b5",
+          "identitySha256": "9586000314ab99583ff26b1192ed9d8e92382db2a54564afa810a567cb0c89b5"
         }
       ]
     },

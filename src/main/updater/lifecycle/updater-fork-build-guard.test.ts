@@ -6,6 +6,7 @@ import type { BrowserWindow } from 'electron'
 function updaterMainWindow(
   send: (channel: string, ...args: unknown[]) => void = vi.fn()
 ): BrowserWindow {
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the updater only checks window and webContents destruction and sends status through this fixture.
   return {
     isDestroyed: () => false,
     webContents: { isDestroyed: () => false, send }

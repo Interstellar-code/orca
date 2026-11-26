@@ -258,7 +258,7 @@ const seedEntries = [
   ...options.alsoRelated.map((path) => ({ path, explicit: true })),
   ...options.alsoRelatedFrom.flatMap((path) => {
     if (!existsSync(path)) {
-      fail(`--also-related-from file not found: ${path}`)
+      fail(`--also-related-from file not found: ${String(path)}`)
     }
     return readList(path).map((entry) => ({ path: entry, explicit: false }))
   })
@@ -409,11 +409,11 @@ function report() {
         `${skipped.length} skipped`
     )
     if (options.list) {
-      renamed.forEach((entry) => console.log(`  renamed ${entry}`))
+      renamed.forEach((entry) => console.log(`  renamed ${String(entry)}`))
     }
     if (deleted.length) {
       console.log('\ndeleted upstream (record these in the sync report):')
-      deleted.forEach((entry) => console.log(`  ${entry}`))
+      deleted.forEach((entry) => console.log(`  ${String(entry)}`))
     }
   }
   for (const name of SOURCE_NAMES) {
@@ -568,7 +568,7 @@ if (seedStats.skipped.length) {
     `\nfork-test-suite: ${seedStats.skipped.length} of ${seedStats.listed} also-related seeds skipped ` +
       '(not found, no rename and no deletion in history; fix the list or pass --renames-from):'
   )
-  seedStats.skipped.forEach((entry) => console.error(`  ${entry}`))
+  seedStats.skipped.forEach((entry) => console.error(`  ${String(entry)}`))
   exitCode ||= 1
 }
 if (missing.length) {
