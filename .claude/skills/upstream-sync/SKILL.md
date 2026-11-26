@@ -72,6 +72,29 @@ confidence, a Dart check fails, or a step would discard work.
 - Test gate: `config/fork/fork-test-suite.mjs` (`--list` previews the selection). Dart test paths it
   covers: `src/main/dart`, `src/shared/dart`, `src/renderer/src/components/task-page/dart`,
   `src/cli/dart`, and every `*.dart.test.*` file.
+- The fork repo can have `fork-release.yml` disabled, and a dispatch then fails with HTTP 422
+  "Cannot trigger a 'workflow_dispatch' on a disabled workflow" (seen 2026-11-26). Run
+  `gh workflow enable fork-release.yml --repo Interstellar-code/orca` first and confirm
+  `gh api repos/Interstellar-code/orca/actions/workflows/405740958 --jq .state` is `active`.
+- The pre-commit hook lints staged files, including `max-lines` (300 budgeted lines). A merged file
+  the fork edits can land over the cap and fail the merge commit. Fix by extracting a module and
+  registering the new file, never by compressing formatting into single lines.
+- Register every fork-diverged path the sync creates or edits: `key_paths` when upstream has no
+  copy, `touches_upstream_files` when it does, plus the round's commit shas in that entry's
+  `commits`. The 2026-11-26 sync left 77 fork-diverged paths unregistered, and the registry is what
+  selects the fork test suite, so their tests could be skipped. Coverage test: every path in
+  `git diff --name-status <target> HEAD` must match an entry or sit under a directory entry.
+- Keep the report's "Conflicts" section to bare paths, one per line with no trailing prose:
+  `fork-test-suite.mjs` reads that file for `--also-related` seeds and warns
+  `not read as a path: <line>` for each bullet that carries a description.
+- Skill bundle artifacts have their own generators, and `check:changed` fails a stale one:
+  `node config/scripts/skills/bundle-generation/generate-bundled-skill-guides.mjs --write` for
+  `skills/<name>/SKILL.md`, then `generate-skill-bundle-manifest.mjs --write` for
+  `BUNDLED_SKILL_SOURCES` and `resources/skills/*.json`. Never hand-merge them.
+- Expect these after a large merge, and fix them before the merge commit: stale generated skill
+  artifacts, `max-lines` on fork-edited files, and type-aware lint on new test or fixture code
+  (`consistent-type-assertions`, `restrict-template-expressions`).
+  `ORCA_CODE_QUALITY_BASE=<target> pnpm check:changed` reports all of them.
 
 ## Steps
 
