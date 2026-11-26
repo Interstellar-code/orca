@@ -48,7 +48,6 @@ export class UpdaterSetup extends UpdaterDownloadInstall {
     super.downloadUpdate(automatic)
   }
 
-
   applyAutomaticUpdatesSetting(): void {
     if (this.currentStatus.state === 'downloaded' && !this.currentStatus.installing) {
       this.publishDownloadStatus(this.currentStatus)

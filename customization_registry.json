@@ -24,6 +24,7 @@
         "src/renderer/src/web/preload-api/web-dart-api.ts",
         "src/shared/dart/",
         "src/shared/rpc-contract/dart-params.ts",
+        "src/shared/rpc-contract/automations/automation-task-provider-identity-param.ts",
         "src/renderer/src/runtime/runtime-dart-client.ts",
         "src/renderer/src/runtime/runtime-linked-task-provider-capabilities.ts",
         "src/renderer/src/store/slices/dart/",
@@ -127,7 +128,7 @@
         "src/shared/wsl-move/wsl-move-storage-dispositions.ts",
         "src/shared/wsl-move/wsl-move-ui-dispositions.ts"
       ],
-      "sync_notes": "Largest conflict surface. src/shared/task-providers.ts, task-provider-identity.ts, workspace-attachment*.ts, workspace-linked-item*.ts, workspace-reference-identity.ts and rpc-params-catalog.generated.ts (regenerate, do not hand-merge) are shared provider unions that upstream edits when it changes Jira or Linear. register-core-handlers.ts gained registerDartHandlers() (upstream deleted its test, so nothing checks the call). DART_METHODS is registered in rpc-method-registry.ts, which replaced methods/index.ts in v1.4.269. runtime-edge-command-controller.ts binds RuntimeDartCommands. orcad-plaintext-credential-migration.ts lists the Dart token envelope. create-worktree.ts and folder-workspace-mutations.ts replaced Jira-only remote capability checks with assertLinkedTaskProviderCapabilities. config/focus-setting-read-baseline.txt must keep upstream sort order. workspace-navigation-history.ts and wsl-move-storage-dispositions.ts sit at the 300-line limit, so their Dart parts live in the *-dart.ts files beside them; upstream's task-detail history keys moved to workspace-navigation-history-task-detail-key.ts and its sqlite tables() helper to wsl-move-sqlite-table-rows.ts, so port upstream edits to those pieces there. After a sync, re-run the Dart tests plus the RPC catalog generator.",
+      "sync_notes": "Largest conflict surface. src/shared/task-providers.ts, task-provider-identity.ts, workspace-attachment*.ts, workspace-linked-item*.ts, workspace-reference-identity.ts and rpc-params-catalog.generated.ts (regenerate, do not hand-merge) are shared provider unions that upstream edits when it changes Jira or Linear. register-core-handlers.ts gained registerDartHandlers() (upstream deleted its test, so nothing checks the call). DART_METHODS is registered in rpc-method-registry.ts, which replaced methods/index.ts in v1.4.269. runtime-edge-command-controller.ts binds RuntimeDartCommands. orcad-plaintext-credential-migration.ts lists the Dart token envelope. create-worktree.ts and folder-workspace-mutations.ts replaced Jira-only remote capability checks with assertLinkedTaskProviderCapabilities. config/focus-setting-read-baseline.txt must keep upstream sort order. workspace-navigation-history.ts and wsl-move-storage-dispositions.ts sit at the 300-line limit, so their Dart parts live in the *-dart.ts files beside them; upstream's task-detail history keys moved to workspace-navigation-history-task-detail-key.ts and its sqlite tables() helper to wsl-move-sqlite-table-rows.ts, so port upstream edits to those pieces there. The v1.4.278 sync extracted the automation TaskProviderIdentity union out of automation-params.ts into automation-task-provider-identity-param.ts to keep automation-params.ts under the 300-line max-lines limit; the dart branch lives in the extracted file, and automation-params.ts re-exports it, so port upstream TaskProviderIdentity edits there. After a sync, re-run the Dart tests plus the RPC catalog generator.",
       "known_gaps": [
         "Tasks page is read-and-link only: creating, updating and commenting on Dart tasks is done via the orca dart CLI, not the UI.",
         "No Dart support on mobile (see dart-mobile-deferral)."
@@ -325,13 +326,18 @@
       "status": "active",
       "summary": "A build whose version ends in local.<timestamp>.<commit> never contacts the Stably update feed, including the local-build picker. Menu checks answer \"This is a fork build; updates come from the rebuild job\". Prevents a Stably release from overwriting the fork.",
       "areas": ["main"],
-      "key_paths": ["src/main/updater/lifecycle/updater-fork-build-guard.test.ts"],
+      "key_paths": [
+        "src/main/updater/lifecycle/updater-fork-build-guard.test.ts",
+        "src/main/updater/lifecycle/updater-setup-options.ts"
+      ],
       "commits": ["4ff97d18bfb", "b565a1605de"],
       "touches_upstream_files": [
+        "src/main/updater/lifecycle/main-window-updater.ts",
         "src/main/updater/lifecycle/updater-menu-checks.ts",
-        "src/main/updater/lifecycle/updater-setup.ts"
+        "src/main/updater/lifecycle/updater-setup.ts",
+        "src/main/updater/updater-service.ts"
       ],
-      "sync_notes": "updater-menu-checks.ts and updater-setup.ts moved to src/main/updater/lifecycle/ upstream; if upstream reshuffles the updater again, re-apply isForkBuild() checks. The v1.4.269 sync rewrote the guard test as lifecycle/updater-fork-build-guard.test.ts because upstream deleted the old harness.",
+      "sync_notes": "updater-menu-checks.ts and updater-setup.ts moved to src/main/updater/lifecycle/ upstream; if upstream reshuffles the updater again, re-apply isForkBuild() checks. The v1.4.269 sync rewrote the guard test as lifecycle/updater-fork-build-guard.test.ts because upstream deleted the old harness. The v1.4.278 sync added the guard to the 300-line-limited updater-setup.ts, so its UpdaterSetupOptions type moved to lifecycle/updater-setup-options.ts; updater-setup.ts, updater-service.ts and lifecycle/main-window-updater.ts import it from there, so re-apply those imports if upstream changes the type.",
       "known_gaps": [
         "Fork-build detection depends on the version suffix produced by config/scripts/desktop-distribution/macos/build-mac-local.mjs."
       ]

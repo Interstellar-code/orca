@@ -161,7 +161,10 @@ export function BundledAgentSkillInstallRow({
                       ? bundledSkillSetupActionLabel(action.changes, t)
                       : skill.installed
                         ? t('auto.components.settings.AgentSkillSetupPanel.updateLabel', 'Update')
-                        : t('auto.components.skills.SkillInstallDialog.39acb9e8f4', 'Install skill')}
+                        : t(
+                            'auto.components.skills.SkillInstallDialog.39acb9e8f4',
+                            'Install skill'
+                          )}
               </Button>
             </BundledSkillReplaceHint>
           )}
