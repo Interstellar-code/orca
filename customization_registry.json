@@ -3,9 +3,9 @@
   "fork": "Interstellar-code/orca",
   "upstream": "stablyai/orca",
   "last_upstream_sync": {
-    "date": "2026-11-22",
-    "upstream_commit": "94316a7d92d",
-    "fork_merge_commit": "47390418ea3"
+    "date": "2026-11-26",
+    "upstream_commit": "80dbfa7450a",
+    "fork_merge_commit": "1847c7b87d6"
   },
   "maintenance": "Every fork change adds or updates an entry here in the same commit: new files go in key_paths, edited upstream-owned files go in touches_upstream_files, and the commit sha goes in commits. After each upstream sync update last_upstream_sync.",
   "customizations": [
