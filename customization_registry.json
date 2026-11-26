@@ -37,7 +37,33 @@
         "src/renderer/src/store/slices/ui/workspace-navigation-history-dart.ts",
         "src/renderer/src/store/slices/ui/workspace-navigation-history-task-detail-key.ts",
         "src/shared/wsl-move/wsl-move-storage-dispositions-dart.ts",
-        "src/shared/wsl-move/wsl-move-sqlite-table-rows.ts"
+        "src/shared/wsl-move/wsl-move-sqlite-table-rows.ts",
+        "src/renderer/src/runtime/runtime-dart-saved-view-state.ts",
+        "src/renderer/src/runtime/runtime-dart-write-client.ts",
+        "src/renderer/src/web/preload-api/web-dart-saved-view-api.ts",
+        "src/shared/rpc-contract/dart-saved-view-params.ts",
+        "src/main/ipc/runtime-environments/requests/runtime-environment-call-failure.test.ts",
+        "src/main/orcad/credentials/orcad-plaintext-credential-migration.dart.test.ts",
+        "src/main/persistence/applying-settings/persistence-dart-saved-views.test.ts",
+        "src/main/persistence/dart-link-persistence.test.ts",
+        "src/main/persistence/loading-store/profile-loading/prepare-loaded-profile-settings.dart.test.ts",
+        "src/renderer/src/runtime/rpc/compatibility/runtime-capability-proof.test.ts",
+        "src/renderer/src/runtime/rpc/compatibility/runtime-compatibility-cache.test.ts",
+        "src/renderer/src/runtime/runtime-dart-client.test.ts",
+        "src/renderer/src/runtime/runtime-dart-saved-view-state.test.ts",
+        "src/renderer/src/runtime/runtime-dart-write-client.test.ts",
+        "src/renderer/src/runtime/runtime-linked-task-provider-capabilities.test.ts",
+        "src/renderer/src/store/folder-workspaces/folder-workspace-dart-link-remote.test.ts",
+        "src/renderer/src/store/slices/ui/workspace-navigation-history.dart.test.ts",
+        "src/renderer/src/web/preload-api/web-dart-api.test.ts",
+        "src/renderer/src/web/preload-api/web-dart-saved-view-api.test.ts",
+        "src/renderer/src/web/runtime/client/web-runtime-request-admission.test.ts",
+        "src/shared/orcad-migration/orcad-migration-dormant-automation-validation.dart.test.ts",
+        "src/shared/rpc-contract/dart-params.test.ts",
+        "src/shared/work-items/task-provider-identity.dart.test.ts",
+        "src/shared/work-items/task-providers.dart.test.ts",
+        "src/shared/workspace-attachments/workspace-attachments.dart.test.ts",
+        "src/shared/workspace-attachments/workspace-reference-proven-identity.dart.test.ts"
       ],
       "commits": [
         "26dc8008bdf",
@@ -80,6 +106,7 @@
         "src/preload/api/window-ui/ui-bridge-state-and-menu-commands.ts",
         "src/preload/api/window-ui/ui-command-event-api.ts",
         "src/preload/index.ts",
+        "src/renderer/src/components/native-chat/session/structured/read/structured-agent-session-read-transport.ts",
         "src/renderer/src/runtime/hosts/observations/provider-runtime-context.ts",
         "src/renderer/src/runtime/rpc/compatibility/runtime-capability-proof.ts",
         "src/renderer/src/runtime/rpc/compatibility/runtime-compatibility-cache.ts",
@@ -107,6 +134,8 @@
         "src/shared/orcad-migration/orcad-migration-dormant-automation-validation.ts",
         "src/shared/remote-runtime/remote-runtime-memory-limits.test.ts",
         "src/shared/remote-runtime/remote-runtime-memory-limits.ts",
+        "src/shared/remote-runtime/requests/remote-runtime-request-preparation.ts",
+        "src/shared/remote-runtime/requests/remote-runtime-shared-control-requests.ts",
         "src/shared/rpc-contract/automations/automation-params.ts",
         "src/shared/rpc-contract/rpc-params-catalog.generated.ts",
         "src/shared/settings/default-global-settings.ts",
@@ -154,7 +183,42 @@
         "src/renderer/src/lib/work-items/task-provider-error-copy.dart.test.ts",
         "src/renderer/src/components/settings/tasks/TasksPane.dart.test.tsx",
         "src/renderer/src/components/task-page/task-page-list-chrome-visibility.dart.test.ts",
-        "src/renderer/src/components/sidebar/workspace-card/review/workspace-attachment-source-label.dart.test.ts"
+        "src/renderer/src/components/sidebar/workspace-card/review/workspace-attachment-source-label.dart.test.ts",
+        "src/renderer/src/components/dart-view-mode-storage.ts",
+        "src/renderer/src/components/integrations/task-trackers/dart-connected-account-row.tsx",
+        "src/renderer/src/components/integrations/task-trackers/dart-integration-card.fixture.tsx",
+        "src/renderer/src/components/task-page/dart-board-page.test-support.tsx",
+        "src/renderer/src/components/task-page/dart-delivery-transports.test-support.tsx",
+        "src/renderer/src/components/task-page/web-client-local-host-label.ts",
+        "src/renderer/src/lib/dart-board-drag-payload.ts",
+        "src/renderer/src/components/browser-pane/new-tab/browser-new-tab-workspace-card.dart.test.tsx",
+        "src/renderer/src/components/dart-view-mode-storage.test.ts",
+        "src/renderer/src/components/integrations/task-trackers/dart-integration-card.test.tsx",
+        "src/renderer/src/components/settings/tasks/TaskSourceDartSetup.test.tsx",
+        "src/renderer/src/components/settings/tasks/tasks-search.test.ts",
+        "src/renderer/src/components/settings/tasks/use-task-source-provider-readiness.test.tsx",
+        "src/renderer/src/components/sidebar/workspace-card/metadata/worktree-attachment-editing.dart.test.ts",
+        "src/renderer/src/components/sidebar/workspace-card/review/WorkspaceAttachmentSearch.dart.test.tsx",
+        "src/renderer/src/components/sidebar/workspace-card/review/WorktreeReferenceStack.dart.test.tsx",
+        "src/renderer/src/components/sidebar/workspace-card/review/workspace-reference-detail-read.dart.test.ts",
+        "src/renderer/src/components/sidebar/workspace-card/surface/WorktreeCard.dart-link.test.tsx",
+        "src/renderer/src/components/skills/setup/dart-agent-skill-install-cta.test.tsx",
+        "src/renderer/src/components/task-page/SourceBar.dart.test.tsx",
+        "src/renderer/src/components/task-page/TaskPage.dart-board.hosts.test.tsx",
+        "src/renderer/src/components/task-page/TaskPage.dart-board.relationships.test.tsx",
+        "src/renderer/src/components/task-page/TaskPage.dart-board.test.tsx",
+        "src/renderer/src/components/task-page/TaskPage.dart-release-a-host.test.tsx",
+        "src/renderer/src/components/task-page/TaskPage.dart.comments-old-host.test.tsx",
+        "src/renderer/src/components/task-page/TaskPage.dart.create.test.tsx",
+        "src/renderer/src/components/task-page/TaskPage.dart.delivery.test.tsx",
+        "src/renderer/src/components/task-page/TaskPage.dart.test.tsx",
+        "src/renderer/src/components/task-page/source-selection/task-source-context-summary.test.ts",
+        "src/renderer/src/components/task-page/web-client-local-host-label.test.ts",
+        "src/renderer/src/lib/dart-board-drag-payload.test.ts",
+        "src/renderer/src/lib/workspace/activation/worktree-nav-view-history-replay.test.ts",
+        "docs/plans/dart-phase-2.md",
+        "docs/plans/dart-phase-2-t8-cross-task-coverage.md",
+        "docs/plans/dart-phase-3.md"
       ],
       "commits": [
         "3de7c09b8e0",
@@ -171,7 +235,9 @@
         "c82461d8b5f",
         "bce3614e0de",
         "3069e7f0b3d",
-        "b25ebbbd07f"
+        "b25ebbbd07f",
+        "d8d11bbea19",
+        "6e720c2b786"
       ],
       "touches_upstream_files": [
         "src/renderer/src/components/automations/details/automation-source-display.ts",
@@ -233,7 +299,9 @@
         "src/cli/unverified-write-outcome-codes.ts",
         "skills/orca-dart/SKILL.md",
         "skill-guides/orca-dart.md",
-        "skill-stubs/orca-dart.md"
+        "skill-stubs/orca-dart.md",
+        "src/cli/specs/dart-parity.test.ts",
+        "src/main/skills/bundled-skill-install/orca-dart-bundled-install.dart.test.ts"
       ],
       "commits": [
         "ba1393d23ca",
@@ -241,7 +309,8 @@
         "1e72298cefb",
         "904c73d757b",
         "5eea74b2072",
-        "b25ebbbd07f"
+        "b25ebbbd07f",
+        "9ef4a116ea8"
       ],
       "touches_upstream_files": [
         "config/scripts/skills/bundle-generation/generate-bundled-skill-guides.mjs",
@@ -272,7 +341,11 @@
         "mobile/src/tasks/task-list/mobile-tasks-list-surface.tsx",
         "mobile/src/new-workspace/creation/workspace-create-params.ts",
         "mobile/src/components/icons/TaskProviderLogo.tsx",
-        "mobile/src/new-workspace/source-selection/composer-work-item-task.test.ts"
+        "mobile/src/new-workspace/source-selection/composer-work-item-task.test.ts",
+        "mobile/src/components/icons/TaskProviderLogo.test.tsx",
+        "mobile/src/tasks/providers/mobile-task-provider-visibility.test.ts",
+        "mobile/src/tasks/task-list/mobile-tasks-list-surface.test.tsx",
+        "mobile/src/tasks/task-list/use-mobile-tasks-deferred-provider-load.test.ts"
       ],
       "commits": [
         "c1cc7e3b368",
@@ -330,7 +403,7 @@
         "src/main/updater/lifecycle/updater-fork-build-guard.test.ts",
         "src/main/updater/lifecycle/updater-setup-options.ts"
       ],
-      "commits": ["4ff97d18bfb", "b565a1605de"],
+      "commits": ["4ff97d18bfb", "b565a1605de", "9ef4a116ea8", "6e720c2b786"],
       "touches_upstream_files": [
         "src/main/updater/lifecycle/main-window-updater.ts",
         "src/main/updater/lifecycle/updater-menu-checks.ts",
@@ -375,7 +448,10 @@
         "b565a1605de",
         "07d46aea435"
       ],
-      "touches_upstream_files": ["config/scripts/desktop-distribution/macos/build-mac-local.mjs"],
+      "touches_upstream_files": [
+        "config/react-compiler-bailout-baseline.txt",
+        "config/scripts/desktop-distribution/macos/build-mac-local.mjs"
+      ],
       "sync_notes": "config/fork/ does not exist upstream. build-mac-local.mjs carries the forkBaseVersion labelling (07d46aea435) and forwards its extra arguments to electron-builder, so rebuild-and-install.sh can build `--mac dir --<arch>`; upstream moved it to config/scripts/desktop-distribution/macos/ in v1.4.269, so re-apply there if upstream moves it again.",
       "known_gaps": []
     },
@@ -418,7 +494,7 @@
       "status": "active",
       "summary": "On-demand (dispatch-only) workflow that disables upstream workflows on the fork, optionally merges stablyai/orca main (merge_upstream, default false) into the fork-release/candidate branch, runs typecheck and the fork test suite, qualifies the orcad server template, builds macOS arm64 (fork-signed), Linux x64 and Windows x64 with the -local fork version, then fast-forwards main and publishes a GitHub Release.",
       "areas": ["ci", "tooling"],
-      "key_paths": [".github/workflows/fork-release.yml"],
+      "key_paths": [".github/workflows/fork-release.yml", "docs/plans/fork-releases.md"],
       "commits": [],
       "touches_upstream_files": [],
       "sync_notes": "Fork-only file; upstream has no fork-release.yml. Merged upstream workflows are disabled by the workflow itself.",
@@ -441,10 +517,14 @@
         "config/fork/upstream-sync.sh",
         "config/fork/swap-mac-app.sh",
         "config/fork/fork-test-suite.mjs",
-        "config/fork/check-fork-script-paths.mjs"
+        "config/fork/check-fork-script-paths.mjs",
+        "docs/plans/fork-upstream-sync.md",
+        "docs/plans/upstream-sync-2026-11-22.md",
+        "docs/plans/upstream-sync-2026-11-26.md",
+        "customization_registry.json"
       ],
-      "commits": [],
-      "touches_upstream_files": [],
+      "commits": ["9ef4a116ea8", "6e720c2b786"],
+      "touches_upstream_files": ["README.md"],
       "sync_notes": "Upstream ignores /.claude/skills/ and docs/**, so these files are force-added; a sync never conflicts on them unless upstream starts tracking the same paths.",
       "known_gaps": [
         "Windows still builds on GitHub-hosted runners; the self-hosted Windows VM runner is not set up.",
