@@ -1,7 +1,17 @@
 import { EventEmitter } from 'node:events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { UpdaterSetup } from './updater-setup'
-import { updaterMainWindow } from '../testing/updater-test-main-window'
+import type { BrowserWindow } from 'electron'
+
+function updaterMainWindow(
+  send: (channel: string, ...args: unknown[]) => void = vi.fn()
+): BrowserWindow {
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the updater only checks window and webContents destruction and sends status through this fixture.
+  return {
+    isDestroyed: () => false,
+    webContents: { isDestroyed: () => false, send }
+  } as unknown as BrowserWindow
+}
 
 const { autoUpdater, getVersion } = await vi.hoisted(async () => {
   const { EventEmitter } = await import('node:events')

@@ -6,22 +6,23 @@ import {
 } from '../../../../runtime/rpc/testing/runtime-compatibility-test-fixture'
 import { TEST_REPO } from '../../../repos/repo.test-fixture'
 import { makeWorktree } from '../worktree.test-fixture'
-import {
-  createTestStore,
-  resetRemoteRuntimeMocks,
-  resetWorktreeSliceModuleMemory,
-  runtimeEnvironmentCall,
-  runtimeEnvironmentTransportCall
-} from '../worktrees-slice-test-harness'
+import { createTestStore } from '../../../testing/app-store-test-fixture'
+import { clearRuntimeCompatibilityCache } from '../../../../runtime/rpc/compatibility/runtime-compatibility-cache'
+
+const runtimeEnvironmentCall = vi.fn()
+const runtimeEnvironmentTransportCall = vi.fn()
 
 vi.mock('sonner', () => ({
   toast: { warning: vi.fn(), info: vi.fn(), success: vi.fn(), error: vi.fn(), dismiss: vi.fn() }
 }))
-
 beforeEach(() => {
   vi.clearAllMocks()
-  resetRemoteRuntimeMocks()
-  resetWorktreeSliceModuleMemory()
+  clearRuntimeCompatibilityCache()
+  runtimeEnvironmentCall.mockReset()
+  runtimeEnvironmentTransportCall.mockReset()
+  vi.stubGlobal('window', {
+    api: { runtimeEnvironments: { call: runtimeEnvironmentTransportCall } }
+  })
 })
 
 describe('Dart links on a paired runtime', () => {

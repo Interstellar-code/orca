@@ -11,6 +11,11 @@ import { normalizeWorkspaceLineageByChildKey } from '../../applying-settings/ui-
 import { dropInferredParentsOverFolderParents } from '../workspace-lineage/folder-parent-lineage-persistence'
 import { normalizeCrossStoreLineageByChildKey } from '../../../../shared/worktree/lineage/cross-store-lineage-records'
 import { normalizePersistedBots, splitBotsByOlderBuildSupport } from '../../../../shared/bot-types'
+import { migrateRetiredBotAgent } from '../../../../shared/bots/bot-retired-agents'
+import {
+  markImmutableBotSnapshot,
+  orderBotsBySavedOrder
+} from '../../../../shared/bots/bot-lookup-index'
 import { withBotAutomationAgents } from '../../../bots/bot-automation-agent-sync'
 import {
   normalizeSshRemotePtyLease,
@@ -47,17 +52,38 @@ export function normalizeLoadedProfileState(
   const projectCatalog = normalizeLoadedProjectCatalog(parsed, markNeedsSave)
   // Normalize local first; host partitions drop global fields already owned here.
   const workspaceSession = normalizeLoadedLocalSession(parsed, defaults, markNeedsSave)
-  const allBots =
+  const parsedBotOrder = Array.isArray(parsed.botOrder)
+    ? parsed.botOrder.filter((id): id is string => typeof id === 'string')
+    : undefined
+  const savedBots = [
+    ...(Array.isArray(parsed.bots) ? parsed.bots : []),
+    ...(Array.isArray(parsed.botsNewerAgents) ? parsed.botsNewerAgents : [])
+  ]
+  const normalizedBots =
     parsed.bots === undefined && parsed.botsNewerAgents === undefined
       ? undefined
-      : normalizePersistedBots([
-          ...(Array.isArray(parsed.bots) ? parsed.bots : []),
-          ...(Array.isArray(parsed.botsNewerAgents) ? parsed.botsNewerAgents : [])
-        ])
+      : normalizePersistedBots(savedBots)
+  // Saved Gemini CLI bots load as Antigravity bots; save once so the switch is on disk.
+  if (savedBots.some((bot) => migrateRetiredBotAgent(bot) !== bot)) {
+    markNeedsSave()
+  }
+  const allBots =
+    normalizedBots && parsedBotOrder
+      ? orderBotsBySavedOrder(normalizedBots, parsedBotOrder)
+      : normalizedBots
   const { readable: bots, newer: botsNewerAgents } = allBots
     ? splitBotsByOlderBuildSupport(allBots)
     : { readable: undefined, newer: [] }
-  if (botsNewerAgents.length > 0 && parsed.bots?.length !== bots?.length) {
+  if (bots) {
+    markImmutableBotSnapshot(bots)
+  }
+  const hasStaleNewerBotState =
+    botsNewerAgents.length === 0 &&
+    (parsed.botsNewerAgents !== undefined || parsed.botOrder !== undefined)
+  if (
+    hasStaleNewerBotState ||
+    (botsNewerAgents.length > 0 && parsed.bots?.length !== bots?.length)
+  ) {
     markNeedsSave()
   }
   if (allBots !== undefined && parsed.botsPermissionDefaultMigrated !== true) {
@@ -94,9 +120,15 @@ export function normalizeLoadedProfileState(
     return decoded
   })
 
+  const {
+    botsNewerAgents: _parsedBotsNewerAgents,
+    botOrder: _parsedBotOrder,
+    ...restParsed
+  } = parsed
+
   return {
     ...defaults,
-    ...parsed,
+    ...restParsed,
     featureInteractionTelemetryBuckets: normalizeFeatureInteractionTelemetryBuckets(
       parsed.featureInteractionTelemetryBuckets
     ),
@@ -171,12 +203,12 @@ export function normalizeLoadedProfileState(
       : {
           bots,
           botsPermissionDefaultMigrated: true as const,
-          ...(botsNewerAgents.length > 0 || parsed.botsNewerAgents !== undefined
+          ...(botsNewerAgents.length > 0
             ? {
-                botsNewerAgents,
-                botOrder: Array.isArray(parsed.botOrder)
-                  ? parsed.botOrder
-                  : allBots?.map((bot) => bot.id)
+                botsNewerAgents: markImmutableBotSnapshot(botsNewerAgents),
+                botOrder: markImmutableBotSnapshot(
+                  parsedBotOrder ?? (allBots ?? []).map((bot) => bot.id)
+                )
               }
             : {})
         }),

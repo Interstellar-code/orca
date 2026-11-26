@@ -3,7 +3,10 @@ import { isMacInstallRequested } from '../mac-install/updater-mac-install'
 import { recordUpdaterLifecycle } from '../updater-lifecycle-diagnostics'
 import type { UpdateCheckOptions } from '../../../shared/updater/update-status-types'
 import type { ReleaseChannel } from '../../../shared/updater/release-channel'
+import { updaterCodedMessage } from '../../../shared/updater/updater-failure-copy'
+import { managesUpdates } from '../releases/updater-release-policy'
 import { UpdaterScheduling } from './updater-scheduling'
+import { isPendingTeamRestart } from './updater-state'
 
 export const FORK_BUILD_UPDATE_MESSAGE = 'This is a fork build; updates come from the rebuild job'
 
@@ -26,13 +29,22 @@ export abstract class UpdaterMenuChecks extends UpdaterScheduling {
     })
   }
 
+  protected skipForkBuildAutoUpdate(): void {
+    recordUpdaterLifecycle(
+      'fork_build_auto_update_skipped',
+      { version: app.getVersion(), installMode: this.updateInstallMode },
+      { level: 'info', message: 'Fork build: automatic updates disabled' }
+    )
+  }
+
   protected checkForUpdatesFromMenu(options?: UpdateCheckOptions): void {
     if (
       this.pendingQuitAndInstallTimer ||
       this.quitAndInstallInProgress ||
       isMacInstallRequested() ||
       this.macInstallerStagingVersion !== null ||
-      this.currentStatus.state === 'downloading'
+      this.currentStatus.state === 'downloading' ||
+      (isPendingTeamRestart(this.currentStatus) && !this.teamPolicyCheckPending)
     ) {
       return
     }
@@ -43,6 +55,18 @@ export abstract class UpdaterMenuChecks extends UpdaterScheduling {
     if (this.isForkBuild()) {
       // A fork build must never reach Stably's feed by any route, including the local-build picker.
       this.sendForkBuildUpdateStatus()
+      return
+    }
+    const team = this.getTeamUpdatePolicy?.()
+    if (
+      managesUpdates(team) &&
+      (options?.localBuild || options?.targetTag || options?.includePerfPrerelease)
+    ) {
+      this.sendStatus({
+        state: 'error',
+        ...updaterCodedMessage('teamUpdatePolicy'),
+        userInitiated: true
+      })
       return
     }
     if (options?.localBuild) {
@@ -64,7 +88,9 @@ export abstract class UpdaterMenuChecks extends UpdaterScheduling {
     const checkVariant = this.getUpdateCheckVariant(options)
     if (checkVariant === 'prerelease') {
       this.clearPrereleaseFallbackContext()
-      this.enableIncludePrerelease()
+      if (team?.updateChannel === undefined) {
+        this.enableIncludePrerelease()
+      }
     } else if (checkVariant === 'perf') {
       this.clearPrereleaseFallbackContext()
       // Perf checks need prerelease manifests without changing future default/background channels.
